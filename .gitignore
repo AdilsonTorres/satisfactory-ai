@@ -11,14 +11,13 @@ build/
 # uv
 uv.lock
 
-# Templates do jogo (capturas locais)
+# Templates do jogo (capturas locais, não versionar)
 templates/*.png
 
-# Screenshots de debug (geradas em runtime)
+# Gerados em runtime
 debug_screenshots/
+logs/
+stats/
 
 # Env
 .env
-
-# Logs
-*.log

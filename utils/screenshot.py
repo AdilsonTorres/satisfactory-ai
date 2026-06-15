@@ -1,9 +1,6 @@
 """
 utils/screenshot.py
-
-Salva screenshots de debug com timestamp.
-Usado automaticamente em erros e chamado periodicamente pelos workflows.
-Screenshots ficam em debug_screenshots/ (ignorado pelo git).
+Salva screenshots de debug com timestamp em debug_screenshots/.
 """
 import cv2
 import numpy as np
@@ -16,10 +13,6 @@ SCREENSHOTS_DIR = Path("debug_screenshots")
 
 
 def save_debug_screenshot(label: str, frame: Optional[np.ndarray] = None) -> Path:
-    """
-    Salva screenshot em debug_screenshots/{timestamp}_{label}.png.
-    Se frame for None, captura a tela atual.
-    """
     SCREENSHOTS_DIR.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     path = SCREENSHOTS_DIR / f"{ts}_{label}.png"
@@ -27,8 +20,7 @@ def save_debug_screenshot(label: str, frame: Optional[np.ndarray] = None) -> Pat
     if frame is None:
         with mss.mss() as sct:
             raw = sct.grab(sct.monitors[1])
-            frame = np.array(raw)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            frame = cv2.cvtColor(np.array(raw), cv2.COLOR_BGRA2BGR)
 
     cv2.imwrite(str(path), frame)
     return path
@@ -39,10 +31,7 @@ def save_annotated_screenshot(
     matches: dict[str, tuple[int, int, float]],
     frame: Optional[np.ndarray] = None,
 ) -> Path:
-    """
-    Salva screenshot com círculos e labels sobre os matches encontrados.
-    matches: {template_name: (center_x, center_y, confidence)}
-    """
+    """Screenshot com círculos e labels sobre cada match encontrado."""
     SCREENSHOTS_DIR.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     path = SCREENSHOTS_DIR / f"{ts}_{label}_annotated.png"
@@ -50,8 +39,7 @@ def save_annotated_screenshot(
     if frame is None:
         with mss.mss() as sct:
             raw = sct.grab(sct.monitors[1])
-            frame = np.array(raw)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            frame = cv2.cvtColor(np.array(raw), cv2.COLOR_BGRA2BGR)
     else:
         frame = frame.copy()
 
@@ -60,7 +48,7 @@ def save_annotated_screenshot(
         cv2.putText(
             frame,
             f"{name} {conf:.2f}",
-            (x - 10, y - 30),
+            (x - 10, y - 32),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,
             (0, 255, 0),

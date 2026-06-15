@@ -1,0 +1,67 @@
+# config.toml — Configuração central do Satisfactory Bot
+# Ajuste aqui sem precisar tocar no código Python.
+
+[temporal]
+address    = "localhost:7233"
+task_queue = "satisfactory-bot"
+
+# ---------------------------------------------------------------------------
+# Visão
+# ---------------------------------------------------------------------------
+[vision]
+monitor_index     = 1      # 1 = monitor principal
+default_threshold = 0.82
+
+# Thresholds individuais. Menus estáticos: 0.85+. Inimigos em movimento: 0.65–0.72.
+[vision.thresholds]
+gift_prompt               = 0.82
+inventory_open            = 0.82
+inventory_full_indicator  = 0.75
+health_low_indicator      = 0.78
+equipment_workshop_prompt = 0.85
+workshop_menu_open        = 0.85
+rifle_ammo_icon           = 0.85
+craft_button              = 0.87
+death_screen              = 0.90
+respawn_button            = 0.85
+enemy_remains_prompt      = 0.78
+enemy_spitter             = 0.70
+enemy_hog                 = 0.70
+enemy_stinger             = 0.68
+enemy_spitter_elite       = 0.70
+
+# ---------------------------------------------------------------------------
+# Navegação (segundos de tecla pressionada)
+# ESTES SÃO OS VALORES MAIS IMPORTANTES DE CALIBRAR.
+# Ajuste até o personagem chegar na frente do Workshop.
+# ---------------------------------------------------------------------------
+[navigation]
+to_workshop_forward_1    = 1.2
+to_workshop_strafe_right = 0.8
+to_workshop_forward_2    = 0.5
+back_to_base_backward_1  = 1.2
+back_to_base_strafe_left = 0.8
+back_to_base_backward_2  = 0.5
+
+# ---------------------------------------------------------------------------
+# Combate
+# ---------------------------------------------------------------------------
+[combat]
+aim_sensitivity_factor      = 0.8    # 1.0 gira muito, 0.5 gira pouco
+shoot_bursts                = 5      # cliques por rodada
+shoot_interval_seconds      = 0.08   # segundos entre cliques
+max_combat_duration_seconds = 10.0   # desiste do combate após X segundos
+dodge_direction             = "a"    # direção do dodge ao fugir
+
+# ---------------------------------------------------------------------------
+# Display
+# ---------------------------------------------------------------------------
+[display]
+screen_width  = 1920
+screen_height = 1080
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+[logging]
+level = "INFO"   # DEBUG | INFO | WARNING | ERROR

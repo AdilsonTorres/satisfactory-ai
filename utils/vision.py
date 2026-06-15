@@ -1,15 +1,17 @@
 """
 utils/vision.py
 Captura de tela e detecção visual via template matching.
-Sem ML, sem cloud. Tudo local com OpenCV.
+Thresholds são lidos automaticamente de config.toml por template.
 """
 import time
 import numpy as np
 import cv2
 import mss
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
+
+from utils import config as cfg
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
@@ -35,30 +37,36 @@ class MatchResult:
 class Vision:
     """
     Wrapper de visão computacional local.
-    Usa template matching do OpenCV — zero GPU, zero treinamento.
+    Thresholds padrão por template veem de config.toml[vision.thresholds].
     """
 
-    def __init__(self, monitor_index: int = 1, threshold: float = 0.80):
+    def __init__(self, monitor_index: Optional[int] = None, threshold: Optional[float] = None):
+        idx = monitor_index if monitor_index is not None else cfg.get("vision.monitor_index", 1)
         self.sct = mss.mss()
-        self.monitor = self.sct.monitors[monitor_index]
-        self.threshold = threshold
+        self.monitor = self.sct.monitors[idx]
+        self.default_threshold: float = threshold if threshold is not None else cfg.get(
+            "vision.default_threshold", 0.82
+        )
         self._template_cache: dict[str, np.ndarray] = {}
 
+    def _threshold_for(self, template_name: str, override: Optional[float]) -> float:
+        """Resolve threshold: override > config por template > default."""
+        if override is not None:
+            return override
+        return cfg.get(f"vision.thresholds.{template_name}", self.default_threshold)
+
     def capture(self) -> np.ndarray:
-        """Captura o frame atual da tela. ~1ms."""
+        """Captura o frame atual. ~1ms."""
         raw = self.sct.grab(self.monitor)
         frame = np.array(raw)
         return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
 
     def capture_region(self, x: int, y: int, w: int, h: int) -> np.ndarray:
-        """Captura só uma região — útil para checar menus específicos."""
         region = {"top": y, "left": x, "width": w, "height": h}
         raw = self.sct.grab(region)
-        frame = np.array(raw)
-        return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        return cv2.cvtColor(np.array(raw), cv2.COLOR_BGRA2BGR)
 
     def _load_template(self, template_name: str) -> np.ndarray:
-        """Carrega e cacheia template de disco."""
         if template_name not in self._template_cache:
             path = TEMPLATES_DIR / f"{template_name}.png"
             if not path.exists():
@@ -78,12 +86,15 @@ class Vision:
         frame: Optional[np.ndarray] = None,
         threshold: Optional[float] = None,
     ) -> MatchResult:
-        """Procura um template na tela. Retorna MatchResult com posição central do match."""
+        """
+        Procura template na tela.
+        threshold: se None, usa valor de config.toml[vision.thresholds.{name}] ou default.
+        """
         if frame is None:
             frame = self.capture()
 
         template = self._load_template(template_name)
-        thr = threshold if threshold is not None else self.threshold
+        thr = self._threshold_for(template_name, threshold)
 
         result = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
@@ -103,7 +114,6 @@ class Vision:
         poll_interval: float = 0.1,
         threshold: Optional[float] = None,
     ) -> MatchResult:
-        """Aguarda um template aparecer na tela até `timeout` segundos."""
         deadline = time.time() + timeout
         while time.time() < deadline:
             result = self.find(template_name, threshold=threshold)
@@ -113,7 +123,6 @@ class Vision:
         return MatchResult(found=False, template_name=template_name)
 
     def find_enemy(self, frame: Optional[np.ndarray] = None) -> Optional[MatchResult]:
-        """Tenta encontrar inimigos conhecidos na tela."""
         enemy_templates = [
             "enemy_spitter",
             "enemy_hog",
@@ -123,9 +132,9 @@ class Vision:
         if frame is None:
             frame = self.capture()
 
-        for tmpl_name in enemy_templates:
+        for name in enemy_templates:
             try:
-                result = self.find(tmpl_name, frame=frame, threshold=0.70)
+                result = self.find(name, frame=frame)
                 if result.found:
                     return result
             except FileNotFoundError:
@@ -138,7 +147,7 @@ class Vision:
         template_names: list[str],
         threshold: Optional[float] = None,
     ) -> dict[str, MatchResult]:
-        """Escaneia a tela por múltiplos templates de uma vez (uma única captura)."""
+        """Escaneia múltiplos templates em uma única captura."""
         frame = self.capture()
         results: dict[str, MatchResult] = {}
         for name in template_names:
@@ -149,10 +158,6 @@ class Vision:
         return results
 
     def read_text_region(self, x: int, y: int, w: int, h: int) -> str:
-        """
-        OCR em uma região específica da tela.
-        Requer pytesseract + Tesseract no PATH.
-        """
         try:
             import pytesseract
             region = self.capture_region(x, y, w, h)

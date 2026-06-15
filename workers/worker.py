@@ -1,19 +1,15 @@
 """
 workers/worker.py
 
-Worker do Temporal — registra workflows e activities e conecta ao servidor.
+Ponto de entrada do worker Temporal.
+Logging e configuração são lidos de config.toml.
 
-Pré-requisito: servidor Temporal rodando (docker compose up -d)
+Pré-requisito: docker compose up -d
 
 Como rodar:
     uv run python workers/worker.py
 
-Disparo de workflows:
-    temporal workflow start --workflow-type GiftFarmWorkflow --task-queue satisfactory-bot --input '{}'
-    temporal workflow start --workflow-type CombatPatrolWorkflow --task-queue satisfactory-bot --input '{"max_kills": 20}'
-    temporal workflow start --workflow-type AfkSessionWorkflow --task-queue satisfactory-bot --input '{}'
-
-Controle em runtime:
+Controle de workflows em runtime:
     temporal workflow signal --workflow-id <id> --name pause
     temporal workflow signal --workflow-id <id> --name resume
     temporal workflow signal --workflow-id <id> --name stop
@@ -24,6 +20,9 @@ import logging
 
 from temporalio.client import Client
 from temporalio.worker import Worker
+
+from utils import config as cfg
+from utils import logger as log
 
 from activities.game_activities import (
     collect_doggo_gift,
@@ -36,6 +35,7 @@ from activities.game_activities import (
     engage_enemy,
     handle_death_respawn,
     take_debug_screenshot,
+    persist_session_stats,
 )
 from workflows.satisfactory_workflows import (
     GiftFarmWorkflow,
@@ -43,24 +43,22 @@ from workflows.satisfactory_workflows import (
     AfkSessionWorkflow,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-TASK_QUEUE = "satisfactory-bot"
-TEMPORAL_ADDRESS = "localhost:7233"
+_logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    logger.info("Conectando ao Temporal em %s ...", TEMPORAL_ADDRESS)
-    client = await Client.connect(TEMPORAL_ADDRESS)
-    logger.info("Conectado.")
+    log.setup(cfg.get("logging.level", "INFO"))
+
+    address = cfg.get("temporal.address", "localhost:7233")
+    task_queue = cfg.get("temporal.task_queue", "satisfactory-bot")
+
+    _logger.info("Conectando ao Temporal em %s ...", address)
+    client = await Client.connect(address)
+    _logger.info("Conectado. Task queue: '%s'", task_queue)
 
     async with Worker(
         client,
-        task_queue=TASK_QUEUE,
+        task_queue=task_queue,
         workflows=[
             GiftFarmWorkflow,
             CombatPatrolWorkflow,
@@ -77,13 +75,12 @@ async def main() -> None:
             engage_enemy,
             handle_death_respawn,
             take_debug_screenshot,
+            persist_session_stats,
         ],
         # Inputs são sequenciais — manter em 1 para não sobrepor ações no jogo
         max_concurrent_activities=1,
     ):
-        logger.info("Worker ativo. Task queue: '%s'", TASK_QUEUE)
-        logger.info("UI Temporal: http://localhost:8233")
-        logger.info("Aguardando workflows... (Ctrl+C para parar)")
+        _logger.info("Worker ativo. UI: http://localhost:8233 | Ctrl+C para parar")
         await asyncio.Future()
 
 

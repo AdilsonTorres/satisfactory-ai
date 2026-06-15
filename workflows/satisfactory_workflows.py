@@ -1,10 +1,11 @@
 """
 workflows/satisfactory_workflows.py
 
-Workflows do Temporal com:
-- Signals: pause / resume / stop  (controle em runtime)
-- Queries: get_stats               (checar estado sem parar)
-- Screenshots periódicos           (verificação visual do que o bot está vendo)
+Workflows com:
+- Signals: pause / resume / stop
+- Queries: get_stats
+- Screenshots periódicos configuráveis
+- Estatísticas persistidas em JSON ao final (via persist_session_stats activity)
 
 Controle via CLI:
     temporal workflow signal --workflow-id <id> --name pause
@@ -29,6 +30,7 @@ with workflow.unsafe.imports_passed_through():
         engage_enemy,
         handle_death_respawn,
         take_debug_screenshot,
+        persist_session_stats,
     )
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,8 @@ GAME_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
     maximum_attempts=3,
     backoff_coefficient=2.0,
+    # FileNotFoundError = template faltando = bug, não retry
+    # NavigationError after max_attempts = aborta o workflow
     non_retryable_error_types=["FileNotFoundError"],
 )
 
@@ -48,63 +52,72 @@ NAV_RETRY = RetryPolicy(
 
 NO_RETRY = RetryPolicy(maximum_attempts=1)
 
-_SCREENSHOT_TIMEOUT = timedelta(seconds=10)
+_SS_TIMEOUT = timedelta(seconds=10)
+_SS_RETRY   = RetryPolicy(maximum_attempts=1)
 
 
 async def _screenshot(label: str) -> None:
-    """Atalho para tirar screenshot a partir de um workflow."""
     await workflow.execute_activity(
         take_debug_screenshot,
         args=[label],
-        schedule_to_close_timeout=_SCREENSHOT_TIMEOUT,
-        retry_policy=NO_RETRY,
+        schedule_to_close_timeout=_SS_TIMEOUT,
+        retry_policy=_SS_RETRY,
+    )
+
+
+async def _save_stats(workflow_type: str, stats: dict) -> None:
+    await workflow.execute_activity(
+        persist_session_stats,
+        args=[workflow_type, stats],
+        schedule_to_close_timeout=timedelta(seconds=15),
+        retry_policy=RetryPolicy(maximum_attempts=2),
+    )
+
+
+async def _run_craft_cycle(ammo_per_craft: int) -> None:
+    await workflow.execute_activity(
+        navigate_to_equipment_workshop,
+        schedule_to_close_timeout=timedelta(seconds=20),
+        heartbeat_timeout=timedelta(seconds=8),
+        retry_policy=NAV_RETRY,
+    )
+    await workflow.execute_activity(
+        craft_rifle_ammo,
+        args=[ammo_per_craft],
+        schedule_to_close_timeout=timedelta(seconds=30),
+        heartbeat_timeout=timedelta(seconds=8),
+        retry_policy=GAME_RETRY,
+    )
+    await workflow.execute_activity(
+        navigate_back_to_base,
+        schedule_to_close_timeout=timedelta(seconds=20),
+        retry_policy=NAV_RETRY,
     )
 
 
 # ---------------------------------------------------------------------------
-# Workflow: AFK Gift Farm
+# Mixin de controle (pause / resume / stop / get_stats)
 # ---------------------------------------------------------------------------
 
-@workflow.defn
-class GiftFarmWorkflow:
-    """
-    Loop principal de AFK farm de gifts dos Lizard Doggos.
-
-    Parâmetros:
-        ammo_per_craft:          quantidade de Rifle Ammo por ciclo de craft (default 50)
-        screenshot_every_cycles: tira screenshot a cada N ciclos (0 = desligado)
-
-    Signals:
-        pause   — pausa o loop após o ciclo atual terminar
-        resume  — retoma o loop pausado
-        stop    — encerra o workflow graciosamente
-
-    Query:
-        get_stats — retorna {gifts, ammo_crafted, cycles, status}
-
-    Exemplo:
-        temporal workflow start \\
-            --workflow-type GiftFarmWorkflow \\
-            --task-queue satisfactory-bot \\
-            --input '{"ammo_per_craft": 50, "screenshot_every_cycles": 10}'
-    """
+class _ControlMixin:
+    """Signals e query compartilhados por todos os workflows."""
 
     def __init__(self) -> None:
         self._paused = False
         self._stop_requested = False
-        self._stats: dict = {"gifts": 0, "ammo_crafted": 0, "cycles": 0, "status": "running"}
+        self._stats: dict = {"status": "running"}
 
     @workflow.signal
     async def pause(self) -> None:
         self._paused = True
         self._stats["status"] = "paused"
-        workflow.logger.info("Workflow pausado.")
+        workflow.logger.info("Pausado.")
 
     @workflow.signal
     async def resume(self) -> None:
         self._paused = False
         self._stats["status"] = "running"
-        workflow.logger.info("Workflow retomado.")
+        workflow.logger.info("Retomado.")
 
     @workflow.signal
     async def stop(self) -> None:
@@ -121,13 +134,30 @@ class GiftFarmWorkflow:
         while self._paused and not self._stop_requested:
             await workflow.sleep(timedelta(seconds=1))
 
-    @workflow.run
-    async def run(
-        self,
-        ammo_per_craft: int = 50,
-        screenshot_every_cycles: int = 10,
-    ) -> dict:
 
+# ---------------------------------------------------------------------------
+# Workflow: AFK Gift Farm
+# ---------------------------------------------------------------------------
+
+@workflow.defn
+class GiftFarmWorkflow(_ControlMixin):
+    """
+    Loop de AFK farm de gifts dos Lizard Doggos.
+
+    Parâmetros:
+        ammo_per_craft (int):           Rifle Ammo por ciclo de craft [50]
+        screenshot_every_cycles (int):  Screenshot a cada N ciclos [10]
+
+    Query get_stats retorna:
+        {gifts, ammo_crafted, cycles, status}
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._stats = {"gifts": 0, "ammo_crafted": 0, "cycles": 0, "status": "running"}
+
+    @workflow.run
+    async def run(self, ammo_per_craft: int = 50, screenshot_every_cycles: int = 10) -> dict:
         workflow.logger.info("GiftFarmWorkflow iniciado.")
 
         while not self._stop_requested:
@@ -137,13 +167,11 @@ class GiftFarmWorkflow:
 
             self._stats["cycles"] += 1
             cycle = self._stats["cycles"]
-
             workflow.logger.info(
-                "Ciclo #%d | Gifts: %d | Ammo: %d",
+                "Ciclo #%d | gifts=%d ammo=%d",
                 cycle, self._stats["gifts"], self._stats["ammo_crafted"]
             )
 
-            # Screenshot periódico para verificação visual
             if screenshot_every_cycles > 0 and cycle % screenshot_every_cycles == 0:
                 await _screenshot(f"gift_cycle_{cycle}")
 
@@ -161,15 +189,14 @@ class GiftFarmWorkflow:
                 retry_policy=GAME_RETRY,
             )
             if inv_full:
-                workflow.logger.info("Inventário cheio — craftando munição.")
-                await _screenshot(f"inv_full_cycle_{cycle}")
+                await _screenshot(f"inv_full_{cycle}")
                 await _run_craft_cycle(ammo_per_craft)
                 self._stats["ammo_crafted"] += ammo_per_craft
 
             await workflow.sleep(timedelta(seconds=3))
 
         self._stats["status"] = "stopped"
-        workflow.logger.info("GiftFarmWorkflow encerrado: %s", self._stats)
+        await _save_stats("GiftFarmWorkflow", self._stats)
         return self._stats
 
 
@@ -178,64 +205,28 @@ class GiftFarmWorkflow:
 # ---------------------------------------------------------------------------
 
 @workflow.defn
-class CombatPatrolWorkflow:
+class CombatPatrolWorkflow(_ControlMixin):
     """
-    Patrulha uma área, mata inimigos e coleta remains.
-    Estratégia: defesa estática — o personagem fica fixo e reage ao que aparece na tela.
+    Patrulha estática: fica no lugar e reage a inimigos que entram no campo de visão.
 
     Parâmetros:
-        max_kills:             kills para encerrar o workflow (default 20)
-        screen_w / screen_h:  resolução do jogo (default 1920x1080)
-        screenshot_every_kills: screenshot a cada N kills (0 = desligado)
+        max_kills (int):               Kills para encerrar [20]
+        screenshot_every_kills (int):  Screenshot a cada N kills [5]
 
-    Signals:  pause / resume / stop
-    Query:    get_stats → {kills, deaths, escaped, status}
-
-    Exemplo:
-        temporal workflow start \\
-            --workflow-type CombatPatrolWorkflow \\
-            --task-queue satisfactory-bot \\
-            --input '{"max_kills": 30, "screenshot_every_kills": 5}'
+    Query get_stats retorna:
+        {kills, deaths, escaped, status}
     """
 
     def __init__(self) -> None:
-        self._paused = False
-        self._stop_requested = False
-        self._stats: dict = {"kills": 0, "deaths": 0, "escaped": 0, "status": "running"}
-
-    @workflow.signal
-    async def pause(self) -> None:
-        self._paused = True
-        self._stats["status"] = "paused"
-
-    @workflow.signal
-    async def resume(self) -> None:
-        self._paused = False
-        self._stats["status"] = "running"
-
-    @workflow.signal
-    async def stop(self) -> None:
-        self._stop_requested = True
-        self._paused = False
-        self._stats["status"] = "stopping"
-
-    @workflow.query
-    def get_stats(self) -> dict:
-        return self._stats
-
-    async def _wait_if_paused(self) -> None:
-        while self._paused and not self._stop_requested:
-            await workflow.sleep(timedelta(seconds=1))
+        super().__init__()
+        self._stats = {"kills": 0, "deaths": 0, "escaped": 0, "status": "running"}
 
     @workflow.run
     async def run(
         self,
         max_kills: int = 20,
-        screen_w: int = 1920,
-        screen_h: int = 1080,
         screenshot_every_kills: int = 5,
     ) -> dict:
-
         workflow.logger.info("CombatPatrolWorkflow iniciado. max_kills=%d", max_kills)
 
         while self._stats["kills"] < max_kills and not self._stop_requested:
@@ -254,12 +245,12 @@ class CombatPatrolWorkflow:
                 continue
 
             workflow.logger.info(
-                "Inimigo '%s' detectado em (%d, %d)", enemy["type"], enemy["x"], enemy["y"]
+                "Inimigo '%s' em (%d,%d)", enemy["type"], enemy["x"], enemy["y"]
             )
 
             result = await workflow.execute_activity(
                 engage_enemy,
-                args=[enemy["x"], enemy["y"], screen_w, screen_h],
+                args=[enemy["x"], enemy["y"]],
                 schedule_to_close_timeout=timedelta(seconds=30),
                 heartbeat_timeout=timedelta(seconds=5),
                 retry_policy=NO_RETRY,
@@ -268,97 +259,58 @@ class CombatPatrolWorkflow:
             if result == "killed":
                 self._stats["kills"] += 1
                 kills = self._stats["kills"]
-                workflow.logger.info("Kill #%d confirmado.", kills)
+                workflow.logger.info("Kill #%d.", kills)
                 if screenshot_every_kills > 0 and kills % screenshot_every_kills == 0:
                     await _screenshot(f"kill_{kills}")
 
             elif result == "died":
                 self._stats["deaths"] += 1
-                workflow.logger.warning("Morreu! (morte #%d) Tentando respawn...", self._stats["deaths"])
-                respawned = await workflow.execute_activity(
+                workflow.logger.warning("Morreu (morte #%d). Respawnando...", self._stats["deaths"])
+                await workflow.execute_activity(
                     handle_death_respawn,
                     schedule_to_close_timeout=timedelta(seconds=15),
                     retry_policy=NAV_RETRY,
                 )
-                if not respawned:
-                    workflow.logger.error("Falha no respawn — abortando.")
-                    break
                 await workflow.sleep(timedelta(seconds=5))
 
             elif result == "escaped":
                 self._stats["escaped"] += 1
-                workflow.logger.info("Fugiu do combate (vida baixa). Aguardando regeneração.")
+                workflow.logger.info("Fugiu (vida baixa). Aguardando regeneração.")
                 await workflow.sleep(timedelta(seconds=8))
 
         self._stats["status"] = "stopped"
-        workflow.logger.info("CombatPatrolWorkflow encerrado: %s", self._stats)
+        await _save_stats("CombatPatrolWorkflow", self._stats)
         return self._stats
 
 
 # ---------------------------------------------------------------------------
-# Workflow: Sessão Completa AFK
+# Workflow: Sessão AFK Completa
 # ---------------------------------------------------------------------------
 
 @workflow.defn
-class AfkSessionWorkflow:
+class AfkSessionWorkflow(_ControlMixin):
     """
-    Combina farm de gifts + patrulha de combate em rotações alternadas.
+    Rotações alternadas de gift farm + patrulha de combate.
 
     Parâmetros:
-        gift_cycles:               ciclos de gift farm por rotação
-        combat_kills_per_rotation: kills de combate por rotação
-        total_rotations:           quantas rotações executar
-        screenshot_every_rotations: screenshot ao início de cada N rotações (0 = desligado)
+        gift_cycles (int):                  Ciclos de gift por rotação [10]
+        combat_kills_per_rotation (int):    Kills de combate por rotação [5]
+        total_rotations (int):              Total de rotações [20]
+        screenshot_every_rotations (int):   Screenshot a cada N rotações [1]
 
-    Signals:  pause / resume / stop
-    Query:    get_stats
-
-    Exemplo:
-        temporal workflow start \\
-            --workflow-type AfkSessionWorkflow \\
-            --task-queue satisfactory-bot \\
-            --input '{
-                "gift_cycles": 10,
-                "combat_kills_per_rotation": 5,
-                "total_rotations": 20,
-                "screenshot_every_rotations": 1
-            }'
+    Query get_stats retorna:
+        {rotation, total_gifts, total_kills, total_ammo, status}
     """
 
     def __init__(self) -> None:
-        self._paused = False
-        self._stop_requested = False
-        self._stats: dict = {
+        super().__init__()
+        self._stats = {
             "rotation": 0,
             "total_gifts": 0,
             "total_kills": 0,
             "total_ammo": 0,
             "status": "running",
         }
-
-    @workflow.signal
-    async def pause(self) -> None:
-        self._paused = True
-        self._stats["status"] = "paused"
-
-    @workflow.signal
-    async def resume(self) -> None:
-        self._paused = False
-        self._stats["status"] = "running"
-
-    @workflow.signal
-    async def stop(self) -> None:
-        self._stop_requested = True
-        self._paused = False
-        self._stats["status"] = "stopping"
-
-    @workflow.query
-    def get_stats(self) -> dict:
-        return self._stats
-
-    async def _wait_if_paused(self) -> None:
-        while self._paused and not self._stop_requested:
-            await workflow.sleep(timedelta(seconds=1))
 
     @workflow.run
     async def run(
@@ -372,12 +324,11 @@ class AfkSessionWorkflow:
         for rotation in range(total_rotations):
             if self._stop_requested:
                 break
-
             await self._wait_if_paused()
-            self._stats["rotation"] = rotation + 1
 
+            self._stats["rotation"] = rotation + 1
             workflow.logger.info(
-                "=== Rotação %d/%d | Gifts: %d | Kills: %d ===",
+                "=== Rotação %d/%d | gifts=%d kills=%d ===",
                 rotation + 1, total_rotations,
                 self._stats["total_gifts"], self._stats["total_kills"]
             )
@@ -445,30 +396,5 @@ class AfkSessionWorkflow:
                 await workflow.sleep(timedelta(seconds=2))
 
         self._stats["status"] = "completed"
-        workflow.logger.info("AfkSessionWorkflow concluído: %s", self._stats)
+        await _save_stats("AfkSessionWorkflow", self._stats)
         return self._stats
-
-
-# ---------------------------------------------------------------------------
-# Helper interno
-# ---------------------------------------------------------------------------
-
-async def _run_craft_cycle(ammo_per_craft: int) -> None:
-    await workflow.execute_activity(
-        navigate_to_equipment_workshop,
-        schedule_to_close_timeout=timedelta(seconds=20),
-        heartbeat_timeout=timedelta(seconds=8),
-        retry_policy=NAV_RETRY,
-    )
-    await workflow.execute_activity(
-        craft_rifle_ammo,
-        args=[ammo_per_craft],
-        schedule_to_close_timeout=timedelta(seconds=30),
-        heartbeat_timeout=timedelta(seconds=8),
-        retry_policy=GAME_RETRY,
-    )
-    await workflow.execute_activity(
-        navigate_back_to_base,
-        schedule_to_close_timeout=timedelta(seconds=20),
-        retry_policy=NAV_RETRY,
-    )

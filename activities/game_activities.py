@@ -1,13 +1,18 @@
 """
 activities/game_activities.py
 
-Activities do Temporal — cada uma é uma ação atômica no jogo.
+Activities do Temporal — ações atômicas no jogo.
 
-Convenção:
-- Activities lançam exceções para erros recuperáveis (Temporal vai retry)
-- Retornam False/None para estados esperados de "não encontrado" (sem retry)
-- Activities longas chamam activity.heartbeat() para evitar timeout do Temporal
-- Em qualquer exceção não tratada, um screenshot é salvo automaticamente em debug_screenshots/
+Convenções:
+- Exceções tipadas (VisionError, NavigationError, MenuError) aparecem
+  de forma descritiva no histórico do Temporal.
+- Activities longas chamam activity.heartbeat() periodicamente para
+  evitar timeout falso do Temporal.
+- screenshot_on_error: qualquer exceção não tratada salva screenshot
+  automaticamente antes de propagar.
+- BUG CORRIGIDO: check_health_low não era chamado como activity dentro
+  de engage_enemy (não é possível chamar activity dentro de activity).
+  Agora usa _check_health_inline() que acessa o Vision diretamente.
 """
 import time
 import logging
@@ -16,7 +21,10 @@ from temporalio import activity
 
 from utils.vision import Vision
 from utils.screenshot import save_debug_screenshot
+from utils.exceptions import VisionError, NavigationError, MenuError, RespawnError
+from utils import config as cfg
 from utils import input as inp
+from utils import stats as stats_module
 
 logger = logging.getLogger(__name__)
 
@@ -26,37 +34,55 @@ _vision: Vision | None = None
 def get_vision() -> Vision:
     global _vision
     if _vision is None:
-        _vision = Vision(monitor_index=1, threshold=0.82)
+        _vision = Vision()
     return _vision
 
 
 @contextmanager
 def screenshot_on_error(label: str):
-    """
-    Salva screenshot automaticamente se a activity lançar uma exceção.
-    Inclui o nome da activity e o erro no nome do arquivo.
-    """
+    """Salva screenshot se a activity lançar exceção."""
     try:
         yield
     except Exception as exc:
         path = save_debug_screenshot(f"error_{label}")
-        logger.error("[%s] Erro: %s | Screenshot: %s", label, exc, path)
+        logger.error("[%s] %s: %s | screenshot: %s", label, type(exc).__name__, exc, path)
         raise
 
 
+def _check_health_inline(v: Vision) -> bool:
+    """
+    Checa vida diretamente via Vision — sem dispatch Temporal.
+    Usado dentro de engage_enemy (não é possível chamar outra activity
+    de dentro de uma activity; usar o decorator seria chamar a função local,
+    não uma nova execução do Temporal).
+    """
+    result = v.find("health_low_indicator")
+    if result.found:
+        logger.warning("Vida baixa detectada (conf=%.2f).", result.confidence)
+    return result.found
+
+
 # ---------------------------------------------------------------------------
-# Activity: Debug Screenshot
+# Activity: Screenshot
 # ---------------------------------------------------------------------------
 
 @activity.defn
 async def take_debug_screenshot(label: str = "manual") -> str:
-    """
-    Tira um screenshot imediato e salva em debug_screenshots/.
-    Pode ser chamado a qualquer momento a partir de um workflow.
-    Retorna o caminho do arquivo salvo.
-    """
+    """Tira screenshot imediato. Pode ser chamado de qualquer workflow."""
     path = save_debug_screenshot(label)
-    logger.info("Screenshot salvo: %s", path)
+    logger.info("Screenshot: %s", path)
+    return str(path)
+
+
+# ---------------------------------------------------------------------------
+# Activity: Persist Stats
+# ---------------------------------------------------------------------------
+
+@activity.defn
+async def persist_session_stats(workflow_type: str, stats: dict) -> str:
+    """Salva estatísticas de sessão em stats/ ao final do workflow."""
+    path = stats_module.save(workflow_type, stats)
+    logger.info("Estatísticas salvas: %s", path)
     return str(path)
 
 
@@ -66,10 +92,6 @@ async def take_debug_screenshot(label: str = "manual") -> str:
 
 @activity.defn
 async def collect_doggo_gift() -> bool:
-    """
-    Tenta coletar gift de Lizard Doggo.
-    Retorna True se coletou, False se nenhum gift disponível.
-    """
     with screenshot_on_error("collect_doggo_gift"):
         v = get_vision()
         result = v.find("gift_prompt")
@@ -78,7 +100,7 @@ async def collect_doggo_gift() -> bool:
             logger.debug("Nenhum gift (conf=%.2f)", result.confidence)
             return False
 
-        logger.info("Gift encontrado em (%d, %d) conf=%.2f", result.x, result.y, result.confidence)
+        logger.info("Gift em (%d,%d) conf=%.2f — coletando.", result.x, result.y, result.confidence)
         inp.interact()
 
         confirm = v.wait_for("inventory_open", timeout=3.0)
@@ -88,24 +110,21 @@ async def collect_doggo_gift() -> bool:
             logger.info("Gift coletado.")
             return True
 
-        raise RuntimeError("Menu de inventário não abriu após interagir com gift")
+        raise MenuError("Inventário não abriu após interagir com gift")
 
 
 @activity.defn
 async def check_inventory_full() -> bool:
     v = get_vision()
-    result = v.find("inventory_full_indicator", threshold=0.75)
+    result = v.find("inventory_full_indicator")
     logger.debug("Inventário cheio: %s (conf=%.2f)", result.found, result.confidence)
     return result.found
 
 
 @activity.defn
 async def check_health_low() -> bool:
-    v = get_vision()
-    result = v.find("health_low_indicator", threshold=0.78)
-    if result.found:
-        logger.warning("Vida baixa detectada (conf=%.2f)", result.confidence)
-    return result.found
+    """Checa vida baixa. Quando chamado de um workflow, usa dispatch Temporal normal."""
+    return _check_health_inline(get_vision())
 
 
 # ---------------------------------------------------------------------------
@@ -115,46 +134,47 @@ async def check_health_low() -> bool:
 @activity.defn
 async def navigate_to_equipment_workshop() -> bool:
     """
-    Navega até o Equipment Workshop usando sequência de teclas.
-    Adapte as durações para o layout da sua base.
-    ESTE É O PONTO MAIS COMUM DE FALHA — calibre aqui primeiro.
+    Navega até o Equipment Workshop via sequência de teclas configurada em config.toml.
+    Se falhar, ajuste [navigation] no config.toml.
     """
     with screenshot_on_error("navigate_to_workshop"):
+        nav = cfg.get("navigation", {})
         logger.info("Navegando para o Equipment Workshop...")
         activity.heartbeat("iniciando navegação")
 
-        inp.move_forward(1.2)
-        activity.heartbeat("andando para frente")
-        inp.strafe_right(0.8)
-        inp.move_forward(0.5)
+        inp.move_forward(nav.get("to_workshop_forward_1", 1.2))
+        activity.heartbeat("andando para frente (1)")
+        inp.strafe_right(nav.get("to_workshop_strafe_right", 0.8))
+        inp.move_forward(nav.get("to_workshop_forward_2", 0.5))
 
         v = get_vision()
         result = v.wait_for("equipment_workshop_prompt", timeout=5.0)
         if not result.found:
-            raise RuntimeError(
+            raise NavigationError(
                 "Equipment Workshop não encontrado após navegação. "
-                "Verifique o template e as durações de movimento em utils/input.py"
+                "Ajuste [navigation] em config.toml."
             )
 
-        logger.info("Workshop encontrado em (%d, %d)", result.x, result.y)
+        logger.info("Workshop em (%d,%d).", result.x, result.y)
         return True
 
 
 @activity.defn
 async def craft_rifle_ammo(quantity: int = 50) -> int:
-    """Abre o Equipment Workshop e crafa munição de rifle."""
     with screenshot_on_error("craft_rifle_ammo"):
         v = get_vision()
 
         inp.interact()
         activity.heartbeat("aguardando menu do workshop")
         if not v.wait_for("workshop_menu_open", timeout=4.0).found:
-            raise RuntimeError("Menu do Workshop não abriu")
+            raise MenuError("Menu do Workshop não abriu")
 
         ammo_icon = v.find("rifle_ammo_icon")
         if not ammo_icon.found:
             inp.close_menu()
-            raise RuntimeError("Ícone de Rifle Ammo não encontrado no menu")
+            r = ammo_icon
+            raise VisionError("rifle_ammo_icon", r.confidence,
+                               cfg.get("vision.thresholds.rifle_ammo_icon", 0.85))
 
         inp.click(ammo_icon.x, ammo_icon.y)
         time.sleep(0.2)
@@ -162,7 +182,8 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
         craft_btn = v.find("craft_button")
         if not craft_btn.found:
             inp.close_menu()
-            raise RuntimeError("Botão de craft não encontrado")
+            raise VisionError("craft_button", craft_btn.confidence,
+                               cfg.get("vision.thresholds.craft_button", 0.87))
 
         activity.heartbeat(f"craftando {quantity} unidades")
         import pydirectinput
@@ -173,15 +194,16 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
         time.sleep(0.5)
         inp.close_menu()
 
-        logger.info("Craftados ~%d rounds de Rifle Ammo", quantity)
+        logger.info("Craftados ~%d Rifle Ammo.", quantity)
         return quantity
 
 
 @activity.defn
 async def navigate_back_to_base() -> bool:
-    inp.move_backward(1.2)
-    inp.strafe_left(0.8)
-    inp.move_backward(0.5)
+    nav = cfg.get("navigation", {})
+    inp.move_backward(nav.get("back_to_base_backward_1", 1.2))
+    inp.strafe_left(nav.get("back_to_base_strafe_left", 0.8))
+    inp.move_backward(nav.get("back_to_base_backward_2", 0.5))
     return True
 
 
@@ -191,13 +213,14 @@ async def navigate_back_to_base() -> bool:
 
 @activity.defn
 async def scan_for_enemy() -> dict:
-    """Escaneia a tela em busca de inimigos conhecidos."""
     v = get_vision()
     result = v.find_enemy()
 
     if result:
-        logger.info("Inimigo detectado: %s em (%d, %d) conf=%.2f",
-                    result.template_name, result.x, result.y, result.confidence)
+        logger.info(
+            "Inimigo '%s' em (%d,%d) conf=%.2f",
+            result.template_name, result.x, result.y, result.confidence
+        )
         return {
             "found": True,
             "x": result.x,
@@ -213,45 +236,51 @@ async def scan_for_enemy() -> dict:
 async def engage_enemy(
     target_x: int,
     target_y: int,
-    screen_w: int = 1920,
-    screen_h: int = 1080,
+    screen_w: Optional[int] = None,
+    screen_h: Optional[int] = None,
 ) -> str:
     """
-    Engaja um inimigo em (target_x, target_y).
-    Retorna: "killed" | "escaped" | "died"
+    Engaja inimigo em (target_x, target_y).
+    Parâmetros de combate veem de config.toml[combat].
+    Retorna: 'killed' | 'escaped' | 'died'
     """
     with screenshot_on_error("engage_enemy"):
         v = get_vision()
-        center_x, center_y = screen_w // 2, screen_h // 2
+        disp = cfg.get("display", {})
+        sw = screen_w or disp.get("screen_width", 1920)
+        sh = screen_h or disp.get("screen_height", 1080)
+        center_x, center_y = sw // 2, sh // 2
+        max_dur = cfg.get("combat.max_combat_duration_seconds", 10.0)
 
-        logger.info("Engajando inimigo em (%d, %d)", target_x, target_y)
-        inp.aim_at_screen_position(target_x, target_y, center_x, center_y, sensitivity_factor=0.8)
+        logger.info("Engajando inimigo em (%d,%d)", target_x, target_y)
+        inp.aim_at_screen_position(target_x, target_y, center_x, center_y)
         time.sleep(0.1)
 
         combat_start = time.time()
-        shots_fired = 0
+        bursts_fired = 0
 
-        while time.time() - combat_start < 10.0:
-            activity.heartbeat(f"em combate — {shots_fired} bursts disparados")
+        while time.time() - combat_start < max_dur:
+            activity.heartbeat(f"combate — {bursts_fired} bursts")
 
-            if await check_health_low():
+            # _check_health_inline evita chamar outra activity de dentro de activity
+            if _check_health_inline(v):
                 logger.warning("Vida baixa — fugindo.")
-                inp.dodge("a")
+                inp.dodge()
                 inp.move_backward(1.0)
                 return "escaped"
 
-            inp.shoot(bursts=5, interval=0.08)
-            shots_fired += 5
+            inp.shoot()
+            bursts_fired += 1
             time.sleep(0.1)
 
             enemy = v.find_enemy()
             if not enemy:
-                logger.info("Inimigo eliminado após %d bursts.", shots_fired)
+                logger.info("Inimigo eliminado após %d bursts.", bursts_fired)
                 break
 
-            inp.aim_at_screen_position(enemy.x, enemy.y, center_x, center_y, sensitivity_factor=0.8)
+            inp.aim_at_screen_position(enemy.x, enemy.y, center_x, center_y)
 
-        if v.find("death_screen", threshold=0.90).found:
+        if v.find("death_screen").found:
             save_debug_screenshot("player_death")
             logger.error("Personagem morreu durante combate.")
             return "died"
@@ -268,18 +297,23 @@ async def engage_enemy(
         return "killed"
 
 
+# Resolução do import circular com Optional
+from typing import Optional  # noqa: E402
+
+
 @activity.defn
 async def handle_death_respawn() -> bool:
-    """Detecta tela de morte e clica em respawn."""
     with screenshot_on_error("handle_death_respawn"):
         v = get_vision()
-        respawn_btn = v.find("respawn_button", threshold=0.85)
-        if respawn_btn.found:
-            inp.click(respawn_btn.x, respawn_btn.y)
+        btn = v.find("respawn_button")
+        if btn.found:
+            inp.click(btn.x, btn.y)
             logger.info("Clicou em respawn.")
             time.sleep(3.0)
             return True
 
         save_debug_screenshot("respawn_not_found")
-        logger.error("Botão de respawn não encontrado na tela.")
-        return False
+        raise RespawnError(
+            f"Botão de respawn não encontrado (conf={btn.confidence:.3f}). "
+            "Verifique se o template 'respawn_button.png' está correto."
+        )
