@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+.uv/
+dist/
+build/
+*.egg-info/
+
+# uv
+uv.lock
+
+# Templates do jogo (capturas locais)
+templates/*.png
+
+# Screenshots de debug (geradas em runtime)
+debug_screenshots/
+
+# Env
+.env
+
+# Logs
+*.log
