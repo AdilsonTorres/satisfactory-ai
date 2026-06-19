@@ -17,6 +17,7 @@ Convenções:
 import time
 import logging
 from contextlib import contextmanager
+from typing import Optional
 from temporalio import activity
 
 from utils.vision import Vision
@@ -186,10 +187,12 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
                                cfg.get("vision.thresholds.craft_button", 0.87))
 
         activity.heartbeat(f"craftando {quantity} unidades")
-        import pydirectinput
-        pydirectinput.mouseDown(craft_btn.x, craft_btn.y)
+        from pynput.mouse import Controller as _MC, Button as _Btn
+        _m = _MC()
+        _m.position = (craft_btn.x, craft_btn.y)
+        _m.press(_Btn.left)
         time.sleep(0.05 * quantity)
-        pydirectinput.mouseUp(craft_btn.x, craft_btn.y)
+        _m.release(_Btn.left)
 
         time.sleep(0.5)
         inp.close_menu()
@@ -297,10 +300,6 @@ async def engage_enemy(
         return "killed"
 
 
-# Resolução do import circular com Optional
-from typing import Optional  # noqa: E402
-
-
 @activity.defn
 async def handle_death_respawn() -> bool:
     with screenshot_on_error("handle_death_respawn"):
@@ -317,3 +316,86 @@ async def handle_death_respawn() -> bool:
             f"Botão de respawn não encontrado (conf={btn.confidence:.3f}). "
             "Verifique se o template 'respawn_button.png' está correto."
         )
+
+
+@activity.defn
+async def capture_template_screen(screen_name: str, keys_to_press: str = "") -> str:
+    """Foca o jogo, envia comandos de tecla opcionalmente e salva uma captura de tela para calibração."""
+    import time
+    from utils.screenshot import save_debug_screenshot
+    
+    inp.focus_game("Satisfactory")
+    time.sleep(0.5)
+    
+    if keys_to_press:
+        for key in keys_to_press.split(","):
+            inp.press(key.strip())
+            time.sleep(0.5)
+            
+    v = get_vision()
+    frame = v.capture()
+    path = save_debug_screenshot(screen_name, frame=frame)
+    logger.info("Tela capturada para calibração: %s", path)
+    return str(path)
+
+
+@activity.defn
+async def extract_templates_from_screen(screenshot_path: str, resolution: str = "2560x1440") -> dict:
+    """Extrai regiões de interesse da captura e salva como novos templates PNG."""
+    import cv2
+    from pathlib import Path
+    
+    path = Path(screenshot_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Captura não encontrada: {screenshot_path}")
+        
+    img = cv2.imread(str(path))
+    if img is None:
+        raise ValueError(f"Falha ao carregar imagem: {screenshot_path}")
+        
+    h, w = img.shape[:2]
+    logger.info("Extraindo templates para resolução %dx%d (config: %s)", w, h, resolution)
+    
+    templates_dir = Path("templates")
+    templates_dir.mkdir(exist_ok=True)
+    
+    results = {}
+    
+    # Coordenadas mapeadas para 2560x1440 e fallback proporcional
+    if w == 2560 and h == 1440:
+        coords = {
+            "health_low_indicator": (1330, 1380, 70, 120),  # Ícone do coração (vida)
+            "inventory_open": (1215, 1265, 2185, 2245),       # Ícone do Tab no HUD
+        }
+    else:
+        coords = {
+            "health_low_indicator": (int(h * 0.923), int(h * 0.958), int(w * 0.027), int(w * 0.047)),
+            "inventory_open": (int(h * 0.843), int(h * 0.878), int(w * 0.853), int(w * 0.877)),
+        }
+        
+    for name, (y1, y2, x1, x2) in coords.items():
+        cropped = img[y1:y2, x1:x2]
+        out_path = templates_dir / f"{name}.png"
+        cv2.imwrite(str(out_path), cropped)
+        results[name] = str(out_path)
+        logger.info("Template '%s' extraído e salvo em %s", name, out_path)
+        
+    return results
+
+
+@activity.defn
+async def verify_matching_templates(template_names: list[str]) -> dict:
+    """Escaneia a tela atual buscando os templates e retorna o status de confiança."""
+    v = get_vision()
+    results = v.scan_all(template_names)
+    
+    report = {}
+    for name, r in results.items():
+        report[name] = {
+            "found": r.found,
+            "x": r.x,
+            "y": r.y,
+            "confidence": float(r.confidence),
+        }
+        logger.info("Verificação de '%s': found=%s, conf=%.3f", name, r.found, r.confidence)
+    return report

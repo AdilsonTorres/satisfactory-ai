@@ -1,41 +1,68 @@
 """
 utils/input.py
-Envia inputs de mouse/teclado para o Satisfactory via pydirectinput.
-Sensitividade e outros parâmetros veem de config.toml.
+Envia inputs de mouse/teclado para o Satisfactory no Linux.
+Usa pynput (X11/Xwayland) + xdotool para foco de janela.
 """
 import time
-import pydirectinput
-import pygetwindow as gw
+import subprocess
+from typing import Optional
+
+from pynput.keyboard import Controller as KeyboardController, Key
+from pynput.mouse import Controller as MouseController, Button
 
 from utils import config as cfg
 
-pydirectinput.PAUSE = 0.0
+_kb = KeyboardController()
+_mouse = MouseController()
+
+# Mapa de nomes de tecla para pynput
+_KEY_MAP: dict[str, Key | str] = {
+    "escape": Key.esc,
+    "tab": Key.tab,
+    "enter": Key.enter,
+    "space": Key.space,
+    "shift": Key.shift,
+    "ctrl": Key.ctrl,
+    "alt": Key.alt,
+    "w": "w", "a": "a", "s": "s", "d": "d",
+    "e": "e", "f": "f", "r": "r", "q": "q",
+}
+
+
+def _resolve_key(key: str):
+    return _KEY_MAP.get(key.lower(), key)
 
 
 def focus_game(window_title: str = "Satisfactory") -> bool:
-    windows = gw.getWindowsWithTitle(window_title)
-    if not windows:
-        return False
-    windows[0].activate()
+    result = subprocess.run(
+        ["xdotool", "search", "--name", window_title, "windowfocus", "--sync"],
+        capture_output=True,
+        timeout=3,
+    )
     time.sleep(0.2)
-    return True
+    return result.returncode == 0
 
 
 def press(key: str, delay_after: float = 0.05) -> None:
-    pydirectinput.press(key)
+    k = _resolve_key(key)
+    _kb.press(k)
+    time.sleep(0.02)
+    _kb.release(k)
     time.sleep(delay_after)
 
 
 def hold(key: str, duration: float) -> None:
-    pydirectinput.keyDown(key)
+    k = _resolve_key(key)
+    _kb.press(k)
     time.sleep(duration)
-    pydirectinput.keyUp(key)
+    _kb.release(k)
 
 
 def click(x: int, y: int, button: str = "left", delay_after: float = 0.1) -> None:
-    pydirectinput.moveTo(x, y)
+    btn = Button.left if button == "left" else Button.right
+    _mouse.position = (x, y)
     time.sleep(0.05)
-    pydirectinput.click(x, y, button=button)
+    _mouse.click(btn)
     time.sleep(delay_after)
 
 
@@ -44,8 +71,8 @@ def right_click(x: int, y: int, delay_after: float = 0.1) -> None:
 
 
 def move_mouse_relative(dx: int, dy: int) -> None:
-    """Movimento relativo via Raw Input — funciona em jogos 3D."""
-    pydirectinput.move(dx, dy, relative=True)
+    """Movimento relativo — funciona com jogos 3D no Xwayland."""
+    _mouse.move(dx, dy)
 
 
 def aim_at_screen_position(
@@ -55,10 +82,6 @@ def aim_at_screen_position(
     screen_center_y: int,
     sensitivity_factor: Optional[float] = None,
 ) -> None:
-    """
-    Move a mira para (target_x, target_y).
-    sensitivity_factor: se None, usa config.toml[combat.aim_sensitivity_factor].
-    """
     factor = sensitivity_factor if sensitivity_factor is not None else cfg.get(
         "combat.aim_sensitivity_factor", 0.8
     )
@@ -66,10 +89,6 @@ def aim_at_screen_position(
     dy = int((target_y - screen_center_y) * factor)
     move_mouse_relative(dx, dy)
     time.sleep(0.05)
-
-
-# Atalho para evitar import circular com typing
-from typing import Optional  # noqa: E402 — mantido ao final por dependência de aim_at_screen_position
 
 
 def interact() -> None:
@@ -88,7 +107,9 @@ def shoot(bursts: Optional[int] = None, interval: Optional[float] = None) -> Non
     n = bursts if bursts is not None else cfg.get("combat.shoot_bursts", 5)
     t = interval if interval is not None else cfg.get("combat.shoot_interval_seconds", 0.08)
     for _ in range(n):
-        pydirectinput.click(button="left")
+        _mouse.press(Button.left)
+        time.sleep(0.03)
+        _mouse.release(Button.left)
         time.sleep(t)
 
 
