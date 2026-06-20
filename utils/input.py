@@ -70,6 +70,33 @@ def right_click(x: int, y: int, delay_after: float = 0.1) -> None:
     click(x, y, button="right", delay_after=delay_after)
 
 
+def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:
+    """Shift+click — transferência rápida de um slot entre painéis de inventário (ex: para storage)."""
+    _mouse.position = (x, y)
+    time.sleep(0.05)
+    _kb.press(Key.shift)
+    _mouse.click(Button.left)
+    _kb.release(Key.shift)
+    time.sleep(delay_after)
+
+
+def drag(start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.4) -> None:
+    """Arrasta com o botão esquerdo pressionado — usado para tirar um item do inventário e soltar no mundo."""
+    _mouse.position = (start_x, start_y)
+    time.sleep(0.05)
+    _mouse.press(Button.left)
+    steps = max(int(duration / 0.02), 1)
+    for i in range(1, steps + 1):
+        t = i / steps
+        _mouse.position = (
+            int(start_x + (end_x - start_x) * t),
+            int(start_y + (end_y - start_y) * t),
+        )
+        time.sleep(duration / steps)
+    _mouse.release(Button.left)
+    time.sleep(0.1)
+
+
 def move_mouse_relative(dx: int, dy: int) -> None:
     """Movimento relativo — funciona com jogos 3D no Xwayland."""
     _mouse.move(dx, dy)

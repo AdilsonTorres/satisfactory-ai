@@ -7,6 +7,7 @@ import time
 import numpy as np
 import cv2
 import mss
+import mss.exception
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -56,15 +57,51 @@ class Vision:
         return cfg.get(f"vision.thresholds.{template_name}", self.default_threshold)
 
     def capture(self) -> np.ndarray:
-        """Captura o frame atual. ~1ms."""
-        raw = self.sct.grab(self.monitor)
-        frame = np.array(raw)
-        return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        """Captura o frame atual. ~1ms com fallback para import no Linux."""
+        try:
+            raw = self.sct.grab(self.monitor)
+            frame = np.array(raw)
+            return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        except mss.exception.ScreenShotError:
+            # Fallback para o utilitário 'import' do ImageMagick se mss falhar
+            import subprocess
+            import tempfile
+            import os
+            
+            # Tenta encontrar o ID da janela do Satisfactory
+            win_id_proc = subprocess.run(
+                ["xdotool", "search", "--name", "Satisfactory"],
+                capture_output=True,
+                text=True,
+            )
+            win_ids = win_id_proc.stdout.strip().split()
+            target = win_ids[0] if win_ids else "root"
+            
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
+                temp_path = tf.name
+            try:
+                subprocess.run(
+                    ["import", "-window", target, temp_path],
+                    check=True,
+                    capture_output=True,
+                )
+                frame = cv2.imread(temp_path)
+                if frame is None:
+                    raise RuntimeError("Falha ao ler imagem gerada pelo 'import'")
+                return frame
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
 
     def capture_region(self, x: int, y: int, w: int, h: int) -> np.ndarray:
-        region = {"top": y, "left": x, "width": w, "height": h}
-        raw = self.sct.grab(region)
-        return cv2.cvtColor(np.array(raw), cv2.COLOR_BGRA2BGR)
+        try:
+            region = {"top": y, "left": x, "width": w, "height": h}
+            raw = self.sct.grab(region)
+            return cv2.cvtColor(np.array(raw), cv2.COLOR_BGRA2BGR)
+        except mss.exception.ScreenShotError:
+            # Se falhar, captura a tela inteira (já com fallback) e recorta na memória
+            frame = self.capture()
+            return frame[y:y+h, x:x+w]
 
     def _load_template(self, template_name: str) -> np.ndarray:
         if template_name not in self._template_cache:
@@ -123,11 +160,17 @@ class Vision:
         return MatchResult(found=False, template_name=template_name)
 
     def find_enemy(self, frame: Optional[np.ndarray] = None) -> Optional[MatchResult]:
+        # Variantes de risco (dano em área — radiação/gás) primeiro, para
+        # priorizar a detecção de hazard sobre a variante comum equivalente.
         enemy_templates = [
+            "enemy_hog_nuclear",
+            "enemy_stinger_elite_gas",
             "enemy_spitter",
             "enemy_hog",
             "enemy_stinger",
             "enemy_spitter_elite",
+            "enemy_hatcher",
+            "enemy_flying_crab",
         ]
         if frame is None:
             frame = self.capture()

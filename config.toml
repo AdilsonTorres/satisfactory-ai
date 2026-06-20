@@ -16,6 +16,7 @@ default_threshold = 0.82
 [vision.thresholds]
 gift_prompt               = 0.82
 inventory_open            = 0.82
+doggo_loot_window         = 0.82
 inventory_full_indicator  = 0.75
 health_low_indicator      = 0.78
 equipment_workshop_prompt = 0.85
@@ -29,6 +30,45 @@ enemy_spitter             = 0.70
 enemy_hog                 = 0.70
 enemy_stinger             = 0.68
 enemy_spitter_elite       = 0.70
+enemy_hatcher             = 0.72
+enemy_flying_crab         = 0.65
+enemy_hog_nuclear         = 0.70
+enemy_stinger_elite_gas   = 0.68
+resource_node_prompt      = 0.80
+wild_doggo_prompt         = 0.72   # criatura — variável como os inimigos
+paleberry_icon            = 0.85   # ícone de UI estático
+storage_prompt            = 0.82
+storage_open              = 0.85
+
+# ---------------------------------------------------------------------------
+# Colheita manual de recursos (jogador já posicionado no node)
+# ---------------------------------------------------------------------------
+[harvesting]
+swing_interval_seconds = 0.5
+
+# ---------------------------------------------------------------------------
+# Domesticação de Lizard Doggo
+# Coordenadas de tela onde soltar a Paleberry arrastada do inventário
+# (um ponto fora do painel de inventário, no mundo do jogo).
+# ---------------------------------------------------------------------------
+[taming]
+drop_point_x = 1280
+drop_point_y = 720
+
+# ---------------------------------------------------------------------------
+# Grid do inventário do jogador, usado por open_storage_and_deposit_loot
+# para varrer cada slot com shift-click (shift-click num slot vazio não faz
+# nada, então não precisa detectar item por item). CALIBRE com um screenshot
+# do inventário aberto: origin = canto superior-esquerdo do primeiro slot,
+# slot_w/slot_h = espaçamento entre slots em pixels.
+# ---------------------------------------------------------------------------
+[inventory_grid]
+origin_x = 100
+origin_y = 100
+slot_w   = 90
+slot_h   = 90
+columns  = 10
+rows     = 4
 
 # ---------------------------------------------------------------------------
 # Navegação (segundos de tecla pressionada)
@@ -44,6 +84,36 @@ back_to_base_strafe_left = 0.8
 back_to_base_backward_2  = 0.5
 
 # ---------------------------------------------------------------------------
+# Locais nomeados — usados por navigate_to_location (CombatExpeditionWorkflow
+# e outras automações futuras). Generaliza a navegação fixa do Workshop:
+# defina quantos locais quiser, cada um com sua própria sequência de
+# tecla/duração. Cada step roda inp.hold(key, duration) em sequência.
+#
+# arrival_template (opcional): nome de um template que confirma a chegada
+# por visão. Sem ele, a navegação é "às cegas" — só confia no tempo de
+# tecla, como o navigate_to_equipment_workshop original.
+#
+# IMPORTANTE: calibre 'example_kill_zone' e 'base' com os tempos reais do
+# seu mapa antes de usar CombatExpeditionWorkflow. Duplique o bloco para
+# criar mais locais (ex: locations.spitter_nest, locations.storage_room).
+# ---------------------------------------------------------------------------
+[locations.example_kill_zone]
+arrival_timeout = 5.0
+# arrival_template = "enemy_spitter"   # opcional
+
+[[locations.example_kill_zone.steps]]
+key = "w"
+duration = 3.0
+
+[locations.base]
+arrival_timeout = 5.0
+# arrival_template = "workshop_menu_open"   # opcional
+
+[[locations.base.steps]]
+key = "s"
+duration = 3.0
+
+# ---------------------------------------------------------------------------
 # Combate
 # ---------------------------------------------------------------------------
 [combat]
@@ -52,6 +122,17 @@ shoot_bursts                = 5      # cliques por rodada
 shoot_interval_seconds      = 0.08   # segundos entre cliques
 max_combat_duration_seconds = 10.0   # desiste do combate após X segundos
 dodge_direction             = "a"    # direção do dodge ao fugir
+low_ammo_threshold          = 20     # abaixo disso, CombatExpeditionWorkflow vai reabastecer
+
+# Região da tela onde o contador de munição aparece no HUD (canto da arma).
+# CALIBRE com debug_run.py --screenshot + um editor de imagem para achar
+# x,y,w,h em pixels. Se a leitura falhar, check_ammo_count retorna -1 e o
+# workflow ignora o gating de munição (assume "desconhecido", não bloqueia).
+[combat.ammo_region]
+x = 2360
+y = 1320
+w = 100
+h = 40
 
 # ---------------------------------------------------------------------------
 # Display

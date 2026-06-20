@@ -16,6 +16,7 @@ templates/*.png
 
 # Gerados em runtime
 debug_screenshots/
+captures/
 logs/
 stats/
 
