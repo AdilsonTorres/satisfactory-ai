@@ -1,7 +1,7 @@
 """
 utils/stats.py
-Persiste estatísticas de sessão em stats/{timestamp}_{workflow}.json
-para análise posterior.
+Persists session stats to stats/{timestamp}_{workflow}.json
+for later analysis.
 """
 import json
 from datetime import datetime

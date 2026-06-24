@@ -1,39 +1,39 @@
 """
 utils/exceptions.py
-Hierarquia de exceções do bot.
-Nomes descritivos aparecem no histórico do Temporal para facilitar o debug.
+Bot exception hierarchy.
+Descriptive names show up in Temporal's history to make debugging easier.
 """
 
 
 class SatisfactoryBotError(Exception):
-    """Erro base — todos os erros do bot herdam daqui."""
+    """Base error — all bot errors inherit from this."""
 
 
 class VisionError(SatisfactoryBotError):
-    """Template não encontrado na tela com confiança suficiente."""
+    """Template not found on screen with enough confidence."""
 
     def __init__(self, template: str, confidence: float, threshold: float):
         self.template = template
         self.confidence = confidence
         self.threshold = threshold
         super().__init__(
-            f"Template '{template}' não encontrado. "
-            f"Melhor conf: {confidence:.3f} < threshold: {threshold:.3f}. "
-            f"Rode: uv run python debug_run.py --find {template}"
+            f"Template '{template}' not found. "
+            f"Best conf: {confidence:.3f} < threshold: {threshold:.3f}. "
+            f"Run: uv run python debug_run.py --find {template}"
         )
 
 
 class NavigationError(SatisfactoryBotError):
-    """Workshop ou destino não encontrado após sequência de movimento."""
+    """Workshop or destination not found after a movement sequence."""
 
 
 class MenuError(SatisfactoryBotError):
-    """Menu não abriu ou não está no estado esperado."""
+    """Menu did not open or is not in the expected state."""
 
 
 class CombatError(SatisfactoryBotError):
-    """Estado inesperado durante combate."""
+    """Unexpected state during combat."""
 
 
 class RespawnError(SatisfactoryBotError):
-    """Botão de respawn não encontrado na tela de morte."""
+    """Respawn button not found on the death screen."""

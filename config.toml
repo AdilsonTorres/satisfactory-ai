@@ -1,18 +1,18 @@
-# config.toml — Configuração central do Satisfactory Bot
-# Ajuste aqui sem precisar tocar no código Python.
+# config.toml — Central configuration for the Satisfactory Bot
+# Adjust here without touching Python code.
 
 [temporal]
 address    = "localhost:7233"
 task_queue = "satisfactory-bot"
 
 # ---------------------------------------------------------------------------
-# Visão
+# Vision
 # ---------------------------------------------------------------------------
 [vision]
-monitor_index     = 1      # 1 = monitor principal
+monitor_index     = 1      # 1 = primary monitor
 default_threshold = 0.82
 
-# Thresholds individuais. Menus estáticos: 0.85+. Inimigos em movimento: 0.65–0.72.
+# Per-template thresholds. Static menus: 0.85+. Moving enemies: 0.65–0.72.
 [vision.thresholds]
 gift_prompt               = 0.82
 inventory_open            = 0.82
@@ -35,32 +35,32 @@ enemy_flying_crab         = 0.65
 enemy_hog_nuclear         = 0.70
 enemy_stinger_elite_gas   = 0.68
 resource_node_prompt      = 0.80
-wild_doggo_prompt         = 0.72   # criatura — variável como os inimigos
-paleberry_icon            = 0.85   # ícone de UI estático
+wild_doggo_prompt         = 0.72   # creature — variable like the enemies
+paleberry_icon            = 0.85   # static UI icon
 storage_prompt            = 0.82
 storage_open              = 0.85
 
 # ---------------------------------------------------------------------------
-# Colheita manual de recursos (jogador já posicionado no node)
+# Manual resource harvesting (player already positioned at the node)
 # ---------------------------------------------------------------------------
 [harvesting]
 swing_interval_seconds = 0.5
 
 # ---------------------------------------------------------------------------
-# Domesticação de Lizard Doggo
-# Coordenadas de tela onde soltar a Paleberry arrastada do inventário
-# (um ponto fora do painel de inventário, no mundo do jogo).
+# Lizard Doggo taming
+# Screen coordinates where the Paleberry dragged from the inventory is
+# dropped (a point outside the inventory panel, in the game world).
 # ---------------------------------------------------------------------------
 [taming]
 drop_point_x = 1280
 drop_point_y = 720
 
 # ---------------------------------------------------------------------------
-# Grid do inventário do jogador, usado por open_storage_and_deposit_loot
-# para varrer cada slot com shift-click (shift-click num slot vazio não faz
-# nada, então não precisa detectar item por item). CALIBRE com um screenshot
-# do inventário aberto: origin = canto superior-esquerdo do primeiro slot,
-# slot_w/slot_h = espaçamento entre slots em pixels.
+# Player inventory grid, used by open_storage_and_deposit_loot to sweep
+# every slot with shift-click (shift-clicking an empty slot does nothing,
+# so there's no need to detect items one by one). CALIBRATE with a
+# screenshot of the open inventory: origin = top-left corner of the first
+# slot, slot_w/slot_h = spacing between slots in pixels.
 # ---------------------------------------------------------------------------
 [inventory_grid]
 origin_x = 100
@@ -71,9 +71,9 @@ columns  = 10
 rows     = 4
 
 # ---------------------------------------------------------------------------
-# Navegação (segundos de tecla pressionada)
-# ESTES SÃO OS VALORES MAIS IMPORTANTES DE CALIBRAR.
-# Ajuste até o personagem chegar na frente do Workshop.
+# Navigation (seconds of key held down)
+# THESE ARE THE MOST IMPORTANT VALUES TO CALIBRATE.
+# Adjust until the character arrives in front of the Workshop.
 # ---------------------------------------------------------------------------
 [navigation]
 to_workshop_forward_1    = 1.2
@@ -84,22 +84,22 @@ back_to_base_strafe_left = 0.8
 back_to_base_backward_2  = 0.5
 
 # ---------------------------------------------------------------------------
-# Locais nomeados — usados por navigate_to_location (CombatExpeditionWorkflow
-# e outras automações futuras). Generaliza a navegação fixa do Workshop:
-# defina quantos locais quiser, cada um com sua própria sequência de
-# tecla/duração. Cada step roda inp.hold(key, duration) em sequência.
+# Named locations — used by navigate_to_location (CombatExpeditionWorkflow
+# and other future automations). Generalizes the fixed Workshop navigation:
+# define as many locations as you want, each with its own key/duration
+# sequence. Each step runs inp.hold(key, duration) in order.
 #
-# arrival_template (opcional): nome de um template que confirma a chegada
-# por visão. Sem ele, a navegação é "às cegas" — só confia no tempo de
-# tecla, como o navigate_to_equipment_workshop original.
+# arrival_template (optional): name of a template that confirms arrival via
+# vision. Without it, navigation is "blind" — it only trusts key timing,
+# like the original navigate_to_equipment_workshop.
 #
-# IMPORTANTE: calibre 'example_kill_zone' e 'base' com os tempos reais do
-# seu mapa antes de usar CombatExpeditionWorkflow. Duplique o bloco para
-# criar mais locais (ex: locations.spitter_nest, locations.storage_room).
+# IMPORTANT: calibrate 'example_kill_zone' and 'base' with the real timings
+# of your map before using CombatExpeditionWorkflow. Duplicate the block to
+# add more locations (ex: locations.spitter_nest, locations.storage_room).
 # ---------------------------------------------------------------------------
 [locations.example_kill_zone]
 arrival_timeout = 5.0
-# arrival_template = "enemy_spitter"   # opcional
+# arrival_template = "enemy_spitter"   # optional
 
 [[locations.example_kill_zone.steps]]
 key = "w"
@@ -107,27 +107,27 @@ duration = 3.0
 
 [locations.base]
 arrival_timeout = 5.0
-# arrival_template = "workshop_menu_open"   # opcional
+# arrival_template = "workshop_menu_open"   # optional
 
 [[locations.base.steps]]
 key = "s"
 duration = 3.0
 
 # ---------------------------------------------------------------------------
-# Combate
+# Combat
 # ---------------------------------------------------------------------------
 [combat]
-aim_sensitivity_factor      = 0.8    # 1.0 gira muito, 0.5 gira pouco
-shoot_bursts                = 5      # cliques por rodada
-shoot_interval_seconds      = 0.08   # segundos entre cliques
-max_combat_duration_seconds = 10.0   # desiste do combate após X segundos
-dodge_direction             = "a"    # direção do dodge ao fugir
-low_ammo_threshold          = 20     # abaixo disso, CombatExpeditionWorkflow vai reabastecer
+aim_sensitivity_factor      = 0.8    # 1.0 turns a lot, 0.5 turns little
+shoot_bursts                = 5      # clicks per round
+shoot_interval_seconds      = 0.08   # seconds between clicks
+max_combat_duration_seconds = 10.0   # give up on combat after X seconds
+dodge_direction             = "a"    # dodge direction when fleeing
+low_ammo_threshold          = 20     # below this, CombatExpeditionWorkflow will resupply
 
-# Região da tela onde o contador de munição aparece no HUD (canto da arma).
-# CALIBRE com debug_run.py --screenshot + um editor de imagem para achar
-# x,y,w,h em pixels. Se a leitura falhar, check_ammo_count retorna -1 e o
-# workflow ignora o gating de munição (assume "desconhecido", não bloqueia).
+# Screen region where the ammo counter appears in the HUD (weapon corner).
+# CALIBRATE with debug_run.py --screenshot + an image editor to find
+# x,y,w,h in pixels. If reading fails, check_ammo_count returns -1 and the
+# workflow ignores ammo gating (treats it as "unknown", doesn't block).
 [combat.ammo_region]
 x = 2360
 y = 1320

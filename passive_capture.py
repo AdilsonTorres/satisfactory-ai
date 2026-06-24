@@ -1,21 +1,21 @@
 """
 passive_capture.py
 
-Captura screenshots periodicamente enquanto você joga normalmente.
-NÃO envia nenhum input (teclado/mouse) — seguro para rodar em paralelo
-com o jogo enquanto você joga manualmente.
+Periodically captures screenshots while you play normally.
+Sends NO input (keyboard/mouse) — safe to run in parallel with the
+game while you play manually.
 
-Frames quase idênticos ao último salvo são descartados (dedup por diff em
-baixa resolução), para não acumular centenas de screenshots do mesmo menu
-parado.
+Frames nearly identical to the last saved one are discarded (dedup by
+low-resolution diff), so it doesn't accumulate hundreds of screenshots
+of the same idle menu.
 
-Depois de uma sessão de jogo, use label_captures.py para revisar as imagens
-em captures/ e recortar novos templates ou variantes para os existentes.
+After a play session, use label_captures.py to review the images in
+captures/ and crop new templates or better variants of existing ones.
 
-Uso:
+Usage:
     uv run python passive_capture.py
     uv run python passive_capture.py --interval 5 --max-shots 200
-    uv run python passive_capture.py --dedup-threshold 0.0   # salva tudo, sem dedup
+    uv run python passive_capture.py --dedup-threshold 0.0   # save everything, no dedup
 """
 import argparse
 import time
@@ -31,7 +31,7 @@ CAPTURES_DIR = Path("captures")
 
 
 def _frames_differ(a: np.ndarray, b: np.ndarray, threshold: float) -> bool:
-    """Compara dois frames reduzidos; True se diferentes o suficiente para valer salvar de novo."""
+    """Compares two downscaled frames; True if different enough to be worth saving again."""
     small_a = cv2.resize(a, (64, 36))
     small_b = cv2.resize(b, (64, 36))
     diff = cv2.absdiff(small_a, small_b)
@@ -45,8 +45,8 @@ def run(interval: float, max_shots: int, dedup_threshold: float) -> None:
     last_frame = None
     saved = 0
 
-    print(f"Captura passiva iniciada — a cada {interval}s, salvando em {CAPTURES_DIR}/")
-    print("Ctrl+C para parar. Nenhum input é enviado ao jogo — pode jogar normalmente.\n")
+    print(f"Passive capture started — every {interval}s, saving to {CAPTURES_DIR}/")
+    print("Ctrl+C to stop. No input is sent to the game — play normally.\n")
 
     try:
         while max_shots <= 0 or saved < max_shots:
@@ -62,18 +62,18 @@ def run(interval: float, max_shots: int, dedup_threshold: float) -> None:
     except KeyboardInterrupt:
         pass
 
-    print(f"\nEncerrado. {saved} screenshot(s) salvo(s) em {CAPTURES_DIR}/")
+    print(f"\nStopped. {saved} screenshot(s) saved to {CAPTURES_DIR}/")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Captura passiva de screenshots durante gameplay manual (sem enviar input).",
+        description="Passive screenshot capture during manual gameplay (sends no input).",
     )
-    parser.add_argument("--interval", type=float, default=4.0, help="Segundos entre capturas [4.0]")
-    parser.add_argument("--max-shots", type=int, default=0, help="Limite de screenshots, 0 = sem limite [0]")
+    parser.add_argument("--interval", type=float, default=4.0, help="Seconds between captures [4.0]")
+    parser.add_argument("--max-shots", type=int, default=0, help="Screenshot limit, 0 = unlimited [0]")
     parser.add_argument(
         "--dedup-threshold", type=float, default=0.02,
-        help="Sensibilidade de deduplicação — 0 desativa (salva todo frame) [0.02]"
+        help="Deduplication sensitivity — 0 disables it (saves every frame) [0.02]"
     )
     args = parser.parse_args()
     run(args.interval, args.max_shots, args.dedup_threshold)

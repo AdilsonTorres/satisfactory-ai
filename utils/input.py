@@ -1,12 +1,15 @@
 """
 utils/input.py
-Envia inputs de mouse/teclado para o Satisfactory no Linux.
-Usa pynput (X11/Xwayland) + xdotool para foco de janela.
+Sends mouse/keyboard input to Satisfactory on Linux.
+Uses pynput (X11/Xwayland) + xdotool for window focus, and a virtual
+mouse via uinput (evdev) for relative camera movement (mouse-look).
 """
+import atexit
 import time
 import subprocess
 from typing import Optional
 
+from evdev import UInput, ecodes as ev_codes
 from pynput.keyboard import Controller as KeyboardController, Key
 from pynput.mouse import Controller as MouseController, Button
 
@@ -14,8 +17,28 @@ from utils import config as cfg
 
 _kb = KeyboardController()
 _mouse = MouseController()
+_uinput_mouse: Optional[UInput] = None
 
-# Mapa de nomes de tecla para pynput
+
+def _get_uinput_mouse() -> UInput:
+    """
+    Virtual mouse device via uinput — needed because the game runs via
+    Proton/Wine and ignores synthetic relative motion injected through
+    X11/XTest (pynput). The kernel already exposes /dev/uinput with a
+    uaccess ACL for the local session (via existing KDE Connect/Steam
+    Input udev rules), so no extra rule is needed.
+    """
+    global _uinput_mouse
+    if _uinput_mouse is None:
+        capabilities = {
+            ev_codes.EV_REL: [ev_codes.REL_X, ev_codes.REL_Y, ev_codes.REL_WHEEL],
+        }
+        _uinput_mouse = UInput(capabilities, name="satisfactory-bot-mouse")
+        atexit.register(_uinput_mouse.close)
+        time.sleep(0.3)  # give the compositor time to recognize the new device
+    return _uinput_mouse
+
+# Key-name to pynput map
 _KEY_MAP: dict[str, Key | str] = {
     "escape": Key.esc,
     "tab": Key.tab,
@@ -71,7 +94,7 @@ def right_click(x: int, y: int, delay_after: float = 0.1) -> None:
 
 
 def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:
-    """Shift+click — transferência rápida de um slot entre painéis de inventário (ex: para storage)."""
+    """Shift+click — quick transfer of a slot between inventory panels (ex: to storage)."""
     _mouse.position = (x, y)
     time.sleep(0.05)
     _kb.press(Key.shift)
@@ -81,7 +104,7 @@ def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:
 
 
 def drag(start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.4) -> None:
-    """Arrasta com o botão esquerdo pressionado — usado para tirar um item do inventário e soltar no mundo."""
+    """Drags with the left button held — used to take an item out of the inventory and drop it in the world."""
     _mouse.position = (start_x, start_y)
     time.sleep(0.05)
     _mouse.press(Button.left)
@@ -98,8 +121,15 @@ def drag(start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0
 
 
 def move_mouse_relative(dx: int, dy: int) -> None:
-    """Movimento relativo — funciona com jogos 3D no Xwayland."""
-    _mouse.move(dx, dy)
+    """
+    Relative motion via the uinput virtual mouse — the only approach that
+    rotates the first-person camera in-game (Proton/Wine ignores synthetic
+    relative motion via X11/XTest/pynput).
+    """
+    ui = _get_uinput_mouse()
+    ui.write(ev_codes.EV_REL, ev_codes.REL_X, dx)
+    ui.write(ev_codes.EV_REL, ev_codes.REL_Y, dy)
+    ui.syn()
 
 
 def aim_at_screen_position(

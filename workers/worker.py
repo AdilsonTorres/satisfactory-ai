@@ -1,15 +1,15 @@
 """
 workers/worker.py
 
-Ponto de entrada do worker Temporal.
-Logging e configuração são lidos de config.toml.
+Temporal worker entry point.
+Logging and configuration are read from config.toml.
 
-Pré-requisito: docker compose up -d
+Prerequisite: docker compose up -d
 
-Como rodar:
+How to run:
     uv run python workers/worker.py
 
-Controle de workflows em runtime:
+Runtime workflow control:
     temporal workflow signal --workflow-id <id> --name pause
     temporal workflow signal --workflow-id <id> --name resume
     temporal workflow signal --workflow-id <id> --name stop
@@ -66,9 +66,9 @@ async def main() -> None:
     address = cfg.get("temporal.address", "localhost:7233")
     task_queue = cfg.get("temporal.task_queue", "satisfactory-bot")
 
-    _logger.info("Conectando ao Temporal em %s ...", address)
+    _logger.info("Connecting to Temporal at %s ...", address)
     client = await Client.connect(address)
-    _logger.info("Conectado. Task queue: '%s'", task_queue)
+    _logger.info("Connected. Task queue: '%s'", task_queue)
 
     async with Worker(
         client,
@@ -105,10 +105,10 @@ async def main() -> None:
             check_ammo_count,
             open_storage_and_deposit_loot,
         ],
-        # Inputs são sequenciais — manter em 1 para não sobrepor ações no jogo
+        # Inputs are sequential — keep at 1 so actions in the game don't overlap
         max_concurrent_activities=1,
     ):
-        _logger.info("Worker ativo. UI: http://localhost:8233 | Ctrl+C para parar")
+        _logger.info("Worker active. UI: http://localhost:8233 | Ctrl+C to stop")
         await asyncio.Future()
 
 

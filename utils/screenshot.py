@@ -1,15 +1,26 @@
 """
 utils/screenshot.py
-Salva screenshots de debug com timestamp em debug_screenshots/.
+Saves timestamped debug screenshots to debug_screenshots/.
 """
 import cv2
 import numpy as np
-import mss
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from utils.vision import Vision
+
 SCREENSHOTS_DIR = Path("debug_screenshots")
+
+_vision: Vision | None = None
+
+
+def _get_vision() -> Vision:
+    """Shared Vision instance — has the capture fallback (ImageMagick) for X11."""
+    global _vision
+    if _vision is None:
+        _vision = Vision()
+    return _vision
 
 
 def save_debug_screenshot(label: str, frame: Optional[np.ndarray] = None) -> Path:
@@ -18,9 +29,7 @@ def save_debug_screenshot(label: str, frame: Optional[np.ndarray] = None) -> Pat
     path = SCREENSHOTS_DIR / f"{ts}_{label}.png"
 
     if frame is None:
-        with mss.mss() as sct:
-            raw = sct.grab(sct.monitors[1])
-            frame = cv2.cvtColor(np.array(raw), cv2.COLOR_BGRA2BGR)
+        frame = _get_vision().capture()
 
     cv2.imwrite(str(path), frame)
     return path
@@ -31,15 +40,13 @@ def save_annotated_screenshot(
     matches: dict[str, tuple[int, int, float]],
     frame: Optional[np.ndarray] = None,
 ) -> Path:
-    """Screenshot com círculos e labels sobre cada match encontrado."""
+    """Screenshot with circles and labels over each match found."""
     SCREENSHOTS_DIR.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     path = SCREENSHOTS_DIR / f"{ts}_{label}_annotated.png"
 
     if frame is None:
-        with mss.mss() as sct:
-            raw = sct.grab(sct.monitors[1])
-            frame = cv2.cvtColor(np.array(raw), cv2.COLOR_BGRA2BGR)
+        frame = _get_vision().capture()
     else:
         frame = frame.copy()
 

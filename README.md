@@ -1,262 +1,271 @@
 # Satisfactory AFK Bot + Temporal
 
-Bot local para farm AFK no Satisfactory. Sem cloud, sem LLM em loop.  
-Orquestração via Temporal para retries automáticos, histórico detalhado de execuções e debug visual.
+Local bot for AFK farming in Satisfactory. No cloud, no LLM in the loop.
+Orchestration via Temporal for automatic retries, detailed execution history, and visual debugging.
 
-> **Requisito de SO:** Linux (X11 / Xwayland).
+> **OS requirement:** Linux (X11 / Xwayland).
 
 ## Stack
 
-| Componente | Lib / Ferramenta | Por quê |
+| Component | Lib / Tool | Why |
 |---|---|---|
-| Captura de tela | `mss` | ~1ms por frame |
-| Detecção visual | `opencv-python` | Template matching, zero treinamento |
-| Inputs 3D | `pynput` | Emulação de mouse e teclado compatível com Linux (X11/Xwayland) |
-| Foco de Janela | `xdotool` | Busca e ativa a janela do jogo automaticamente |
-| OCR (inventário) | `pytesseract` | Leitura visual de quantidades de itens no inventário |
-| Orquestração | `temporalio` | Retry estruturado, controle de fluxo (pausa/resume/stop) e persistência |
-| Pacotes | `uv` | Gerenciamento rápido de dependências Python |
-| Serviços Temporal | Docker Compose | PostgreSQL + Temporal Server + Temporal Web UI |
+| Screen capture | `mss` | ~1ms per frame |
+| Visual detection | `opencv-python` | Template matching, zero training |
+| 3D Inputs | `pynput` + `evdev` (uinput) | Keyboard/click input via pynput (X11/Xwayland); a virtual `uinput` mouse for relative camera movement, since Proton/Wine ignores synthetic X11/XTest motion |
+| Window focus | `xdotool` | Finds and activates the game window automatically |
+| OCR (inventory) | `pytesseract` | Visually reads item quantities in the inventory |
+| Orchestration | `temporalio` | Structured retries, flow control (pause/resume/stop), and persistence |
+| Packages | `uv` | Fast Python dependency management |
+| Temporal services | Docker Compose | PostgreSQL + Temporal Server + Temporal Web UI |
 
 ---
 
 ## Setup
 
-### 1. Pré-requisitos (Linux)
+### 1. Prerequisites (Linux)
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Docker](https://docs.docker.com/engine/install/) (com Compose V2)
+- [Docker](https://docs.docker.com/engine/install/) (with Compose V2)
 - Python 3.11+
-- `xdotool` no PATH
-- `tesseract-ocr` no PATH
-- `imagemagick` no PATH (fallback de captura de tela usado quando `mss` falha, ex: em alguns compositores Xwayland)
+- `xdotool` on PATH
+- `tesseract-ocr` on PATH
+- `imagemagick` on PATH (screenshot fallback used when `mss` fails, e.g. on some Xwayland compositors)
+- `/dev/uinput` with a `uaccess` ACL for your user (see "Mouse-look" below) — already the case on most distros that ship udev rules for KDE Connect, Steam Input, or antimicrox.
 
-No Ubuntu/Debian, você pode instalar as dependências do sistema com:
+On Ubuntu/Debian, you can install the system dependencies with:
 ```bash
 sudo apt update
 sudo apt install xdotool tesseract-ocr imagemagick
 ```
 
-### 2. Instalar dependências Python
-Use o `uv` para sincronizar e criar o ambiente virtual:
+### 2. Install Python dependencies
+Use `uv` to sync and create the virtual environment:
 ```bash
 uv sync
 ```
 
-### 3. Subir os serviços do Temporal
-Suba os containers do Temporal Server e PostgreSQL em segundo plano:
+### 3. Bring up the Temporal services
+Start the Temporal Server and PostgreSQL containers in the background:
 ```bash
 docker compose up -d
-docker compose ps   # confirmar que os 3 serviços estão healthy/running
+docker compose ps   # confirm all 3 services are healthy/running
 ```
 
-| Serviço | Porta | Descrição |
+| Service | Port | Description |
 |---|---|---|
-| Temporal Server | 7233 | Porta gRPC onde o worker e o cliente se conectam |
-| Temporal UI | 8233 | Dashboard web local para debugar os workflows (http://localhost:8233) |
-| PostgreSQL | (interna) | Armazenamento de estado e histórico de execução dos workflows |
+| Temporal Server | 7233 | gRPC port the worker and client connect to |
+| Temporal UI | 8233 | Local web dashboard for debugging workflows (http://localhost:8233) |
+| PostgreSQL | (internal) | Stores workflow state and execution history |
 
-### 4. Criar os templates
-O bot utiliza imagens de template para tomar decisões na tela do jogo. Capture-os com:
+### 4. Create the templates
+The bot uses template images to make decisions on the game screen. Capture them with:
 ```bash
-# Com o Satisfactory aberto e focado:
+# With Satisfactory open and focused:
 uv run python capture_template.py
 ```
 
-**Antes de iniciar o worker, verifique as correspondências de imagem:**
+**Before starting the worker, verify the image matches:**
 ```bash
 uv run python debug_run.py --scan
 ```
-Isso tirará um screenshot atual da tela e salvará uma versão anotada em `debug_screenshots/` mostrando quais templates foram localizados e com qual grau de confiança.
+This takes a screenshot of the current screen and saves an annotated version to `debug_screenshots/` showing which templates were located and with what confidence.
 
-### 5. Executar o worker
-Com os serviços do Temporal rodando e os templates prontos, inicie o worker:
+### 5. Run the worker
+With the Temporal services running and the templates ready, start the worker:
 ```bash
 uv run python workers/worker.py
 ```
 
-### 6. Disparar workflows
-Dispare os workflows através da CLI do Temporal:
+### 6. Trigger workflows
+Trigger workflows through the Temporal CLI:
 
 ```bash
-# Farm de gifts dos Lizard Doggos
+# Lizard Doggo gift farm
 temporal workflow start \
   --workflow-type GiftFarmWorkflow \
   --task-queue satisfactory-bot \
   --input '{"ammo_per_craft": 50, "screenshot_every_cycles": 10}'
 
-# Patrulha de combate estática
+# Static combat patrol
 temporal workflow start \
   --workflow-type CombatPatrolWorkflow \
   --task-queue satisfactory-bot \
   --input '{"max_kills": 30, "screenshot_every_kills": 5}'
 
-# Sessão AFK completa (alterna Gift Farm e Combate)
+# Full AFK session (alternates gift farm and combat)
 temporal workflow start \
   --workflow-type AfkSessionWorkflow \
   --task-queue satisfactory-bot \
   --input '{"gift_cycles": 10, "combat_kills_per_rotation": 5, "total_rotations": 20, "screenshot_every_rotations": 1}'
 
-# Colheita manual de um node de recurso (jogador já posicionado no alcance)
+# Manual harvest of a resource node (player already positioned in range)
 temporal workflow start \
   --workflow-type ResourceHarvestWorkflow \
   --task-queue satisfactory-bot \
   --input '{"swings_per_cycle": 20, "cycles": 0, "screenshot_every_cycles": 10}'
 
-# Domesticação de Lizard Doggo selvagem (best-effort, revisar screenshots)
+# Wild Lizard Doggo taming (best-effort, review screenshots)
 temporal workflow start \
   --workflow-type TameDoggoWorkflow \
   --task-queue satisfactory-bot \
   --input '{"max_attempts": 5, "seconds_between_attempts": 15}'
 
-# Expedição de combate: vai a um local, mata, reabastece munição se preciso,
-# volta e guarda o loot num storage
+# Combat expedition: travel to a location, kill, resupply ammo if needed,
+# return, and store the loot in a storage container
 temporal workflow start \
   --workflow-type CombatExpeditionWorkflow \
   --task-queue satisfactory-bot \
   --input '{"location": "example_kill_zone", "max_kills": 10, "min_ammo_to_depart": 20, "ammo_per_craft": 50}'
 ```
 
-### Calibrando o CombatExpeditionWorkflow
+### Calibrating CombatExpeditionWorkflow
 
-Esse workflow precisa de mais calibração manual do que os outros porque
-generaliza navegação para **locais arbitrários**, não só o Workshop fixo:
+This workflow needs more manual calibration than the others because it
+generalizes navigation to **arbitrary locations**, not just the fixed Workshop:
 
-1. **Locais** (`config.toml [locations.<nome>]`): duplique o bloco
-   `example_kill_zone` para cada zona de combate que quiser, com a sequência
-   real de tecla/duração até lá partindo da base. Ajuste também `base` com o
-   caminho de volta. `arrival_template` é opcional — sem ele, a navegação é
-   "às cegas" como o `navigate_to_equipment_workshop` original.
-2. **Munição** (`config.toml [combat.ammo_region]`): região da tela onde o
-   contador de munição aparece no HUD da arma, para o OCR ler. Tire um
-   screenshot (`debug_run.py --screenshot`) e meça x,y,w,h em pixels. Se não
-   calibrar, `check_ammo_count` retorna -1 e o workflow ignora o gating de
-   munição (não bloqueia, mas também não reabastece sozinho).
+1. **Locations** (`config.toml [locations.<name>]`): duplicate the
+   `example_kill_zone` block for each combat zone you want, with the real
+   key/duration sequence to get there from the base. Also adjust `base`
+   with the path back. `arrival_template` is optional — without it,
+   navigation is "blind," like the original `navigate_to_equipment_workshop`.
+2. **Ammo** (`config.toml [combat.ammo_region]`): the screen region where
+   the ammo counter appears in the weapon's HUD, for OCR to read. Take a
+   screenshot (`debug_run.py --screenshot`) and measure x,y,w,h in pixels.
+   Without calibration, `check_ammo_count` returns -1 and the workflow
+   ignores ammo gating (doesn't block, but also doesn't auto-resupply).
 3. **Storage** (`templates/storage_prompt.png`, `templates/storage_open.png`):
-   capture com `capture_template.py` olhando para um storage container e
-   com o container aberto.
-4. **Grid de inventário** (`config.toml [inventory_grid]`): coordenadas do
-   primeiro slot e espaçamento entre slots, usadas pelo shift-click que
-   deposita o loot. Esse passo é best-effort — `open_storage_and_deposit_loot`
-   não verifica se a transferência funcionou, só que o storage abriu.
+   capture with `capture_template.py` while looking at a storage container,
+   and with the container open.
+4. **Inventory grid** (`config.toml [inventory_grid]`): coordinates of the
+   first slot and spacing between slots, used by the shift-click that
+   deposits loot. This step is best-effort — `open_storage_and_deposit_loot`
+   doesn't verify the transfer worked, only that the storage opened.
 
 ---
 
-## Controle em runtime (Signals & Queries)
+## Runtime control (Signals & Queries)
 
-Enquanto os workflows estão rodando, você pode interagir com eles sem reiniciar o processo:
+While workflows are running, you can interact with them without restarting the process:
 
 ```bash
-# Pausar (espera concluir a atividade atual e entra em pausa)
+# Pause (waits for the current activity to finish, then pauses)
 temporal workflow signal --workflow-id <id> --name pause
 
-# Retomar execução
+# Resume execution
 temporal workflow signal --workflow-id <id> --name resume
 
-# Parar graciosamente (aguarda finalizar a atividade em progresso)
+# Stop gracefully (waits for the in-progress activity to finish)
 temporal workflow signal --workflow-id <id> --name stop
 
-# Consultar estatísticas da sessão atual em tempo real
+# Query the current session's stats in real time
 temporal workflow query --workflow-id <id> --query-type get_stats
 ```
 
 ---
 
-## Jogando manualmente? Capture dados para melhorar o bot
+## Playing manually? Capture data to improve the bot
 
-Quando você está jogando normalmente (não AFK), pode rodar em paralelo um
-script que **só observa a tela e nunca envia input** — seguro para deixar
-aberto num terminal enquanto joga com o teclado/mouse:
+While you're playing normally (not AFK), you can run a script in parallel
+that **only observes the screen and never sends input** — safe to leave
+open in a terminal while you play with keyboard/mouse:
 
 ```bash
-# Tira um screenshot a cada 4s (default) em captures/, descartando frames
-# quase idênticos ao último salvo. Ctrl+C para parar.
+# Takes a screenshot every 4s (default) into captures/, discarding frames
+# nearly identical to the last one saved. Ctrl+C to stop.
 uv run python passive_capture.py
 
-# Mais frequente, com limite de screenshots:
+# More frequent, with a screenshot limit
 uv run python passive_capture.py --interval 2 --max-shots 300
 ```
 
-Depois da sessão, revise os screenshots e recorte templates novos ou
-melhores variantes dos existentes (ex: o mesmo inimigo em poses diferentes,
-o Doggo selvagem, a janela de loot do Doggo):
+After the session, review the screenshots and crop new templates or
+better variants of existing ones (ex: the same enemy in different poses,
+the wild Doggo, the Doggo's loot window):
 
 ```bash
 uv run python label_captures.py
 ```
 
-Para cada imagem você digita o nome do template para recortar (sobrescreve
-ou cria `templates/<nome>.png`), `d` para descartar a imagem, ou Enter para
-pular. Imagens já revisadas vão para `captures/_reviewed/`.
+For each image you type the template name to crop (overwrites or creates
+`templates/<name>.png`), `d` to discard the image, or Enter to skip.
+Reviewed images go to `captures/_reviewed/`.
 
-Para validar se os templates/thresholds atuais funcionam bem contra
-screenshots reais de gameplay (em vez de só a tela do momento):
+To validate whether the current templates/thresholds work well against
+real gameplay screenshots (instead of just the current screen):
 
 ```bash
 uv run python debug_run.py --scan-dir captures
 ```
 
-Isso reporta a taxa de detecção de cada template no lote — útil para notar
-thresholds desalinhados ou templates que precisam ser recapturados antes da
-próxima sessão AFK.
+This reports each template's detection rate across the batch — useful
+for noticing misaligned thresholds or templates that need recapturing
+before the next AFK session.
 
 ---
 
-## Debug e visualização
+## Debugging and visualization
 
-### Script de debug autônomo (sem Temporal)
+### Standalone debug script (no Temporal)
 ```bash
-# Procura e anota todos os templates na tela atual
+# Looks for and annotates every template on the current screen
 uv run python debug_run.py --scan
 
-# Procura um template específico
+# Looks for a specific template
 uv run python debug_run.py --find gift_prompt
 
-# Testa a sensibilidade da busca com threshold customizado
+# Tests search sensitivity with a custom threshold
 uv run python debug_run.py --find enemy_spitter --threshold 0.65
 
-# Apenas tira um screenshot do monitor principal
+# Just takes a screenshot of the primary monitor
 uv run python debug_run.py --screenshot
 ```
-Todas as imagens anotadas e capturadas são salvas com timestamp no diretório `debug_screenshots/`.
+All annotated and captured images are saved with a timestamp in `debug_screenshots/`.
 
-### Screenshots automáticos em erros/eventos
-Os workflows geram capturas automaticamente em situações relevantes:
-- Falhas/Exceções em atividades: `error_{nome_atividade}_TIMESTAMP.png`
-- Inventário cheio: `inv_full_cycle_N_TIMESTAMP.png`
-- Morte do personagem: `player_death_TIMESTAMP.png`
-- Botão de respawn ausente: `respawn_not_found_TIMESTAMP.png`
+### Automatic screenshots on errors/events
+Workflows automatically generate captures in relevant situations:
+- Failures/exceptions in activities: `error_{activity_name}_TIMESTAMP.png`
+- Full inventory: `inv_full_cycle_N_TIMESTAMP.png`
+- Character death: `player_death_TIMESTAMP.png`
+- Missing respawn button: `respawn_not_found_TIMESTAMP.png`
 
-### Dashboard do Temporal UI
-Abra **http://localhost:8233** no seu navegador para:
-- Visualizar a linha do tempo detalhada das atividades.
-- Identificar parâmetros de entrada e saída de cada passo.
-- Investigar logs de erro detalhados e tentativas de retry de atividades que falharam.
-
----
-
-## Calibração e Ajustes
-
-### 1. Fator de Sensibilidade do Mouse
-Em `utils/input.py`, o método `aim_at_screen_position` utiliza a propriedade `aim_sensitivity_factor` definida no `config.toml`. Ajuste-a se a mira estiver passando do alvo ou virando pouco.
-
-### 2. Thresholds de Comparação Visual
-Os limites de precisão para detectar imagens estão configurados na seção `[vision.thresholds]` no `config.toml`:
-- Elementos estáticos de menu: `0.85–0.90` (alta precisão).
-- Prompts de interação e botões: `0.80–0.85`.
-- Inimigos móveis: `0.65–0.70` (para compensar movimentos rápidos e variações de silhueta).
-
-### 3. Ajuste de Navegação por Teclas
-Como o bot utiliza tempos de movimentação predefinidos (ex: andar para frente por 1.2s), ajuste as durações de tecla em segundos na seção `[navigation]` do `config.toml` até alinhar perfeitamente com os caminhos da sua base de operações.
+### Temporal UI dashboard
+Open **http://localhost:8233** in your browser to:
+- View a detailed timeline of activities.
+- Inspect the input and output parameters of each step.
+- Investigate detailed error logs and retry attempts of failed activities.
 
 ---
 
-## Limitações conhecidas
-- **Navegação Cega:** O bot usa pressões de tecla de duração fixa para caminhar. Se o personagem colidir ou for empurrado por um inimigo, a rota pode desviar. O Temporal lidará com isso através do fluxo de retries das atividades falhas.
-- **Combate Móvel:** O rastreamento de alvos é reativo e funciona melhor contra inimigos lentos. Inimigos rápidos (como Spitters ágeis) podem exigir mais munição.
-- **Inimigos Hazard (dano em área):** Cliff Hog Nuclear (radiação) e Elite Gas Stinger (gás venenoso) não são engajados pelo loop normal de combate — o bot recua (`retreat_from_hazard`) em vez de tentar matá-los, já que o aim-and-shoot estático não é seguro contra dano em área.
-- **Colheita de Recursos:** `ResourceHarvestWorkflow` não navega até o node — o jogador precisa posicionar o personagem manualmente dentro do alcance de interação antes de disparar o workflow.
-- **Expedição de Combate:** `CombatExpeditionWorkflow` depende de `[locations.*]` calibrados manualmente para cada zona — sem isso, a navegação "às cegas" pode terminar em qualquer lugar. O depósito de loot via `open_storage_and_deposit_loot` é best-effort (shift-click em todo o grid do inventário, sem confirmar a transferência) e a leitura de munição via OCR pode falhar silenciosamente (retorna -1, e o workflow não bloqueia o combate nesse caso).
-- **Domesticação de Doggo:** `TameDoggoWorkflow` é best-effort. O cue visual de sucesso (Doggo comendo, pulando e "chiando") é fraco demais para template matching confiável — o workflow só registra que ofereceu a berry, não que a domesticação funcionou. Revise os screenshots em `debug_screenshots/` manualmente.
-- **Resolução de Tela:** Os templates capturados em uma resolução específica (ex: 1920x1080) são específicos dela. Caso altere a resolução do jogo, recapture-os.
-- **Fora de escopo (não automatizável nesta arquitetura):** Hard Drives e Somersloops exigem navegação por um mapa aberto sem pathfinding (locais fixos mas distantes, muitas vezes atrás de pré-requisitos de logística); construção exige mira livre com feedback visual em tempo real do Build Gun; exploração de Power Slugs/Mercer Spheres não tem um prompt de UI fixo para ancorar a detecção. Nenhum desses é viável com visão por template matching + macros de teclado fixos.
+## Calibration and Tuning
+
+### 1. Mouse Sensitivity Factor
+In `utils/input.py`, the `aim_at_screen_position` method uses the
+`aim_sensitivity_factor` property defined in `config.toml`. Adjust it if
+aiming overshoots or undershoots the target.
+
+### 2. Visual Comparison Thresholds
+Detection precision thresholds are configured in the `[vision.thresholds]`
+section of `config.toml`:
+- Static menu elements: `0.85–0.90` (high precision).
+- Interaction prompts and buttons: `0.80–0.85`.
+- Moving enemies: `0.65–0.70` (to compensate for fast movement and silhouette variation).
+
+### 3. Key-Based Navigation Tuning
+Since the bot uses fixed-duration key presses for movement (ex: walking
+forward for 1.2s), adjust the key durations in seconds in the
+`[navigation]` section of `config.toml` until they line up perfectly with
+your base's layout.
+
+---
+
+## Known limitations
+- **Blind navigation:** The bot uses fixed-duration key presses to walk. If the character collides with something or gets pushed by an enemy, the route can drift. Temporal handles this through the failed-activity retry flow.
+- **Mobile combat:** Target tracking is reactive and works best against slow enemies. Fast enemies (like agile Spitters) may require more ammo.
+- **Window focus on Wayland:** `focus_game()` uses `xdotool windowfocus`, which reports success but can't actually bring the game window to the foreground in native Wayland sessions (KWin's focus-stealing protection) — it only works if the game is already focused. Since the `uinput` virtual mouse sends input to whatever currently has focus (not to a specific window), **the Satisfactory window needs to stay in the foreground for the entire duration of a workflow run** — avoid switching to another window (ex: a terminal) while a workflow is running.
+- **Mouse-look (resolved via uinput):** `move_mouse_relative`/`aim_at_screen_position` rotate the camera through a virtual mouse created with `evdev`/`uinput` (`/dev/uinput`), no longer via `pynput`/X11-XTest. This was necessary because the game runs via Proton/Wine, and the game's Raw Input completely ignores synthetic relative motion injected via X11/XTest — even confirming that the real desktop cursor moves (tested with `Xlib.ext.xtest.fake_input(detail=True)`), the in-game camera didn't react. A `uinput` mouse shows up as a physical device to the kernel/`libinput`, and Wine/Proton reads Raw Input correctly from it. Requires `/dev/uinput` to have a `uaccess` ACL for the session user — on distros with default udev rules for KDE Connect, Steam Input, or antimicrox (`TAG+="uaccess"` on `uinput`), this already works with no extra setup; otherwise, a custom udev rule is needed.
+- **Hazard enemies (area damage):** The Nuclear Cliff Hog (radiation) and Elite Gas Stinger (poison gas) aren't engaged by the normal combat loop — the bot retreats (`retreat_from_hazard`) instead of trying to kill them, since the static aim-and-shoot isn't safe against area damage.
+- **Resource harvesting:** `ResourceHarvestWorkflow` doesn't navigate to the node — the player needs to manually position the character within interaction range before triggering the workflow.
+- **Combat expedition:** `CombatExpeditionWorkflow` depends on manually calibrated `[locations.*]` for each zone — without that, "blind" navigation can end up anywhere. Loot deposit via `open_storage_and_deposit_loot` is best-effort (shift-click across the whole inventory grid, without confirming the transfer) and the ammo reading via OCR can fail silently (returns -1, and the workflow doesn't block combat in that case).
+- **Doggo taming:** `TameDoggoWorkflow` is best-effort. The visual success cue (the Doggo eating, jumping, and "squeaking") is too weak for reliable template matching — the workflow only records that it offered the berry, not that taming actually worked. Review the screenshots in `debug_screenshots/` manually.
+- **Screen resolution:** Templates captured at a specific resolution (ex: 1920x1080) are specific to it. If you change the game's resolution, recapture them.
+- **Out of scope (not automatable with this architecture):** Hard Drives and Somersloops require navigating an open map with no pathfinding (fixed but distant locations, often behind logistics prerequisites); building requires free-aim with real-time visual feedback from the Build Gun; exploring Power Slugs/Mercer Spheres has no fixed UI prompt to anchor detection on. None of these are feasible with template-matching vision + fixed keyboard macros.

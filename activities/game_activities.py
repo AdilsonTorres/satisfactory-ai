@@ -1,18 +1,19 @@
 """
 activities/game_activities.py
 
-Activities do Temporal — ações atômicas no jogo.
+Temporal activities — atomic actions in the game.
 
-Convenções:
-- Exceções tipadas (VisionError, NavigationError, MenuError) aparecem
-  de forma descritiva no histórico do Temporal.
-- Activities longas chamam activity.heartbeat() periodicamente para
-  evitar timeout falso do Temporal.
-- screenshot_on_error: qualquer exceção não tratada salva screenshot
-  automaticamente antes de propagar.
-- BUG CORRIGIDO: check_health_low não era chamado como activity dentro
-  de engage_enemy (não é possível chamar activity dentro de activity).
-  Agora usa _check_health_inline() que acessa o Vision diretamente.
+Conventions:
+- Typed exceptions (VisionError, NavigationError, MenuError) show up
+  descriptively in Temporal's history.
+- Long-running activities call activity.heartbeat() periodically to
+  avoid a false Temporal timeout.
+- screenshot_on_error: any unhandled exception automatically saves a
+  screenshot before propagating.
+- FIXED BUG: check_health_low wasn't being called as an activity from
+  inside engage_enemy (you can't call an activity from inside an
+  activity). It now uses _check_health_inline(), which accesses Vision
+  directly.
 """
 import time
 import logging
@@ -41,7 +42,7 @@ def get_vision() -> Vision:
 
 @contextmanager
 def screenshot_on_error(label: str):
-    """Salva screenshot se a activity lançar exceção."""
+    """Saves a screenshot if the activity raises an exception."""
     try:
         yield
     except Exception as exc:
@@ -52,14 +53,14 @@ def screenshot_on_error(label: str):
 
 def _check_health_inline(v: Vision) -> bool:
     """
-    Checa vida diretamente via Vision — sem dispatch Temporal.
-    Usado dentro de engage_enemy (não é possível chamar outra activity
-    de dentro de uma activity; usar o decorator seria chamar a função local,
-    não uma nova execução do Temporal).
+    Checks health directly via Vision — no Temporal dispatch.
+    Used inside engage_enemy (you can't call another activity from
+    inside an activity; using the decorator would just call the local
+    function, not a new Temporal execution).
     """
     result = v.find("health_low_indicator")
     if result.found:
-        logger.warning("Vida baixa detectada (conf=%.2f).", result.confidence)
+        logger.warning("Low health detected (conf=%.2f).", result.confidence)
     return result.found
 
 
@@ -69,7 +70,7 @@ def _check_health_inline(v: Vision) -> bool:
 
 @activity.defn
 async def take_debug_screenshot(label: str = "manual") -> str:
-    """Tira screenshot imediato. Pode ser chamado de qualquer workflow."""
+    """Takes an immediate screenshot. Can be called from any workflow."""
     path = save_debug_screenshot(label)
     logger.info("Screenshot: %s", path)
     return str(path)
@@ -81,80 +82,81 @@ async def take_debug_screenshot(label: str = "manual") -> str:
 
 @activity.defn
 async def persist_session_stats(workflow_type: str, stats: dict) -> str:
-    """Salva estatísticas de sessão em stats/ ao final do workflow."""
+    """Saves session stats to stats/ at the end of the workflow."""
     path = stats_module.save(workflow_type, stats)
-    logger.info("Estatísticas salvas: %s", path)
+    logger.info("Stats saved: %s", path)
     return str(path)
 
 
 # ---------------------------------------------------------------------------
-# Activities: Gifts e Inventário
+# Activities: Gifts and Inventory
 # ---------------------------------------------------------------------------
 
 @activity.defn
 async def collect_doggo_gift() -> bool:
     """
-    Interagir com um Lizard Doggo abre a janela de loot de UM slot do próprio
-    Doggo — não o inventário do jogador. Aguardamos 'doggo_loot_window'
-    (não 'inventory_open'). Doggos sem item têm só ~0.2%/s de chance de
-    achar algo (~8min de média), então a maioria das interações vai
-    encontrar a janela vazia — isso é esperado, não é falha.
+    Interacting with a Lizard Doggo opens the Doggo's own ONE-slot loot
+    window — not the player's inventory. We wait for 'doggo_loot_window'
+    (not 'inventory_open'). Doggos with no item only have a ~0.2%/s chance
+    of finding something (~8min average), so most interactions will find
+    an empty window — that's expected, not a failure.
     """
     with screenshot_on_error("collect_doggo_gift"):
         v = get_vision()
         result = v.find("gift_prompt")
 
         if not result.found:
-            logger.debug("Nenhum gift (conf=%.2f)", result.confidence)
+            logger.debug("No gift (conf=%.2f)", result.confidence)
             return False
 
-        logger.info("Gift em (%d,%d) conf=%.2f — coletando.", result.x, result.y, result.confidence)
+        logger.info("Gift at (%d,%d) conf=%.2f — collecting.", result.x, result.y, result.confidence)
         inp.interact()
 
         confirm = v.wait_for("doggo_loot_window", timeout=3.0)
         if confirm.found:
             time.sleep(0.3)
             inp.close_menu()
-            logger.info("Gift coletado.")
+            logger.info("Gift collected.")
             return True
 
-        raise MenuError("Janela de loot do Doggo não abriu após interagir")
+        raise MenuError("Doggo loot window did not open after interacting")
 
 
 @activity.defn
 async def check_inventory_full() -> bool:
     v = get_vision()
     result = v.find("inventory_full_indicator")
-    logger.debug("Inventário cheio: %s (conf=%.2f)", result.found, result.confidence)
+    logger.debug("Inventory full: %s (conf=%.2f)", result.found, result.confidence)
     return result.found
 
 
 @activity.defn
 async def check_health_low() -> bool:
-    """Checa vida baixa. Quando chamado de um workflow, usa dispatch Temporal normal."""
+    """Checks for low health. When called from a workflow, uses normal Temporal dispatch."""
     return _check_health_inline(get_vision())
 
 
 # ---------------------------------------------------------------------------
-# Activities: Domesticação de Lizard Doggo
+# Activities: Lizard Doggo Taming
 # ---------------------------------------------------------------------------
 
 @activity.defn
 async def feed_wild_doggo() -> bool:
     """
-    Tenta domesticar um Lizard Doggo selvagem: abre o inventário, arrasta uma
-    Paleberry para um ponto fixo da tela (queda no mundo, perto do jogador) e
-    fecha o inventário.
+    Attempts to tame a wild Lizard Doggo: opens the inventory, drags a
+    Paleberry to a fixed screen point (drops it in the world, near the
+    player) and closes the inventory.
 
-    A confirmação de sucesso (Doggo come, pula e "chia") é um cue visual fraco
-    e não é verificada aqui — best-effort. Doggos competem pela mesma berry,
-    por isso o workflow chama esta activity várias vezes.
+    The success cue (Doggo eats, jumps, and "squeaks") is a weak visual
+    signal and isn't verified here — best-effort. Doggos compete for the
+    same berry, which is why the workflow calls this activity multiple
+    times.
     """
     with screenshot_on_error("feed_wild_doggo"):
         v = get_vision()
         wild = v.find("wild_doggo_prompt")
         if not wild.found:
-            logger.debug("Nenhum Doggo selvagem à vista (conf=%.2f)", wild.confidence)
+            logger.debug("No wild Doggo in sight (conf=%.2f)", wild.confidence)
             return False
 
         inp.open_inventory()
@@ -173,36 +175,36 @@ async def feed_wild_doggo() -> bool:
         time.sleep(0.3)
         inp.close_menu()
 
-        logger.info("Paleberry oferecida ao Doggo selvagem (conf=%.2f).", wild.confidence)
+        logger.info("Paleberry offered to the wild Doggo (conf=%.2f).", wild.confidence)
         return True
 
 
 # ---------------------------------------------------------------------------
-# Activities: Craft de Munição
+# Activities: Ammo Crafting
 # ---------------------------------------------------------------------------
 
 @activity.defn
 async def navigate_to_location(location: str) -> bool:
     """
-    Navega até um local nomeado em config.toml [locations.<location>]:
-    executa a sequência fixa de tecla/duração (steps) e, se o local tiver
-    'arrival_template', confirma a chegada por visão.
+    Navigates to a named location in config.toml [locations.<location>]:
+    runs the fixed key/duration sequence (steps) and, if the location has
+    an 'arrival_template', confirms arrival via vision.
 
-    Generaliza o padrão usado por navigate_to_equipment_workshop para locais
-    arbitrários (zonas de combate, storage, etc.) sem precisar de uma
-    activity dedicada para cada um.
+    Generalizes the pattern used by navigate_to_equipment_workshop to
+    arbitrary locations (combat zones, storage, etc.) without needing a
+    dedicated activity for each one.
     """
     with screenshot_on_error(f"navigate_to_{location}"):
         loc = cfg.get(f"locations.{location}")
         if not loc:
             raise NavigationError(
-                f"Local '{location}' não definido em config.toml [locations.{location}]."
+                f"Location '{location}' not defined in config.toml [locations.{location}]."
             )
 
         steps = loc.get("steps", [])
-        logger.info("Navegando para '%s' (%d passo(s))...", location, len(steps))
+        logger.info("Navigating to '%s' (%d step(s))...", location, len(steps))
         for i, step in enumerate(steps):
-            activity.heartbeat(f"passo {i + 1}/{len(steps)} de '{location}'")
+            activity.heartbeat(f"step {i + 1}/{len(steps)} of '{location}'")
             inp.hold(step["key"], step.get("duration", 0.5))
 
         arrival_template = loc.get("arrival_template")
@@ -211,27 +213,27 @@ async def navigate_to_location(location: str) -> bool:
             result = v.wait_for(arrival_template, timeout=loc.get("arrival_timeout", 5.0))
             if not result.found:
                 raise NavigationError(
-                    f"Chegada em '{location}' não confirmada — template "
-                    f"'{arrival_template}' não encontrado. Ajuste [locations.{location}] em config.toml."
+                    f"Arrival at '{location}' not confirmed — template "
+                    f"'{arrival_template}' not found. Adjust [locations.{location}] in config.toml."
                 )
 
-        logger.info("Chegada em '%s' concluída.", location)
+        logger.info("Arrival at '%s' complete.", location)
         return True
 
 
 @activity.defn
 async def navigate_to_equipment_workshop() -> bool:
     """
-    Navega até o Equipment Workshop via sequência de teclas configurada em config.toml.
-    Se falhar, ajuste [navigation] no config.toml.
+    Navigates to the Equipment Workshop via the key sequence configured in
+    config.toml. If it fails, adjust [navigation] in config.toml.
     """
     with screenshot_on_error("navigate_to_workshop"):
         nav = cfg.get("navigation", {})
-        logger.info("Navegando para o Equipment Workshop...")
-        activity.heartbeat("iniciando navegação")
+        logger.info("Navigating to the Equipment Workshop...")
+        activity.heartbeat("starting navigation")
 
         inp.move_forward(nav.get("to_workshop_forward_1", 1.2))
-        activity.heartbeat("andando para frente (1)")
+        activity.heartbeat("walking forward (1)")
         inp.strafe_right(nav.get("to_workshop_strafe_right", 0.8))
         inp.move_forward(nav.get("to_workshop_forward_2", 0.5))
 
@@ -239,21 +241,21 @@ async def navigate_to_equipment_workshop() -> bool:
         result = v.wait_for("equipment_workshop_prompt", timeout=5.0)
         if not result.found:
             raise NavigationError(
-                "Equipment Workshop não encontrado após navegação. "
-                "Ajuste [navigation] em config.toml."
+                "Equipment Workshop not found after navigation. "
+                "Adjust [navigation] in config.toml."
             )
 
-        logger.info("Workshop em (%d,%d).", result.x, result.y)
+        logger.info("Workshop at (%d,%d).", result.x, result.y)
         return True
 
 
 @activity.defn
 async def check_ammo_count() -> int:
     """
-    Lê a contagem de munição do HUD via OCR (região configurável em
-    config.toml [combat.ammo_region]). Retorna -1 se a leitura falhar ou a
-    região não estiver calibrada — o workflow trata -1 como "desconhecido"
-    e não bloqueia o combate por isso.
+    Reads the ammo count from the HUD via OCR (region configurable in
+    config.toml [combat.ammo_region]). Returns -1 if the reading fails or
+    the region isn't calibrated — the workflow treats -1 as "unknown" and
+    doesn't block combat because of it.
     """
     v = get_vision()
     region = cfg.get("combat.ammo_region", {})
@@ -263,10 +265,10 @@ async def check_ammo_count() -> int:
     )
     try:
         count = int(text)
-        logger.debug("Munição detectada: %d", count)
+        logger.debug("Ammo detected: %d", count)
         return count
     except ValueError:
-        logger.warning("Falha ao ler contagem de munição (OCR retornou '%s').", text)
+        logger.warning("Failed to read ammo count (OCR returned '%s').", text)
         return -1
 
 
@@ -276,9 +278,9 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
         v = get_vision()
 
         inp.interact()
-        activity.heartbeat("aguardando menu do workshop")
+        activity.heartbeat("waiting for workshop menu")
         if not v.wait_for("workshop_menu_open", timeout=4.0).found:
-            raise MenuError("Menu do Workshop não abriu")
+            raise MenuError("Workshop menu did not open")
 
         ammo_icon = v.find("rifle_ammo_icon")
         if not ammo_icon.found:
@@ -296,7 +298,7 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
             raise VisionError("craft_button", craft_btn.confidence,
                                cfg.get("vision.thresholds.craft_button", 0.87))
 
-        activity.heartbeat(f"craftando {quantity} unidades")
+        activity.heartbeat(f"crafting {quantity} unit(s)")
         from pynput.mouse import Controller as _MC, Button as _Btn
         _m = _MC()
         _m.position = (craft_btn.x, craft_btn.y)
@@ -307,17 +309,17 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
         time.sleep(0.5)
         inp.close_menu()
 
-        logger.info("Craftados ~%d Rifle Ammo.", quantity)
+        logger.info("Crafted ~%d Rifle Ammo.", quantity)
         return quantity
 
 
 @activity.defn
 async def harvest_resource_node(swings: int = 20) -> int:
     """
-    Colhe um node de recurso (picareta manual ou node já desbloqueado por
-    Nobelisk) pressionando interagir repetidamente. Assume que o jogador já
-    está posicionado dentro do alcance — não há navegação até o node;
-    esse posicionamento é feito manualmente uma vez, como no Workshop.
+    Harvests a resource node (manual pickaxe or a node already opened up by
+    a Nobelisk) by repeatedly pressing interact. Assumes the player is
+    already positioned within range — there's no navigation to the node;
+    that positioning is done manually once, like at the Workshop.
     """
     with screenshot_on_error("harvest_resource_node"):
         v = get_vision()
@@ -331,26 +333,27 @@ async def harvest_resource_node(swings: int = 20) -> int:
         interval = cfg.get("harvesting.swing_interval_seconds", 0.5)
         count = 0
         for i in range(swings):
-            activity.heartbeat(f"colhendo {i + 1}/{swings}")
+            activity.heartbeat(f"harvesting {i + 1}/{swings}")
             inp.interact()
             time.sleep(interval)
             count += 1
 
-        logger.info("Colheita concluída: %d interações no node.", count)
+        logger.info("Harvest complete: %d interaction(s) on the node.", count)
         return count
 
 
 @activity.defn
 async def open_storage_and_deposit_loot() -> int:
     """
-    Abre um storage container (precisa ter o prompt de interação no alcance)
-    e percorre o grid de inventário do jogador com shift-click em cada slot
-    para transferir tudo de uma vez. Shift-click num slot vazio não faz
-    nada, então é seguro varrer o grid inteiro sem detectar item por item.
+    Opens a storage container (needs the interaction prompt in range) and
+    sweeps the player's inventory grid with a shift-click on every slot to
+    transfer everything at once. Shift-clicking an empty slot does
+    nothing, so it's safe to sweep the whole grid without detecting items
+    one by one.
 
-    Best-effort: confirma que o storage abriu, mas não verifica se os itens
-    realmente foram transferidos. Calibre [inventory_grid] em config.toml
-    com as coordenadas reais do seu layout de inventário/resolução.
+    Best-effort: confirms the storage opened, but doesn't verify the
+    items were actually transferred. Calibrate [inventory_grid] in
+    config.toml with the real coordinates of your inventory layout/resolution.
     """
     with screenshot_on_error("open_storage_and_deposit_loot"):
         v = get_vision()
@@ -364,7 +367,7 @@ async def open_storage_and_deposit_loot() -> int:
         inp.interact()
         opened = v.wait_for("storage_open", timeout=3.0)
         if not opened.found:
-            raise MenuError("Janela de storage não abriu após interagir")
+            raise MenuError("Storage window did not open after interacting")
 
         grid = cfg.get("inventory_grid", {})
         origin_x = grid.get("origin_x", 100)
@@ -376,23 +379,23 @@ async def open_storage_and_deposit_loot() -> int:
 
         slots_clicked = 0
         for row in range(rows):
-            activity.heartbeat(f"linha {row + 1}/{rows} do inventário")
+            activity.heartbeat(f"row {row + 1}/{rows} of the inventory")
             for col in range(columns):
                 inp.shift_click(origin_x + col * slot_w, origin_y + row * slot_h)
                 slots_clicked += 1
 
         time.sleep(0.3)
         inp.close_menu()
-        logger.info("Storage: %d slot(s) varrido(s) com shift-click.", slots_clicked)
+        logger.info("Storage: %d slot(s) swept with shift-click.", slots_clicked)
         return slots_clicked
 
 
 @activity.defn
 async def navigate_back_to_base() -> bool:
     """
-    Retorna ao ponto de farm. Verifica que o personagem realmente saiu da
-    área do Workshop (se o prompt ainda estiver visível, a movimentação
-    não surtiu efeito — colisão, obstrução, etc).
+    Returns to the farming spot. Verifies the character actually left the
+    Workshop area (if the prompt is still visible, the movement had no
+    effect — collision, obstruction, etc).
     """
     with screenshot_on_error("navigate_back_to_base"):
         nav = cfg.get("navigation", {})
@@ -403,19 +406,19 @@ async def navigate_back_to_base() -> bool:
         v = get_vision()
         if v.find("equipment_workshop_prompt").found:
             raise NavigationError(
-                "Ainda dentro da área do Equipment Workshop após navegar de volta. "
-                "Personagem pode estar obstruído. Ajuste [navigation] em config.toml."
+                "Still inside the Equipment Workshop area after navigating back. "
+                "The character may be obstructed. Adjust [navigation] in config.toml."
             )
         return True
 
 
 # ---------------------------------------------------------------------------
-# Activities: Combate e Loot
+# Activities: Combat and Loot
 # ---------------------------------------------------------------------------
 
-# Variantes que causam dano em área (radiação/gás) — o loop estático de
-# aim-and-shoot do engage_enemy não foi desenhado para isso. Workflows devem
-# tratar "hazard" como sinal para recuar em vez de engajar normalmente.
+# Variants that deal area damage (radiation/gas) — engage_enemy's static
+# aim-and-shoot loop wasn't designed for this. Workflows should treat
+# "hazard" as a signal to retreat instead of engaging normally.
 HAZARD_ENEMY_TYPES = {"enemy_hog_nuclear", "enemy_stinger_elite_gas"}
 
 
@@ -427,7 +430,7 @@ async def scan_for_enemy() -> dict:
     if result:
         hazard = result.template_name in HAZARD_ENEMY_TYPES
         logger.info(
-            "Inimigo '%s' em (%d,%d) conf=%.2f hazard=%s",
+            "Enemy '%s' at (%d,%d) conf=%.2f hazard=%s",
             result.template_name, result.x, result.y, result.confidence, hazard
         )
         return {
@@ -445,13 +448,13 @@ async def scan_for_enemy() -> dict:
 @activity.defn
 async def retreat_from_hazard() -> bool:
     """
-    Recua sem engajar — usado quando scan_for_enemy sinaliza 'hazard'
-    (variante com dano em área de radiação/gás). O loop estático de
-    aim-and-shoot do engage_enemy não é seguro contra essas variantes.
+    Retreats without engaging — used when scan_for_enemy signals 'hazard'
+    (a radiation/gas area-damage variant). engage_enemy's static
+    aim-and-shoot loop isn't safe against these variants.
     """
     inp.move_backward(1.5)
     inp.dodge()
-    logger.warning("Recuando de inimigo hazard (dano em área) sem engajar.")
+    logger.warning("Retreating from a hazard enemy (area damage) without engaging.")
     return True
 
 
@@ -463,9 +466,9 @@ async def engage_enemy(
     screen_h: Optional[int] = None,
 ) -> str:
     """
-    Engaja inimigo em (target_x, target_y).
-    Parâmetros de combate veem de config.toml[combat].
-    Retorna: 'killed' | 'escaped' | 'died'
+    Engages an enemy at (target_x, target_y).
+    Combat parameters come from config.toml[combat].
+    Returns: 'killed' | 'escaped' | 'died'
     """
     with screenshot_on_error("engage_enemy"):
         v = get_vision()
@@ -475,7 +478,7 @@ async def engage_enemy(
         center_x, center_y = sw // 2, sh // 2
         max_dur = cfg.get("combat.max_combat_duration_seconds", 10.0)
 
-        logger.info("Engajando inimigo em (%d,%d)", target_x, target_y)
+        logger.info("Engaging enemy at (%d,%d)", target_x, target_y)
         inp.aim_at_screen_position(target_x, target_y, center_x, center_y)
         time.sleep(0.1)
 
@@ -483,11 +486,11 @@ async def engage_enemy(
         bursts_fired = 0
 
         while time.time() - combat_start < max_dur:
-            activity.heartbeat(f"combate — {bursts_fired} bursts")
+            activity.heartbeat(f"combat — {bursts_fired} bursts")
 
-            # _check_health_inline evita chamar outra activity de dentro de activity
+            # _check_health_inline avoids calling another activity from inside an activity
             if _check_health_inline(v):
-                logger.warning("Vida baixa — fugindo.")
+                logger.warning("Low health — fleeing.")
                 inp.dodge()
                 inp.move_backward(1.0)
                 return "escaped"
@@ -498,14 +501,14 @@ async def engage_enemy(
 
             enemy = v.find_enemy()
             if not enemy:
-                logger.info("Inimigo eliminado após %d bursts.", bursts_fired)
+                logger.info("Enemy eliminated after %d bursts.", bursts_fired)
                 break
 
             inp.aim_at_screen_position(enemy.x, enemy.y, center_x, center_y)
 
         if v.find("death_screen").found:
             save_debug_screenshot("player_death")
-            logger.error("Personagem morreu durante combate.")
+            logger.error("Character died during combat.")
             return "died"
 
         time.sleep(0.8)
@@ -515,7 +518,7 @@ async def engage_enemy(
             if v.wait_for("inventory_open", timeout=3.0).found:
                 time.sleep(0.4)
                 inp.close_menu()
-                logger.info("Loot coletado.")
+                logger.info("Loot collected.")
 
         return "killed"
 
@@ -527,70 +530,70 @@ async def handle_death_respawn() -> bool:
         btn = v.find("respawn_button")
         if btn.found:
             inp.click(btn.x, btn.y)
-            logger.info("Clicou em respawn.")
+            logger.info("Clicked respawn.")
             time.sleep(3.0)
             return True
 
         save_debug_screenshot("respawn_not_found")
         raise RespawnError(
-            f"Botão de respawn não encontrado (conf={btn.confidence:.3f}). "
-            "Verifique se o template 'respawn_button.png' está correto."
+            f"Respawn button not found (conf={btn.confidence:.3f}). "
+            "Check that the 'respawn_button.png' template is correct."
         )
 
 
 @activity.defn
 async def capture_template_screen(screen_name: str, key_to_open: str = "", key_to_close: str = "") -> str:
-    """Foca o jogo, envia comando para abrir, captura a tela e fecha o menu."""
+    """Focuses the game, sends the command to open, captures the screen, and closes the menu."""
     import time
     from utils.screenshot import save_debug_screenshot
-    
+
     inp.focus_game("Satisfactory")
     time.sleep(0.5)
-    
+
     if key_to_open:
         inp.press(key_to_open)
-        time.sleep(0.8) # Aguarda animação de abertura
-            
+        time.sleep(0.8)  # wait for the opening animation
+
     v = get_vision()
     frame = v.capture()
     path = save_debug_screenshot(screen_name, frame=frame)
-    logger.info("Tela capturada para calibração: %s", path)
-    
+    logger.info("Screen captured for calibration: %s", path)
+
     if key_to_close:
         inp.press(key_to_close)
         time.sleep(0.3)
-        
+
     return str(path)
 
 
 @activity.defn
 async def extract_templates_from_screen(screenshot_path: str, target: str = "hud", resolution: str = "2560x1440") -> dict:
-    """Extrai regiões de interesse da captura e salva como novos templates PNG."""
+    """Extracts regions of interest from the capture and saves them as new PNG templates."""
     import cv2
     from pathlib import Path
-    
+
     path = Path(screenshot_path)
     if not path.exists():
-        raise FileNotFoundError(f"Captura não encontrada: {screenshot_path}")
-        
+        raise FileNotFoundError(f"Capture not found: {screenshot_path}")
+
     img = cv2.imread(str(path))
     if img is None:
-        raise ValueError(f"Falha ao carregar imagem: {screenshot_path}")
-        
+        raise ValueError(f"Failed to load image: {screenshot_path}")
+
     h, w = img.shape[:2]
-    logger.info("Extraindo templates para alvo '%s' e resolução %dx%d (config: %s)", target, w, h, resolution)
-    
+    logger.info("Extracting templates for target '%s' and resolution %dx%d (config: %s)", target, w, h, resolution)
+
     templates_dir = Path("templates")
     templates_dir.mkdir(exist_ok=True)
-    
+
     results = {}
-    
-    # Coordenadas mapeadas para 2560x1440 e fallback proporcional
+
+    # Coordinates mapped for 2560x1440, with a proportional fallback
     if target == "hud":
         if w == 2560 and h == 1440:
             coords = {
-                "health_low_indicator": (1330, 1380, 70, 120),  # Ícone do coração (vida)
-                "inventory_open": (1215, 1265, 2185, 2245),       # Ícone do Tab no HUD
+                "health_low_indicator": (1330, 1380, 70, 120),   # Heart icon (health)
+                "inventory_open": (1215, 1265, 2185, 2245),       # Tab icon in the HUD
             }
         else:
             coords = {
@@ -598,12 +601,12 @@ async def extract_templates_from_screen(screenshot_path: str, target: str = "hud
                 "inventory_open": (int(h * 0.843), int(h * 0.878), int(w * 0.853), int(w * 0.877)),
             }
     elif target == "workshop":
-        # Nota: Coordenadas temporárias de calibração para o Equipment Workshop em 2560x1440
+        # Note: temporary calibration coordinates for the Equipment Workshop at 2560x1440
         if w == 2560 and h == 1440:
             coords = {
-                "workshop_menu_open": (50, 150, 100, 400),      # Título do menu Workshop (topo esquerdo)
-                "rifle_ammo_icon": (400, 600, 300, 500),        # Ícone de munição de rifle no menu
-                "craft_button": (1000, 1200, 1800, 2200),       # Botão de craft (segurar para fabricar)
+                "workshop_menu_open": (50, 150, 100, 400),       # Workshop menu title (top-left)
+                "rifle_ammo_icon": (400, 600, 300, 500),         # Rifle ammo icon in the menu
+                "craft_button": (1000, 1200, 1800, 2200),        # Craft button (hold to fabricate)
             }
         else:
             coords = {
@@ -612,38 +615,38 @@ async def extract_templates_from_screen(screenshot_path: str, target: str = "hud
                 "craft_button": (int(h * 0.694), int(h * 0.833), int(w * 0.703), int(w * 0.859)),
             }
     else:
-        raise ValueError(f"Alvo desconhecido para extração: {target}")
-        
+        raise ValueError(f"Unknown extraction target: {target}")
+
     for name, (y1, y2, x1, x2) in coords.items():
         cropped = img[y1:y2, x1:x2]
         out_path = templates_dir / f"{name}.png"
         cv2.imwrite(str(out_path), cropped)
         results[name] = str(out_path)
-        logger.info("Template '%s' extraído e salvo em %s", name, out_path)
-        
+        logger.info("Template '%s' extracted and saved to %s", name, out_path)
+
     return results
 
 
 @activity.defn
 async def reset_to_safe_state() -> bool:
     """
-    Limpeza defensiva: fecha qualquer menu aberto (gift, inventário, workshop).
-    Chamada ao cancelar/encerrar um workflow para não deixar o jogo com um
-    menu aberto entre uma sessão e a próxima.
+    Defensive cleanup: closes any open menu (gift, inventory, workshop).
+    Called when cancelling/ending a workflow so the game isn't left with
+    an open menu between one session and the next.
     """
     inp.close_menu()
     time.sleep(0.2)
     inp.close_menu()
-    logger.info("Estado seguro restaurado (menus fechados).")
+    logger.info("Safe state restored (menus closed).")
     return True
 
 
 @activity.defn
 async def verify_matching_templates(template_names: list[str]) -> dict:
-    """Escaneia a tela atual buscando os templates e retorna o status de confiança."""
+    """Scans the current screen for the templates and returns the confidence status."""
     v = get_vision()
     results = v.scan_all(template_names)
-    
+
     report = {}
     for name, r in results.items():
         report[name] = {
@@ -652,5 +655,5 @@ async def verify_matching_templates(template_names: list[str]) -> dict:
             "y": r.y,
             "confidence": float(r.confidence),
         }
-        logger.info("Verificação de '%s': found=%s, conf=%.3f", name, r.found, r.confidence)
+        logger.info("Verification of '%s': found=%s, conf=%.3f", name, r.found, r.confidence)
     return report

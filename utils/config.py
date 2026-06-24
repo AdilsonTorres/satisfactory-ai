@@ -1,6 +1,6 @@
 """
 utils/config.py
-Carrega config.toml e fornece acesso tipado por caminho de chave.
+Loads config.toml and provides typed access by key path.
 """
 import tomllib
 from pathlib import Path
@@ -15,8 +15,8 @@ def load() -> dict:
     if _cache is None:
         if not _CONFIG_PATH.exists():
             raise FileNotFoundError(
-                f"config.toml não encontrado em {_CONFIG_PATH}.\n"
-                "O arquivo deve existir na raiz do projeto."
+                f"config.toml not found at {_CONFIG_PATH}.\n"
+                "The file must exist at the project root."
             )
         with open(_CONFIG_PATH, "rb") as f:
             _cache = tomllib.load(f)
@@ -24,7 +24,7 @@ def load() -> dict:
 
 
 def get(key_path: str, default: Any = None) -> Any:
-    """Retorna valor por caminho com ponto. Ex: get('vision.default_threshold')"""
+    """Returns a value by dotted path. Ex: get('vision.default_threshold')"""
     try:
         cfg = load()
     except FileNotFoundError:
@@ -39,6 +39,6 @@ def get(key_path: str, default: Any = None) -> Any:
 
 
 def reload() -> None:
-    """Invalida o cache — útil em testes."""
+    """Invalidates the cache — useful in tests."""
     global _cache
     _cache = None

@@ -1,13 +1,13 @@
 """
 workflows/satisfactory_workflows.py
 
-Workflows com:
+Workflows with:
 - Signals: pause / resume / stop
 - Queries: get_stats
-- Screenshots periódicos configuráveis
-- Estatísticas persistidas em JSON ao final (via persist_session_stats activity)
+- Configurable periodic screenshots
+- Stats persisted to JSON at the end (via the persist_session_stats activity)
 
-Controle via CLI:
+CLI control:
     temporal workflow signal --workflow-id <id> --name pause
     temporal workflow signal --workflow-id <id> --name resume
     temporal workflow signal --workflow-id <id> --name stop
@@ -51,8 +51,8 @@ GAME_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
     maximum_attempts=3,
     backoff_coefficient=2.0,
-    # FileNotFoundError = template faltando = bug, não retry
-    # NavigationError after max_attempts = aborta o workflow
+    # FileNotFoundError = missing template = a bug, not a retry
+    # NavigationError after max_attempts = aborts the workflow
     non_retryable_error_types=["FileNotFoundError"],
 )
 
@@ -87,7 +87,7 @@ async def _save_stats(workflow_type: str, stats: dict) -> None:
 
 
 async def _cleanup_on_cancel(workflow_type: str) -> None:
-    """Fecha menus abertos no jogo antes de deixar a exceção de cancelamento propagar."""
+    """Closes any open menus in the game before letting the cancellation exception propagate."""
     try:
         await workflow.execute_activity(
             reset_to_safe_state,
@@ -95,12 +95,12 @@ async def _cleanup_on_cancel(workflow_type: str) -> None:
             retry_policy=RetryPolicy(maximum_attempts=1),
         )
     except Exception as exc:
-        workflow.logger.error("Limpeza de cancelamento de %s falhou: %s", workflow_type, exc)
+        workflow.logger.error("Cancellation cleanup for %s failed: %s", workflow_type, exc)
 
 
-# NAV_RETRY permite 5 tentativas com backoff (2s, 3s, 4.5s, 6.75s ~= 16.25s de espera).
-# schedule_to_close_timeout precisa cobrir esse backoff + o tempo de execução de
-# todas as tentativas, não apenas uma — por isso é maior que start_to_close_timeout.
+# NAV_RETRY allows 5 attempts with backoff (2s, 3s, 4.5s, 6.75s ~= 16.25s of waiting).
+# schedule_to_close_timeout needs to cover that backoff plus the execution time of
+# every attempt, not just one — that's why it's larger than start_to_close_timeout.
 async def _run_craft_cycle(ammo_per_craft: int) -> None:
     await workflow.execute_activity(
         navigate_to_equipment_workshop,
@@ -126,11 +126,11 @@ async def _run_craft_cycle(ammo_per_craft: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Mixin de controle (pause / resume / stop / get_stats)
+# Control mixin (pause / resume / stop / get_stats)
 # ---------------------------------------------------------------------------
 
 class _ControlMixin:
-    """Signals e query compartilhados por todos os workflows."""
+    """Signals and query shared by all workflows."""
 
     def __init__(self) -> None:
         self._paused = False
@@ -141,20 +141,20 @@ class _ControlMixin:
     async def pause(self) -> None:
         self._paused = True
         self._stats["status"] = "paused"
-        workflow.logger.info("Pausado.")
+        workflow.logger.info("Paused.")
 
     @workflow.signal
     async def resume(self) -> None:
         self._paused = False
         self._stats["status"] = "running"
-        workflow.logger.info("Retomado.")
+        workflow.logger.info("Resumed.")
 
     @workflow.signal
     async def stop(self) -> None:
         self._stop_requested = True
         self._paused = False
         self._stats["status"] = "stopping"
-        workflow.logger.info("Encerramento solicitado.")
+        workflow.logger.info("Shutdown requested.")
 
     @workflow.query
     def get_stats(self) -> dict:
@@ -172,13 +172,13 @@ class _ControlMixin:
 @workflow.defn
 class GiftFarmWorkflow(_ControlMixin):
     """
-    Loop de AFK farm de gifts dos Lizard Doggos.
+    AFK farming loop for Lizard Doggo gifts.
 
-    Parâmetros:
-        ammo_per_craft (int):           Rifle Ammo por ciclo de craft [50]
-        screenshot_every_cycles (int):  Screenshot a cada N ciclos [10]
+    Parameters:
+        ammo_per_craft (int):           Rifle Ammo per craft cycle [50]
+        screenshot_every_cycles (int):  Screenshot every N cycles [10]
 
-    Query get_stats retorna:
+    get_stats query returns:
         {gifts, ammo_crafted, cycles, status}
     """
 
@@ -195,7 +195,7 @@ class GiftFarmWorkflow(_ControlMixin):
     ) -> dict:
         if _resume_stats is not None:
             self._stats = _resume_stats
-        workflow.logger.info("GiftFarmWorkflow iniciado.")
+        workflow.logger.info("GiftFarmWorkflow started.")
 
         try:
             while not self._stop_requested:
@@ -204,13 +204,13 @@ class GiftFarmWorkflow(_ControlMixin):
                     break
 
                 if workflow.info().is_continue_as_new_suggested():
-                    workflow.logger.info("Histórico extenso — continuando como novo workflow.")
+                    workflow.logger.info("History getting long — continuing as a new workflow.")
                     workflow.continue_as_new(args=[ammo_per_craft, screenshot_every_cycles, self._stats])
 
                 self._stats["cycles"] += 1
                 cycle = self._stats["cycles"]
                 workflow.logger.info(
-                    "Ciclo #%d | gifts=%d ammo=%d",
+                    "Cycle #%d | gifts=%d ammo=%d",
                     cycle, self._stats["gifts"], self._stats["ammo_crafted"]
                 )
 
@@ -241,25 +241,25 @@ class GiftFarmWorkflow(_ControlMixin):
             await _save_stats("GiftFarmWorkflow", self._stats)
             return self._stats
         except asyncio.CancelledError:
-            workflow.logger.warning("GiftFarmWorkflow cancelado — limpando estado do jogo.")
+            workflow.logger.warning("GiftFarmWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("GiftFarmWorkflow"))
             raise
 
 
 # ---------------------------------------------------------------------------
-# Workflow: Patrulha de Combate
+# Workflow: Combat Patrol
 # ---------------------------------------------------------------------------
 
 @workflow.defn
 class CombatPatrolWorkflow(_ControlMixin):
     """
-    Patrulha estática: fica no lugar e reage a inimigos que entram no campo de visão.
+    Static patrol: stays in place and reacts to enemies entering the field of view.
 
-    Parâmetros:
-        max_kills (int):               Kills para encerrar [20]
-        screenshot_every_kills (int):  Screenshot a cada N kills [5]
+    Parameters:
+        max_kills (int):               Kills before finishing [20]
+        screenshot_every_kills (int):  Screenshot every N kills [5]
 
-    Query get_stats retorna:
+    get_stats query returns:
         {kills, deaths, escaped, status}
     """
 
@@ -276,12 +276,12 @@ class CombatPatrolWorkflow(_ControlMixin):
     ) -> dict:
         if _resume_stats is not None:
             self._stats = _resume_stats
-        workflow.logger.info("CombatPatrolWorkflow iniciado. max_kills=%d", max_kills)
+        workflow.logger.info("CombatPatrolWorkflow started. max_kills=%d", max_kills)
 
         try:
             return await self._run_patrol(max_kills, screenshot_every_kills)
         except asyncio.CancelledError:
-            workflow.logger.warning("CombatPatrolWorkflow cancelado — limpando estado do jogo.")
+            workflow.logger.warning("CombatPatrolWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("CombatPatrolWorkflow"))
             raise
 
@@ -292,7 +292,7 @@ class CombatPatrolWorkflow(_ControlMixin):
                 break
 
             if workflow.info().is_continue_as_new_suggested():
-                workflow.logger.info("Histórico extenso — continuando como novo workflow.")
+                workflow.logger.info("History getting long — continuing as a new workflow.")
                 workflow.continue_as_new(args=[max_kills, screenshot_every_kills, self._stats])
 
             enemy = await workflow.execute_activity(
@@ -307,7 +307,7 @@ class CombatPatrolWorkflow(_ControlMixin):
 
             if enemy["hazard"]:
                 workflow.logger.warning(
-                    "Inimigo hazard '%s' em (%d,%d) — recuando sem engajar.",
+                    "Hazard enemy '%s' at (%d,%d) — retreating without engaging.",
                     enemy["type"], enemy["x"], enemy["y"]
                 )
                 await workflow.execute_activity(
@@ -319,7 +319,7 @@ class CombatPatrolWorkflow(_ControlMixin):
                 continue
 
             workflow.logger.info(
-                "Inimigo '%s' em (%d,%d)", enemy["type"], enemy["x"], enemy["y"]
+                "Enemy '%s' at (%d,%d)", enemy["type"], enemy["x"], enemy["y"]
             )
 
             result = await workflow.execute_activity(
@@ -339,7 +339,7 @@ class CombatPatrolWorkflow(_ControlMixin):
 
             elif result == "died":
                 self._stats["deaths"] += 1
-                workflow.logger.warning("Morreu (morte #%d). Respawnando...", self._stats["deaths"])
+                workflow.logger.warning("Died (death #%d). Respawning...", self._stats["deaths"])
                 await workflow.execute_activity(
                     handle_death_respawn,
                     schedule_to_close_timeout=timedelta(seconds=15),
@@ -349,7 +349,7 @@ class CombatPatrolWorkflow(_ControlMixin):
 
             elif result == "escaped":
                 self._stats["escaped"] += 1
-                workflow.logger.info("Fugiu (vida baixa). Aguardando regeneração.")
+                workflow.logger.info("Fled (low health). Waiting for regeneration.")
                 await workflow.sleep(timedelta(seconds=8))
 
         self._stats["status"] = "stopped"
@@ -358,21 +358,21 @@ class CombatPatrolWorkflow(_ControlMixin):
 
 
 # ---------------------------------------------------------------------------
-# Workflow: Sessão AFK Completa
+# Workflow: Full AFK Session
 # ---------------------------------------------------------------------------
 
 @workflow.defn
 class AfkSessionWorkflow(_ControlMixin):
     """
-    Rotações alternadas de gift farm + patrulha de combate.
+    Alternating rotations of gift farming + combat patrol.
 
-    Parâmetros:
-        gift_cycles (int):                  Ciclos de gift por rotação [10]
-        combat_kills_per_rotation (int):    Kills de combate por rotação [5]
-        total_rotations (int):              Total de rotações [20]
-        screenshot_every_rotations (int):   Screenshot a cada N rotações [1]
+    Parameters:
+        gift_cycles (int):                  Gift cycles per rotation [10]
+        combat_kills_per_rotation (int):    Combat kills per rotation [5]
+        total_rotations (int):              Total rotations [20]
+        screenshot_every_rotations (int):   Screenshot every N rotations [1]
 
-    Query get_stats retorna:
+    get_stats query returns:
         {rotation, total_gifts, total_kills, total_ammo, status}
     """
 
@@ -399,7 +399,7 @@ class AfkSessionWorkflow(_ControlMixin):
                 gift_cycles, combat_kills_per_rotation, total_rotations, screenshot_every_rotations
             )
         except asyncio.CancelledError:
-            workflow.logger.warning("AfkSessionWorkflow cancelado — limpando estado do jogo.")
+            workflow.logger.warning("AfkSessionWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("AfkSessionWorkflow"))
             raise
 
@@ -417,7 +417,7 @@ class AfkSessionWorkflow(_ControlMixin):
 
             self._stats["rotation"] = rotation + 1
             workflow.logger.info(
-                "=== Rotação %d/%d | gifts=%d kills=%d ===",
+                "=== Rotation %d/%d | gifts=%d kills=%d ===",
                 rotation + 1, total_rotations,
                 self._stats["total_gifts"], self._stats["total_kills"]
             )
@@ -425,7 +425,7 @@ class AfkSessionWorkflow(_ControlMixin):
             if screenshot_every_rotations > 0 and (rotation + 1) % screenshot_every_rotations == 0:
                 await _screenshot(f"rotation_{rotation + 1}")
 
-            # Fase 1: Gift farm
+            # Phase 1: Gift farming
             for _ in range(gift_cycles):
                 if self._stop_requested:
                     break
@@ -450,7 +450,7 @@ class AfkSessionWorkflow(_ControlMixin):
 
                 await workflow.sleep(timedelta(seconds=3))
 
-            # Fase 2: Combate
+            # Phase 2: Combat
             kills_this_rotation = 0
             while kills_this_rotation < combat_kills_per_rotation and not self._stop_requested:
                 await self._wait_if_paused()
@@ -466,7 +466,7 @@ class AfkSessionWorkflow(_ControlMixin):
 
                 if enemy["hazard"]:
                     workflow.logger.warning(
-                        "Inimigo hazard '%s' em (%d,%d) — recuando sem engajar.",
+                        "Hazard enemy '%s' at (%d,%d) — retreating without engaging.",
                         enemy["type"], enemy["x"], enemy["y"]
                     )
                     await workflow.execute_activity(
@@ -503,22 +503,22 @@ class AfkSessionWorkflow(_ControlMixin):
 
 
 # ---------------------------------------------------------------------------
-# Workflow: Colheita Manual de Recursos
+# Workflow: Manual Resource Harvesting
 # ---------------------------------------------------------------------------
 
 @workflow.defn
 class ResourceHarvestWorkflow(_ControlMixin):
     """
-    Loop de colheita manual em um node de recurso fixo. O jogador precisa
-    estar posicionado dentro do alcance de interação do node antes de
-    disparar o workflow — não há navegação/pathfinding até o node.
+    Manual harvesting loop at a fixed resource node. The player needs to
+    be positioned within the node's interaction range before triggering
+    the workflow — there's no navigation/pathfinding to the node.
 
-    Parâmetros:
-        swings_per_cycle (int):        Interações por ciclo [20]
-        cycles (int):                  0 = infinito até 'stop', N = encerra após N ciclos [0]
-        screenshot_every_cycles (int): Screenshot a cada N ciclos [10]
+    Parameters:
+        swings_per_cycle (int):        Interactions per cycle [20]
+        cycles (int):                  0 = infinite until 'stop', N = ends after N cycles [0]
+        screenshot_every_cycles (int): Screenshot every N cycles [10]
 
-    Query get_stats retorna:
+    get_stats query returns:
         {cycles, total_swings, status}
     """
 
@@ -536,10 +536,10 @@ class ResourceHarvestWorkflow(_ControlMixin):
     ) -> dict:
         if _resume_stats is not None:
             self._stats = _resume_stats
-        workflow.logger.info("ResourceHarvestWorkflow iniciado. swings_per_cycle=%d", swings_per_cycle)
+        workflow.logger.info("ResourceHarvestWorkflow started. swings_per_cycle=%d", swings_per_cycle)
 
-        # Orçamento de timeout dimensionado a partir do próprio swings_per_cycle,
-        # para acompanhar o tempo real da activity em vez de um valor fixo.
+        # Timeout budget sized off swings_per_cycle itself, so it tracks
+        # the activity's real runtime instead of using a fixed value.
         per_attempt = timedelta(seconds=swings_per_cycle * 1.5 + 10)
         schedule_to_close = per_attempt * GAME_RETRY.maximum_attempts + timedelta(seconds=10)
 
@@ -552,7 +552,7 @@ class ResourceHarvestWorkflow(_ControlMixin):
                     break
 
                 if workflow.info().is_continue_as_new_suggested():
-                    workflow.logger.info("Histórico extenso — continuando como novo workflow.")
+                    workflow.logger.info("History getting long — continuing as a new workflow.")
                     workflow.continue_as_new(
                         args=[swings_per_cycle, cycles, screenshot_every_cycles, self._stats]
                     )
@@ -579,31 +579,31 @@ class ResourceHarvestWorkflow(_ControlMixin):
             await _save_stats("ResourceHarvestWorkflow", self._stats)
             return self._stats
         except asyncio.CancelledError:
-            workflow.logger.warning("ResourceHarvestWorkflow cancelado — limpando estado do jogo.")
+            workflow.logger.warning("ResourceHarvestWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("ResourceHarvestWorkflow"))
             raise
 
 
 # ---------------------------------------------------------------------------
-# Workflow: Domesticação de Lizard Doggo
+# Workflow: Lizard Doggo Taming
 # ---------------------------------------------------------------------------
 
 @workflow.defn
 class TameDoggoWorkflow(_ControlMixin):
     """
-    Tenta domesticar um Lizard Doggo selvagem oferecendo Paleberry repetidas
-    vezes (múltiplos doggos competem pela mesma berry, então repetir ajuda).
+    Tries to tame a wild Lizard Doggo by repeatedly offering Paleberries
+    (multiple doggos compete for the same berry, so repeating helps).
 
-    O sucesso real — Doggo comeu, pulou e "chiou" — não é verificado
-    automaticamente (cue visual fraco demais para template matching
-    confiável). Best-effort: revise os screenshots de cada tentativa
-    manualmente em debug_screenshots/.
+    Actual success — the Doggo ate, jumped, and "squeaked" — is not
+    verified automatically (the visual cue is too weak for reliable
+    template matching). Best-effort: review each attempt's screenshots
+    manually in debug_screenshots/.
 
-    Parâmetros:
-        max_attempts (int):              Tentativas de alimentação [5]
-        seconds_between_attempts (int):  Espera entre tentativas [15]
+    Parameters:
+        max_attempts (int):              Feeding attempts [5]
+        seconds_between_attempts (int):  Wait between attempts [15]
 
-    Query get_stats retorna:
+    get_stats query returns:
         {attempts, fed, status}
     """
 
@@ -613,7 +613,7 @@ class TameDoggoWorkflow(_ControlMixin):
 
     @workflow.run
     async def run(self, max_attempts: int = 5, seconds_between_attempts: int = 15) -> dict:
-        workflow.logger.info("TameDoggoWorkflow iniciado. max_attempts=%d", max_attempts)
+        workflow.logger.info("TameDoggoWorkflow started. max_attempts=%d", max_attempts)
         try:
             while self._stats["attempts"] < max_attempts and not self._stop_requested:
                 await self._wait_if_paused()
@@ -639,7 +639,7 @@ class TameDoggoWorkflow(_ControlMixin):
             await _save_stats("TameDoggoWorkflow", self._stats)
             return self._stats
         except asyncio.CancelledError:
-            workflow.logger.warning("TameDoggoWorkflow cancelado — limpando estado do jogo.")
+            workflow.logger.warning("TameDoggoWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("TameDoggoWorkflow"))
             raise
 
@@ -647,17 +647,17 @@ class TameDoggoWorkflow(_ControlMixin):
 @workflow.defn
 class TemplateOrchestrationWorkflow:
     """
-    Workflow para automatizar a captura de templates e verificação visual.
-    
-    Parâmetros:
-        target (str): "hud" ou "workshop"
+    Workflow to automate template capture and visual verification.
+
+    Parameters:
+        target (str): "hud" or "workshop"
         resolution (str): "2560x1440"
     """
 
     @workflow.run
     async def run(self, target: str = "hud", resolution: str = "2560x1440") -> dict:
-        workflow.logger.info("TemplateOrchestrationWorkflow iniciado para alvo: %s", target)
-        
+        workflow.logger.info("TemplateOrchestrationWorkflow started for target: %s", target)
+
         if target == "hud":
             screenshot = await workflow.execute_activity(
                 capture_template_screen,
@@ -673,15 +673,15 @@ class TemplateOrchestrationWorkflow:
                 retry_policy=RetryPolicy(maximum_attempts=1),
             )
         else:
-            raise ValueError(f"Alvo desconhecido: {target}")
-            
+            raise ValueError(f"Unknown target: {target}")
+
         extracted = await workflow.execute_activity(
             extract_templates_from_screen,
             args=[screenshot, target, resolution],
             schedule_to_close_timeout=timedelta(seconds=10),
             retry_policy=RetryPolicy(maximum_attempts=1),
         )
-        
+
         template_names = list(extracted.keys())
         verification = await workflow.execute_activity(
             verify_matching_templates,
@@ -689,7 +689,7 @@ class TemplateOrchestrationWorkflow:
             schedule_to_close_timeout=timedelta(seconds=10),
             retry_policy=RetryPolicy(maximum_attempts=1),
         )
-        
+
         return {
             "screenshot": screenshot,
             "extracted_templates": extracted,
@@ -698,34 +698,34 @@ class TemplateOrchestrationWorkflow:
 
 
 # ---------------------------------------------------------------------------
-# Workflow: Expedição de Combate (ir, matar, reabastecer, voltar, guardar)
+# Workflow: Combat Expedition (go, kill, resupply, return, store)
 # ---------------------------------------------------------------------------
 
 @workflow.defn
 class CombatExpeditionWorkflow(_ControlMixin):
     """
-    Expedição completa de combate:
-    1. Verifica munição na base — crafta antes de partir se estiver baixa.
-    2. Navega até 'location' (config.toml [locations.<location>]).
-    3. Mata inimigos até max_kills, reaproveitando o mesmo loop de
-       engage_enemy do CombatPatrolWorkflow (saúde/fuga e loot de remains já
-       tratados ali; inimigos hazard são evitados, não engajados).
-    4. Se a munição cair abaixo do mínimo no meio da expedição, volta para
-       a base, crafta mais, e retorna ao mesmo local automaticamente.
-    5. Ao atingir max_kills (ou receber 'stop'), volta para a base e abre um
-       storage container para depositar o loot (shift-click no grid do
-       inventário — best-effort, ver open_storage_and_deposit_loot).
+    Full combat expedition:
+    1. Checks ammo at the base — crafts more before departing if it's low.
+    2. Navigates to 'location' (config.toml [locations.<location>]).
+    3. Kills enemies up to max_kills, reusing the same engage_enemy loop
+       as CombatPatrolWorkflow (health/fleeing and remains looting are
+       already handled there; hazard enemies are avoided, not engaged).
+    4. If ammo drops below the minimum mid-expedition, returns to base,
+       crafts more, and automatically heads back to the same location.
+    5. On reaching max_kills (or receiving 'stop'), returns to base and
+       opens a storage container to deposit the loot (shift-click sweep
+       of the inventory grid — best-effort, see open_storage_and_deposit_loot).
 
-    Parâmetros:
-        location (str):               Nome do local de combate em [locations.<location>] — obrigatório
-        max_kills (int):               Kills para encerrar a expedição [10]
-        min_ammo_to_depart (int):      Munição mínima para sair/continuar sem reabastecer [20]
-        ammo_per_craft (int):          Munição craftada por ciclo de reabastecimento [50]
-        screenshot_every_kills (int):  Screenshot a cada N kills [5]
-        base_location (str):           Nome do local de retorno em [locations.<name>] ["base"]
-        nav_timeout_seconds (int):     Orçamento de tempo por tentativa de navegação [45]
+    Parameters:
+        location (str):               Combat location name in [locations.<location>] — required
+        max_kills (int):               Kills before ending the expedition [10]
+        min_ammo_to_depart (int):      Minimum ammo to leave/continue without resupplying [20]
+        ammo_per_craft (int):          Ammo crafted per resupply cycle [50]
+        screenshot_every_kills (int):  Screenshot every N kills [5]
+        base_location (str):           Return location name in [locations.<name>] ["base"]
+        nav_timeout_seconds (int):     Time budget per navigation attempt [45]
 
-    Query get_stats retorna:
+    get_stats query returns:
         {kills, deaths, escaped, resupply_trips, status}
     """
 
@@ -748,7 +748,7 @@ class CombatExpeditionWorkflow(_ControlMixin):
         nav_timeout_seconds: int = 45,
     ) -> dict:
         workflow.logger.info(
-            "CombatExpeditionWorkflow iniciado. location=%s max_kills=%d", location, max_kills
+            "CombatExpeditionWorkflow started. location=%s max_kills=%d", location, max_kills
         )
         nav_start_to_close = timedelta(seconds=nav_timeout_seconds)
         nav_schedule_to_close = nav_start_to_close * NAV_RETRY.maximum_attempts + timedelta(seconds=20)
@@ -773,7 +773,7 @@ class CombatExpeditionWorkflow(_ControlMixin):
         try:
             ammo = await _ammo()
             if 0 <= ammo < min_ammo_to_depart:
-                workflow.logger.info("Munição inicial baixa (%d) — craftando antes de partir.", ammo)
+                workflow.logger.info("Initial ammo is low (%d) — crafting before departing.", ammo)
                 await _run_craft_cycle(ammo_per_craft)
                 self._stats["resupply_trips"] += 1
 
@@ -786,7 +786,7 @@ class CombatExpeditionWorkflow(_ControlMixin):
 
                 ammo = await _ammo()
                 if 0 <= ammo < min_ammo_to_depart:
-                    workflow.logger.warning("Munição baixa (%d) — voltando para reabastecer.", ammo)
+                    workflow.logger.warning("Low ammo (%d) — heading back to resupply.", ammo)
                     self._stats["resupply_trips"] += 1
                     await _go(base_location)
                     await _run_craft_cycle(ammo_per_craft)
@@ -804,7 +804,7 @@ class CombatExpeditionWorkflow(_ControlMixin):
 
                 if enemy["hazard"]:
                     workflow.logger.warning(
-                        "Inimigo hazard '%s' em (%d,%d) — recuando sem engajar.",
+                        "Hazard enemy '%s' at (%d,%d) — retreating without engaging.",
                         enemy["type"], enemy["x"], enemy["y"]
                     )
                     await workflow.execute_activity(
@@ -831,7 +831,7 @@ class CombatExpeditionWorkflow(_ControlMixin):
                         await _screenshot(f"expedition_kill_{kills}")
                 elif result == "died":
                     self._stats["deaths"] += 1
-                    workflow.logger.warning("Morreu (morte #%d). Respawnando...", self._stats["deaths"])
+                    workflow.logger.warning("Died (death #%d). Respawning...", self._stats["deaths"])
                     await workflow.execute_activity(
                         handle_death_respawn,
                         schedule_to_close_timeout=timedelta(seconds=15),
@@ -840,10 +840,10 @@ class CombatExpeditionWorkflow(_ControlMixin):
                     await workflow.sleep(timedelta(seconds=5))
                 elif result == "escaped":
                     self._stats["escaped"] += 1
-                    workflow.logger.info("Fugiu (vida baixa). Aguardando regeneração.")
+                    workflow.logger.info("Fled (low health). Waiting for regeneration.")
                     await workflow.sleep(timedelta(seconds=8))
 
-            workflow.logger.info("Expedição concluída — voltando para a base.")
+            workflow.logger.info("Expedition complete — heading back to base.")
             await _go(base_location)
             await workflow.execute_activity(
                 open_storage_and_deposit_loot,
@@ -856,6 +856,6 @@ class CombatExpeditionWorkflow(_ControlMixin):
             await _save_stats("CombatExpeditionWorkflow", self._stats)
             return self._stats
         except asyncio.CancelledError:
-            workflow.logger.warning("CombatExpeditionWorkflow cancelado — limpando estado do jogo.")
+            workflow.logger.warning("CombatExpeditionWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("CombatExpeditionWorkflow"))
             raise

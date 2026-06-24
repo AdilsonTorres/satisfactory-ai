@@ -1,19 +1,19 @@
 """
 label_captures.py
 
-Ferramenta de classificação manual: percorre os screenshots salvos por
-passive_capture.py (em captures/) e deixa você recortar regiões para criar
-ou atualizar templates em templates/. Roda fora do Temporal — ferramenta de
-setup, no mesmo espírito de capture_template.py, mas sobre imagens já
-capturadas em vez de uma captura ao vivo.
+Manual classification tool: walks through the screenshots saved by
+passive_capture.py (in captures/) and lets you crop regions to create
+or update templates in templates/. Runs outside Temporal — a setup
+tool, in the same spirit as capture_template.py, but over images
+already captured instead of a live capture.
 
-Por imagem, no prompt:
-    [Enter]       pula para a próxima
-    <nome>        recorta uma região e salva/sobrescreve templates/<nome>.png
-    d             descarta a imagem (apaga o arquivo)
-    q             sai — progresso é preservado (imagens revisadas vão para captures/_reviewed/)
+Per image, at the prompt:
+    [Enter]       skip to the next one
+    <name>        crop a region and save/overwrite templates/<name>.png
+    d             discard the image (deletes the file)
+    q             quit — progress is preserved (reviewed images go to captures/_reviewed/)
 
-Uso:
+Usage:
     uv run python label_captures.py
     uv run python label_captures.py --dir captures
 """
@@ -22,10 +22,10 @@ import os
 import shutil
 from pathlib import Path
 
-# O Qt embutido no cv2 só traz o plugin "xcb" — em sessões Wayland ele tenta
-# "wayland" por padrão e a janela fica sem receber clique nenhum. Força xcb
-# (via XWayland) e desativa o auto-scaling de HiDPI do Qt, que também
-# desalinha onde o clique é registrado.
+# The Qt bundled with cv2 only ships the "xcb" plugin — under Wayland
+# sessions it tries "wayland" by default and the window ends up unable to
+# receive any clicks. Force xcb (via XWayland) and disable Qt's HiDPI
+# auto-scaling, which also misaligns where the click is registered.
 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 os.environ.setdefault("QT_AUTO_SCREEN_SCALE_FACTOR", "0")
 os.environ.setdefault("QT_SCALE_FACTOR", "1")
@@ -34,10 +34,10 @@ import cv2
 
 TEMPLATES_DIR = Path("templates")
 
-# Tamanho máximo de janela na tela — screenshots em 2560x1440+ não cabem
-# inteiros na maioria das telas. cv2.selectROI mapeia o ROI de volta para
-# a resolução original da imagem, então o recorte salvo continua em
-# resolução nativa mesmo com a janela exibida menor.
+# Max window size on screen — screenshots at 2560x1440+ don't fit
+# entirely on most screens. cv2.selectROI maps the ROI back to the
+# image's original resolution, so the saved crop stays at native
+# resolution even with the window displayed smaller.
 _MAX_WINDOW_W = 1600
 _MAX_WINDOW_H = 900
 
@@ -51,25 +51,25 @@ def _show_resizable(window: str, frame) -> None:
 
 
 def _crop_and_save(frame, name: str) -> None:
-    window = f"Recortar: {name}"
+    window = f"Crop: {name}"
     _show_resizable(window, frame)
     roi = cv2.selectROI(window, frame, fromCenter=False, showCrosshair=True)
     cv2.destroyAllWindows()
     x, y, w, h = roi
     if w == 0 or h == 0:
-        print("Cancelado (nenhuma região selecionada).")
+        print("Cancelled (no region selected).")
         return
 
     cropped = frame[y:y + h, x:x + w]
     out_path = TEMPLATES_DIR / f"{name}.png"
     if out_path.exists():
-        resp = input(f"  '{out_path}' já existe. Sobrescrever? [s/N] ").strip().lower()
-        if resp != "s":
-            print("  Não sobrescrito.")
+        resp = input(f"  '{out_path}' already exists. Overwrite? [y/N] ").strip().lower()
+        if resp != "y":
+            print("  Not overwritten.")
             return
 
     cv2.imwrite(str(out_path), cropped)
-    print(f"  Salvo: {out_path} ({w}x{h}px)")
+    print(f"  Saved: {out_path} ({w}x{h}px)")
 
 
 def run(captures_dir: Path) -> None:
@@ -79,49 +79,49 @@ def run(captures_dir: Path) -> None:
 
     images = sorted(p for p in captures_dir.glob("*.png") if p.parent == captures_dir)
     if not images:
-        print(f"Nenhuma imagem em {captures_dir}/ (rode passive_capture.py primeiro).")
+        print(f"No images in {captures_dir}/ (run passive_capture.py first).")
         return
 
-    print(f"{len(images)} screenshot(s) para revisar.\n")
+    print(f"{len(images)} screenshot(s) to review.\n")
 
     for i, img_path in enumerate(images, 1):
         frame = cv2.imread(str(img_path))
         if frame is None:
-            print(f"[{i}/{len(images)}] {img_path.name} — falha ao carregar, pulando.")
+            print(f"[{i}/{len(images)}] {img_path.name} — failed to load, skipping.")
             continue
 
-        window = "Preview — veja o terminal para opções"
+        window = "Preview — see the terminal for options"
         _show_resizable(window, frame)
         cv2.waitKey(1)
 
         print(f"\n[{i}/{len(images)}] {img_path.name}")
-        action = input("  nome p/ recortar template | 'd' descarta | Enter pula | 'q' sai: ").strip()
+        action = input("  name to crop template | 'd' discard | Enter skip | 'q' quit: ").strip()
         cv2.destroyWindow(window)
 
         if action.lower() == "q":
-            print("\nSaindo — progresso preservado.")
+            print("\nQuitting — progress preserved.")
             return
 
         if action.lower() == "d":
             img_path.unlink()
-            print("  Descartado.")
+            print("  Discarded.")
             continue
 
         if action:
             _crop_and_save(frame, action)
-            while input("  Recortar outro template nesta imagem? [s/N] ").strip().lower() == "s":
-                name2 = input("  nome do template: ").strip()
+            while input("  Crop another template from this image? [y/N] ").strip().lower() == "y":
+                name2 = input("  template name: ").strip()
                 if name2:
                     _crop_and_save(frame, name2)
 
         shutil.move(str(img_path), str(reviewed_dir / img_path.name))
 
-    print(f"\nRevisão concluída. Imagens processadas movidas para {reviewed_dir}/")
+    print(f"\nReview complete. Processed images moved to {reviewed_dir}/")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Classificação manual de screenshots capturados.")
-    parser.add_argument("--dir", default="captures", help="Diretório com screenshots capturados [captures]")
+    parser = argparse.ArgumentParser(description="Manual classification of captured screenshots.")
+    parser.add_argument("--dir", default="captures", help="Directory with captured screenshots [captures]")
     args = parser.parse_args()
     run(Path(args.dir))
 
