@@ -21,7 +21,7 @@ from contextlib import contextmanager
 from typing import Optional
 from temporalio import activity
 
-from utils.vision import Vision
+from utils.vision import Vision, MatchResult
 from utils.screenshot import save_debug_screenshot
 from utils.exceptions import VisionError, NavigationError, MenuError, RespawnError
 from utils import config as cfg
@@ -51,14 +51,19 @@ def screenshot_on_error(label: str):
         raise
 
 
-def _check_health_inline(v: Vision) -> bool:
+def _check_health_inline(v: Vision, frame=None) -> bool:
     """
     Checks health directly via Vision — no Temporal dispatch.
     Used inside engage_enemy (you can't call another activity from
     inside an activity; using the decorator would just call the local
     function, not a new Temporal execution).
+
+    Accepts an already-captured frame to avoid grabbing the screen again
+    (each capture can be slow on this system, especially if mss falls
+    back to the ImageMagick subprocess — see explore_leg, which captures
+    once and reuses the frame for the screenshot and every check).
     """
-    result = v.find("health_low_indicator")
+    result = v.find("health_low_indicator", frame=frame)
     if result.found:
         logger.warning("Low health detected (conf=%.2f).", result.confidence)
     return result.found
@@ -92,6 +97,42 @@ async def persist_session_stats(workflow_type: str, stats: dict) -> str:
 # Activities: Gifts and Inventory
 # ---------------------------------------------------------------------------
 
+def _face_doggo_and_recheck(v: Vision) -> MatchResult:
+    """
+    If 'gift_prompt' isn't visible, looks for a Doggo on screen ('doggo_body')
+    and aims/steps toward it so the 'E' interact prompt has a chance to show
+    up, instead of requiring the player to already be looking straight at it.
+    Lizard Doggos near the pen barely move, so a small bounded mouse sweep
+    (left, past center to the right, back to center) plus a short step
+    forward is enough to bring one into frame.
+    """
+    disp = cfg.get("display", {})
+    sw = disp.get("screen_width", 1920)
+    sh = disp.get("screen_height", 1080)
+    center_x, center_y = sw // 2, sh // 2
+
+    doggo_threshold = cfg.get("vision.thresholds.doggo_body", 0.62)
+    doggo = v.find("doggo_body", threshold=doggo_threshold)
+
+    if not doggo.found:
+        for dx in cfg.get("taming.search_sweep_dx", [-400, 800, -400]):
+            inp.move_mouse_relative(dx, 0)
+            time.sleep(0.3)
+            doggo = v.find("doggo_body", threshold=doggo_threshold)
+            if doggo.found:
+                break
+
+    if not doggo.found:
+        return v.find("gift_prompt")
+
+    logger.debug("Doggo spotted at (%d,%d) conf=%.2f — aiming.", doggo.x, doggo.y, doggo.confidence)
+    inp.aim_at_screen_position(doggo.x, doggo.y, center_x, center_y)
+    time.sleep(0.2)
+    inp.move_forward(0.3)
+    time.sleep(0.2)
+    return v.find("gift_prompt")
+
+
 @activity.defn
 async def collect_doggo_gift() -> bool:
     """
@@ -104,6 +145,9 @@ async def collect_doggo_gift() -> bool:
     with screenshot_on_error("collect_doggo_gift"):
         v = get_vision()
         result = v.find("gift_prompt")
+
+        if not result.found:
+            result = _face_doggo_and_recheck(v)
 
         if not result.found:
             logger.debug("No gift (conf=%.2f)", result.confidence)
@@ -525,20 +569,29 @@ async def engage_enemy(
 
 @activity.defn
 async def handle_death_respawn() -> bool:
+    """
+    Confirms 'Press RMB to Respawn'. This isn't a clickable UI button at a
+    fixed position (no 'respawn_button' template exists) — it's a global
+    right-click action, confirmed live on 2026-06-25 from an actual death.
+    Retries once since the cursor drifting to the screen edge from earlier
+    UI interactions can cause the first attempt to be silently ignored.
+    """
     with screenshot_on_error("handle_death_respawn"):
         v = get_vision()
-        btn = v.find("respawn_button")
-        if btn.found:
-            inp.click(btn.x, btn.y)
-            logger.info("Clicked respawn.")
-            time.sleep(3.0)
-            return True
+        inp.respawn_confirm()
+        time.sleep(3.0)
 
-        save_debug_screenshot("respawn_not_found")
-        raise RespawnError(
-            f"Respawn button not found (conf={btn.confidence:.3f}). "
-            "Check that the 'respawn_button.png' template is correct."
-        )
+        if v.find("death_screen").found:
+            logger.warning("Still on death screen after first respawn attempt — retrying.")
+            inp.respawn_confirm()
+            time.sleep(3.0)
+
+        if v.find("death_screen").found:
+            save_debug_screenshot("respawn_failed")
+            raise RespawnError("Death screen still showing after two respawn attempts.")
+
+        logger.info("Respawned.")
+        return True
 
 
 @activity.defn
@@ -639,6 +692,173 @@ async def reset_to_safe_state() -> bool:
     inp.close_menu()
     logger.info("Safe state restored (menus closed).")
     return True
+
+
+# ---------------------------------------------------------------------------
+# Activities: Exploration (blind traversal + screenshot collection)
+# ---------------------------------------------------------------------------
+
+def _died_inline(v: Vision, frame=None) -> bool:
+    """
+    Best-effort death check for exploration legs. Unlike engage_enemy
+    (which treats a missing 'death_screen' template as a bug to surface),
+    here we treat it the same way check_ammo_count treats a failed OCR
+    read: "unknown, don't block" — losing screen visibility into death
+    shouldn't make autonomous exploration crash instead of returning home.
+    """
+    try:
+        return v.find("death_screen", frame=frame).found
+    except FileNotFoundError:
+        return False
+
+
+@activity.defn
+async def get_exploration_route() -> dict:
+    """Reads [exploration] from config.toml — config/file I/O must happen in an activity, not in workflow code (the Temporal sandbox forbids `open()` there)."""
+    return {
+        "route": cfg.get("exploration.route", []),
+        "max_total_duration_seconds": cfg.get("exploration.max_total_duration_seconds", 25.0),
+        "check_interval": cfg.get("exploration.check_interval_seconds", 1.0),
+        "ascend_every": cfg.get("exploration.ascend_every_chunks", 0),
+        "ascend_pulse": cfg.get("exploration.ascend_pulse_seconds", 0.3),
+    }
+
+
+@activity.defn
+async def capture_base_reference() -> str:
+    """
+    Snapshots the character's current position as the 'base' reference
+    point for an exploration run — assumes the player is at/near base when
+    this is called (true for an AFK session). Used only as a visual record
+    of the starting point; ExplorationWorkflow returns via the mirrored
+    key sequence, not via image matching against this screenshot.
+    """
+    inp.focus_game("Satisfactory")
+    time.sleep(0.2)
+    path = save_debug_screenshot("base_reference")
+    logger.info("Base reference captured: %s", path)
+    return str(path)
+
+
+@activity.defn
+async def explore_leg(
+    keys: list[str],
+    duration: float,
+    turn_dx: int = 0,
+    leg_index: int = 0,
+    check_interval: float = 1.0,
+    ascend_every: int = 0,
+    ascend_pulse: float = 0.3,
+) -> dict:
+    """
+    Runs one leg of an exploration route: turns the camera by turn_dx,
+    then holds `keys` simultaneously (ex: ["w", "space"] to advance while
+    holding jump for Hover Pack ascend/glide), in `check_interval`-sized
+    chunks instead of one long blind hold — checking health/death and
+    saving a screenshot after EVERY chunk, stopping immediately if death
+    is detected.
+
+    Built after a live death during a single 3.5s uninterrupted 'w' hold
+    on 2026-06-25: the only health/death checks were before and after
+    that hold, so the cause of death couldn't be pinned down from the
+    screenshots — there was no checkpoint inside the window where it
+    happened. Sub-second-to-1s chunks close that gap.
+
+    ascend_every (if >0): taps space for ascend_pulse seconds every N
+    chunks, interleaved with movement, to counter altitude loss while
+    flying — independent of whether 'space' is already in `keys`.
+
+    Re-focuses the game window before every leg — input is otherwise
+    silently swallowed by whatever window happens to have focus (ex: the
+    terminal running this worker), which can make a whole route a no-op
+    without raising any error (confirmed live on 2026-06-25: a full route
+    produced identical before/after screenshots until focus was restored).
+    """
+    with screenshot_on_error(f"explore_leg_{leg_index}"):
+        v = get_vision()
+        inp.focus_game("Satisfactory")
+        time.sleep(0.15)
+
+        if turn_dx:
+            inp.move_mouse_relative(turn_dx, 0)
+            time.sleep(0.15)
+
+        elapsed = 0.0
+        chunk_index = 0
+        died = False
+        health_low = False
+        screenshots: list[str] = []
+
+        while elapsed < duration:
+            activity.heartbeat(f"leg {leg_index} chunk {chunk_index}")
+            chunk = min(check_interval, duration - elapsed)
+
+            if ascend_every > 0 and chunk_index > 0 and chunk_index % ascend_every == 0:
+                inp.hold_keys(["space"], ascend_pulse)
+                time.sleep(0.05)
+
+            inp.hold_keys(keys, chunk)
+            elapsed += chunk
+
+            # One capture reused for the screenshot and both checks — each
+            # capture can be slow (mss occasionally falls back to spawning
+            # an ImageMagick subprocess).
+            frame = v.capture()
+            path = save_debug_screenshot(f"explore_leg_{leg_index}_{chunk_index}", frame=frame)
+            screenshots.append(str(path))
+            health_low = _check_health_inline(v, frame=frame)
+            died = _died_inline(v, frame=frame)
+
+            logger.info(
+                "Leg %d chunk %d: keys=%s elapsed=%.1f/%.1fs turn_dx=%d health_low=%s died=%s screenshot=%s",
+                leg_index, chunk_index, keys, elapsed, duration, turn_dx, health_low, died, path,
+            )
+            chunk_index += 1
+            # Heartbeat after each chunk's work too, not just before — a
+            # single chunk's capture+checks took ~9s live on this system
+            # (mss falling back to its slow ImageMagick subprocess path),
+            # which is close enough to a 10s heartbeat_timeout that only
+            # heartbeating at the top of the loop let the activity time
+            # out anyway (confirmed live 2026-06-25).
+            activity.heartbeat(f"leg {leg_index} chunk {chunk_index} done")
+
+            if died:
+                logger.warning("Death detected mid-leg (chunk %d) — stopping this leg immediately.", chunk_index)
+                break
+
+        return {
+            "keys": keys,
+            "duration": elapsed,
+            "turn_dx": turn_dx,
+            "health_low": health_low,
+            "died": died,
+            "screenshots": screenshots,
+        }
+
+
+@activity.defn
+async def return_via_reverse_route(legs_taken: list[dict]) -> bool:
+    """
+    Retraces legs_taken in reverse order with mirrored keys (w<->s, a<->d;
+    'space' passes through unchanged) and mirrored turns, to head back
+    toward the start of an exploration run. Same blind-navigation idiom as
+    navigate_back_to_base — approximate, not vision-verified.
+    """
+    with screenshot_on_error("return_via_reverse_route"):
+        inp.focus_game("Satisfactory")
+        time.sleep(0.2)
+        logger.info("Returning via %d reversed leg(s)...", len(legs_taken))
+        for i, leg in enumerate(reversed(legs_taken)):
+            activity.heartbeat(f"return step {i + 1}/{len(legs_taken)}")
+            reversed_keys = inp.opposite_keys(leg["keys"])
+            inp.hold_keys(reversed_keys, leg["duration"])
+            if leg["turn_dx"]:
+                inp.move_mouse_relative(-leg["turn_dx"], 0)
+                time.sleep(0.15)
+
+        path = save_debug_screenshot("back_at_base")
+        logger.info("Return sequence complete. Screenshot: %s", path)
+        return True
 
 
 @activity.defn

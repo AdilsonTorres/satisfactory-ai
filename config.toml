@@ -23,8 +23,7 @@ equipment_workshop_prompt = 0.85
 workshop_menu_open        = 0.85
 rifle_ammo_icon           = 0.85
 craft_button              = 0.87
-death_screen              = 0.90
-respawn_button            = 0.85
+death_screen              = 0.60   # captured live 2026-06-25 from an actual in-game death; real matches score 0.75-1.0, normal gameplay ~0.25 (was 0.90 as an untested placeholder, with no template file at all)
 enemy_remains_prompt      = 0.78
 enemy_spitter             = 0.70
 enemy_hog                 = 0.70
@@ -36,6 +35,7 @@ enemy_hog_nuclear         = 0.70
 enemy_stinger_elite_gas   = 0.68
 resource_node_prompt      = 0.80
 wild_doggo_prompt         = 0.72   # creature — variable like the enemies
+doggo_body                = 0.62   # tamed Doggo silhouette — used to aim the camera at it
 paleberry_icon            = 0.85   # static UI icon
 storage_prompt            = 0.82
 storage_open              = 0.85
@@ -54,6 +54,18 @@ swing_interval_seconds = 0.5
 [taming]
 drop_point_x = 1280
 drop_point_y = 720
+
+# Mouse-x deltas swept in sequence by collect_doggo_gift when no gift prompt
+# is visible and no Doggo is yet in frame — looks left, then past center to
+# the right, then back to center, searching for a Doggo to aim at.
+search_sweep_dx = [-400, 800, -400]
+
+# Screen coords of the Doggo's single Inventory slot in its name/management
+# dialog (opened by interacting with a tamed Doggo) — shift-clicked by
+# collect_doggo_gift to pull a found item into the player's inventory.
+# CALIBRATE with debug_run.py --screenshot while the dialog is open.
+doggo_loot_slot_x = 995
+doggo_loot_slot_y = 1045
 
 # ---------------------------------------------------------------------------
 # Player inventory grid, used by open_storage_and_deposit_loot to sweep
@@ -114,6 +126,68 @@ key = "s"
 duration = 3.0
 
 # ---------------------------------------------------------------------------
+# Exploration (blind, screenshot-driven traversal around the base)
+# Each [[exploration.route]] leg holds `keys` simultaneously for `duration`
+# seconds, after first turning the camera by `turn_dx` (mouse-x delta,
+# 0 = no turn). Including "space" in `keys` holds jump — this drives Hover
+# Pack ascend/glide if it's equipped and there's nearby powered
+# infrastructure to recharge from (the existing pole grid around your
+# factory); if not equipped, it's a harmless repeated hop, so the route is
+# safe to run either way.
+#
+# ExplorationWorkflow stops early if accumulated leg duration would exceed
+# max_total_duration_seconds, or if health_low_indicator is detected, then
+# automatically retraces the legs already taken in reverse (mirrored keys,
+# mirrored turns) to return toward the start — the same blind-navigation
+# idiom as [navigation]. This is exploratory and unsupervised: keep legs
+# short and the total duration conservative, and use `stop` (Temporal
+# signal) to interrupt at any time.
+# ---------------------------------------------------------------------------
+[exploration]
+max_total_duration_seconds = 25.0
+screenshot_every_leg       = true
+
+# Each leg now runs in check_interval_seconds-sized chunks instead of one
+# long blind hold, checking health/death AND saving a screenshot after
+# every chunk (not just once per leg) — added after a live death during
+# an uninterrupted 3.5s hold on 2026-06-25 where the cause couldn't be
+# pinned down: there was no checkpoint inside the window where it happened.
+check_interval_seconds = 1.0
+
+# If >0, taps space for ascend_pulse_seconds every N chunks (independent
+# of whether "space" is already in a leg's own keys) to counter altitude
+# loss during sustained flight — use this to "stay as high as possible
+# without losing the Hover Pack's charge range" rather than relying on
+# legs that hold space continuously.
+ascend_every_chunks  = 0
+ascend_pulse_seconds = 0.3
+
+[[exploration.route]]
+keys = ["w"]
+duration = 2.0
+turn_dx = 700
+
+[[exploration.route]]
+keys = ["w", "space"]
+duration = 1.5
+turn_dx = 0
+
+[[exploration.route]]
+keys = ["w"]
+duration = 2.0
+turn_dx = 300
+
+[[exploration.route]]
+keys = ["w", "space"]
+duration = 1.5
+turn_dx = -300
+
+[[exploration.route]]
+keys = ["w"]
+duration = 2.0
+turn_dx = -300
+
+# ---------------------------------------------------------------------------
 # Combat
 # ---------------------------------------------------------------------------
 [combat]
@@ -138,8 +212,14 @@ h = 40
 # Display
 # ---------------------------------------------------------------------------
 [display]
-screen_width  = 1920
-screen_height = 1080
+# CALIBRATED 2026-06-25 via debug_run.py --screenshot: the actual capture
+# resolution is 2560x1440 (mss grabs the monitor's native resolution),
+# not 1920x1080. This matters because aim_at_screen_position/
+# _face_doggo_and_recheck use screen_width/height to compute the camera
+# center — a mismatch here skews every aim/turn calculation, including
+# combat. Recalibrate if you change display/game resolution.
+screen_width  = 2560
+screen_height = 1440
 
 # ---------------------------------------------------------------------------
 # Logging

@@ -46,6 +46,10 @@ from activities.game_activities import (
     navigate_to_location,
     check_ammo_count,
     open_storage_and_deposit_loot,
+    get_exploration_route,
+    capture_base_reference,
+    explore_leg,
+    return_via_reverse_route,
 )
 from workflows.satisfactory_workflows import (
     GiftFarmWorkflow,
@@ -55,6 +59,7 @@ from workflows.satisfactory_workflows import (
     ResourceHarvestWorkflow,
     TameDoggoWorkflow,
     CombatExpeditionWorkflow,
+    ExplorationWorkflow,
 )
 
 _logger = logging.getLogger(__name__)
@@ -81,6 +86,7 @@ async def main() -> None:
             ResourceHarvestWorkflow,
             TameDoggoWorkflow,
             CombatExpeditionWorkflow,
+            ExplorationWorkflow,
         ],
         activities=[
             collect_doggo_gift,
@@ -104,6 +110,10 @@ async def main() -> None:
             navigate_to_location,
             check_ammo_count,
             open_storage_and_deposit_loot,
+            get_exploration_route,
+            capture_base_reference,
+            explore_leg,
+            return_via_reverse_route,
         ],
         # Inputs are sequential — keep at 1 so actions in the game don't overlap
         max_concurrent_activities=1,

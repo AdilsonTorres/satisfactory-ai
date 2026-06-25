@@ -74,6 +74,7 @@ TEMPLATES_NEEDED = [
     ("gift_prompt",               "Interaction icon/text when the Doggo has a gift"),
     ("inventory_open",            "Element indicating the inventory is open"),
     ("doggo_loot_window",         "The Doggo's own loot window (1 slot), when interacting with E"),
+    ("doggo_body",                "Tamed Lizard Doggo body/face, used to aim the camera at it"),
     ("wild_doggo_prompt",         "Silhouette of a wild (not yet tamed) Lizard Doggo on screen"),
     ("paleberry_icon",            "Paleberry icon in the open inventory"),
     ("inventory_full_indicator",  "Visual indicator that the inventory is full"),
@@ -94,8 +95,7 @@ TEMPLATES_NEEDED = [
     ("resource_node_prompt",      "Interaction prompt when looking at a resource node in range"),
     ("storage_prompt",            "Interaction prompt when looking at a storage container in range"),
     ("storage_open",              "Element indicating the storage container window is open"),
-    ("death_screen",              "Character death screen"),
-    ("respawn_button",            "Respawn button on the death screen"),
+    ("death_screen",              "Character death screen ('Press RMB to Respawn' banner) — captured live 2026-06-25, see README"),
 ]
 
 

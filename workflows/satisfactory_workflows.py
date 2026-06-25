@@ -15,6 +15,7 @@ CLI control:
 """
 import asyncio
 import logging
+import math
 from datetime import timedelta
 from typing import Optional
 from temporalio import workflow
@@ -43,6 +44,10 @@ with workflow.unsafe.imports_passed_through():
         navigate_to_location,
         check_ammo_count,
         open_storage_and_deposit_loot,
+        get_exploration_route,
+        capture_base_reference,
+        explore_leg,
+        return_via_reverse_route,
     )
 
 logger = logging.getLogger(__name__)
@@ -859,3 +864,179 @@ class CombatExpeditionWorkflow(_ControlMixin):
             workflow.logger.warning("CombatExpeditionWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("CombatExpeditionWorkflow"))
             raise
+
+
+# ---------------------------------------------------------------------------
+# Workflow: Exploration (blind traversal + screenshot collection)
+# ---------------------------------------------------------------------------
+
+@workflow.defn
+class ExplorationWorkflow(_ControlMixin):
+    """
+    Unsupervised exploration around the base: captures a reference
+    screenshot, then walks a configured route (config.toml
+    [[exploration.route]]) leg by leg, optionally holding jump for
+    Hover Pack ascend/glide, screenshotting and checking health/death
+    after every leg. Stops early on low health, death, a 'stop' signal,
+    or once max_total_duration_seconds of movement has been spent, then
+    automatically retraces the legs taken (mirrored keys/turns) to head
+    back toward the start.
+
+    Blind and best-effort, like the rest of this bot's navigation — there
+    is no real-time hazard awareness (cliffs, water, enemies), so keep
+    config.toml [exploration] legs short and conservative.
+
+    Parameters:
+        max_total_duration_seconds (float, optional): overrides config.toml
+        ignore_health_check (bool): skip the low-health abort [False] —
+            'health_low_indicator' is currently miscalibrated (matches the
+            always-present heart-rate HUD icon regardless of real health,
+            see README "Known limitations"), so it aborts on leg 0 of every
+            run. Only set this True if you are actively watching the
+            screenshots as the run progresses; death detection still
+            applies regardless of this flag.
+
+    get_stats query returns:
+        {legs_completed, health_aborts, died, returned, status}
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._stats = {
+            "legs_completed": 0, "health_aborts": 0, "died": 0,
+            "returned": False, "status": "running",
+        }
+
+    @workflow.run
+    async def run(
+        self,
+        max_total_duration_seconds: Optional[float] = None,
+        ignore_health_check: bool = False,
+    ) -> dict:
+        workflow.logger.info("ExplorationWorkflow started.")
+        try:
+            return await self._run_exploration(max_total_duration_seconds, ignore_health_check)
+        except asyncio.CancelledError:
+            workflow.logger.warning("ExplorationWorkflow cancelled — cleaning up game state.")
+            await asyncio.shield(_cleanup_on_cancel("ExplorationWorkflow"))
+            raise
+
+    async def _run_exploration(
+        self, max_total_duration_seconds: Optional[float], ignore_health_check: bool = False,
+    ) -> dict:
+        route_cfg = await workflow.execute_activity(
+            get_exploration_route,
+            schedule_to_close_timeout=timedelta(seconds=10),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+        route = route_cfg["route"]
+        max_duration = (
+            max_total_duration_seconds
+            if max_total_duration_seconds is not None
+            else route_cfg["max_total_duration_seconds"]
+        )
+        check_interval = route_cfg["check_interval"]
+        ascend_every = route_cfg["ascend_every"]
+        ascend_pulse = route_cfg["ascend_pulse"]
+
+        await workflow.execute_activity(
+            capture_base_reference,
+            start_to_close_timeout=timedelta(seconds=25),
+            schedule_to_close_timeout=timedelta(seconds=30),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+
+        legs_taken: list[dict] = []
+        elapsed = 0.0
+        died_mid_route = False
+
+        # Vision captures on this system occasionally fall back to a slow
+        # ImageMagick subprocess, so timeouts are generous. More importantly:
+        # any failure here (timeout, vision error, etc.) must still fall
+        # through to the mirrored return below instead of leaving the
+        # character stranded mid-route — that's why activity errors are
+        # caught here rather than left to propagate.
+        for i, leg in enumerate(route):
+            if self._stop_requested:
+                break
+            await self._wait_if_paused()
+            if self._stop_requested:
+                break
+
+            duration = leg.get("duration", 1.0)
+            if elapsed + duration > max_duration:
+                workflow.logger.info(
+                    "Reached max_total_duration_seconds (%.1fs) — stopping the outbound route.",
+                    max_duration,
+                )
+                break
+
+            # Budget per chunk, not just per leg: a single chunk's capture+
+            # checks took ~9s live on this system (mss falling back to a
+            # slow ImageMagick subprocess), so a leg with several chunks
+            # needs a timeout that scales with chunk count, not just
+            # nominal movement duration.
+            num_chunks = max(1, math.ceil(duration / check_interval)) if check_interval > 0 else 1
+            chunk_budget = num_chunks * 15 + 20
+            try:
+                result = await workflow.execute_activity(
+                    explore_leg,
+                    args=[
+                        leg.get("keys", ["w"]), duration, leg.get("turn_dx", 0), i,
+                        check_interval, ascend_every, ascend_pulse,
+                    ],
+                    start_to_close_timeout=timedelta(seconds=chunk_budget),
+                    schedule_to_close_timeout=timedelta(seconds=chunk_budget + 20),
+                    heartbeat_timeout=timedelta(seconds=20),
+                    retry_policy=NO_RETRY,
+                )
+            except Exception as exc:
+                workflow.logger.error(
+                    "Leg %d failed (%s) — stopping the outbound route and retracing what was already taken.",
+                    i, exc,
+                )
+                break
+
+            legs_taken.append(result)
+            elapsed += duration
+            self._stats["legs_completed"] += 1
+
+            if result["died"]:
+                died_mid_route = True
+                self._stats["died"] += 1
+                workflow.logger.warning("Death detected mid-exploration — respawning instead of retracing.")
+                break
+
+            if result["health_low"] and not ignore_health_check:
+                self._stats["health_aborts"] += 1
+                workflow.logger.warning("Low health mid-exploration — aborting outbound route early.")
+                break
+
+        if died_mid_route:
+            await workflow.execute_activity(
+                handle_death_respawn,
+                schedule_to_close_timeout=timedelta(seconds=15),
+                retry_policy=NAV_RETRY,
+            )
+            self._stats["status"] = "died"
+            await _save_stats("ExplorationWorkflow", self._stats)
+            return self._stats
+
+        if legs_taken:
+            return_budget = sum(l["duration"] for l in legs_taken)
+            try:
+                await workflow.execute_activity(
+                    return_via_reverse_route,
+                    args=[legs_taken],
+                    start_to_close_timeout=timedelta(seconds=return_budget + 40),
+                    schedule_to_close_timeout=timedelta(seconds=return_budget + 70),
+                    heartbeat_timeout=timedelta(seconds=15),
+                    retry_policy=NO_RETRY,
+                )
+                self._stats["returned"] = True
+            except Exception as exc:
+                workflow.logger.error("Return trip failed (%s) — character may not be back at the start.", exc)
+
+        self._stats["status"] = "completed"
+        await _save_stats("ExplorationWorkflow", self._stats)
+        return self._stats

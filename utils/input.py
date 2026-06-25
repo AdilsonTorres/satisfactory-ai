@@ -81,6 +81,29 @@ def hold(key: str, duration: float) -> None:
     _kb.release(k)
 
 
+def hold_keys(keys: list[str], duration: float) -> None:
+    """
+    Holds several keys down simultaneously for `duration` seconds, ex:
+    ["w", "space"] to walk forward while holding jump (Hover Pack ascend
+    if equipped — otherwise it's just a harmless repeated hop, since space
+    is jump either way).
+    """
+    resolved = [_resolve_key(k) for k in keys]
+    for k in resolved:
+        _kb.press(k)
+    time.sleep(duration)
+    for k in resolved:
+        _kb.release(k)
+
+
+_OPPOSITE_KEY = {"w": "s", "s": "w", "a": "d", "d": "a"}
+
+
+def opposite_keys(keys: list[str]) -> list[str]:
+    """Maps movement keys to their opposite (w<->s, a<->d) to retrace a path; non-movement keys (ex: space) pass through unchanged."""
+    return [_OPPOSITE_KEY.get(k, k) for k in keys]
+
+
 def click(x: int, y: int, button: str = "left", delay_after: float = 0.1) -> None:
     btn = Button.left if button == "left" else Button.right
     _mouse.position = (x, y)
@@ -91,6 +114,23 @@ def click(x: int, y: int, button: str = "left", delay_after: float = 0.1) -> Non
 
 def right_click(x: int, y: int, delay_after: float = 0.1) -> None:
     click(x, y, button="right", delay_after=delay_after)
+
+
+def respawn_confirm() -> None:
+    """
+    Confirms 'Press RMB to Respawn'. This is a global action (not a
+    clickable button at a fixed position), but confirmed live on
+    2026-06-25 that the right-click is silently ignored if the cursor has
+    drifted to the screen edge from earlier UI interactions (ex: a map
+    search click) — re-centering the cursor first is what made it work.
+    """
+    sw = cfg.get("display.screen_width", 2560)
+    sh = cfg.get("display.screen_height", 1440)
+    _mouse.position = (sw // 2, sh // 2)
+    time.sleep(0.2)
+    _mouse.press(Button.right)
+    time.sleep(0.3)
+    _mouse.release(Button.right)
 
 
 def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:

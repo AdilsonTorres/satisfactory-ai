@@ -116,6 +116,17 @@ temporal workflow start \
   --workflow-type CombatExpeditionWorkflow \
   --task-queue satisfactory-bot \
   --input '{"location": "example_kill_zone", "max_kills": 10, "min_ammo_to_depart": 20, "ammo_per_craft": 50}'
+
+# Unsupervised exploration around the base: walks the route in config.toml
+# [[exploration.route]], screenshotting and checking health/death after
+# every leg, then automatically retraces the same legs (mirrored) to head
+# back. Legs can hold "space" together with movement keys to drive Hover
+# Pack ascend/glide (harmless hop if not equipped). Blind and best-effort —
+# see "Known limitations" below before running unsupervised for long.
+temporal workflow start \
+  --workflow-type ExplorationWorkflow \
+  --task-queue satisfactory-bot \
+  --input '{}'
 ```
 
 ### Calibrating CombatExpeditionWorkflow
@@ -259,6 +270,14 @@ your base's layout.
 ---
 
 ## Known limitations
+- **`health_low_indicator` is over-eager (confirmed false-positive prone):** live testing on 2026-06-25 showed it matching at conf 0.95-0.96 on every single check, including immediately after spawn at full health. Cropping the matched HUD region shows it's keying off the heart-rate icon's outline/shape, which is present in the HUD at all times (full or low health) — `cv2.matchTemplate` with `TM_CCOEFF_NORMED` is shape-dominant enough that the icon matches whether full or empty. This means `engage_enemy`'s flee-on-low-health branch and `ExplorationWorkflow`'s health-abort likely both fire on the very first check, every time. **Fix requires recapturing the template from an actual damaged-health screenshot** (color-fill state, not just icon shape) — can't be done safely from script alone since it means letting the character take damage on purpose. Until then, treat any low-health-triggered abort as not necessarily a real signal.
+- **Display resolution was miscalibrated:** `config.toml [display]` had `1920x1080` hardcoded, but `debug_run.py --screenshot` on 2026-06-25 confirmed the actual capture resolution is `2560x1440` (matches `mss`'s native monitor capture, and matches other already-correct absolute-pixel calibrations like `taming.drop_point_x/y` = 1280/720, exactly half of 2560/1440). Fixed in `config.toml`. This previously skewed every `screen_width/height`-derived camera center calculation (combat aiming, `_face_doggo_and_recheck`) — recheck `[combat.aim_sensitivity_factor]` if aim still seems off now that centering is correct.
+- **Exploration is blind and unsupervised — keep it conservative:** `ExplorationWorkflow` has no real-time hazard awareness (cliffs, water, enemies, fire). It mirrors the existing `navigate_back_to_base` idiom (retrace the same keys/turns in reverse) rather than visual SLAM/pathfinding, so the further/longer a route goes, the more position drift accumulates on return. Keep `[[exploration.route]]` legs short and `max_total_duration_seconds` small, and only extend it incrementally while reviewing `debug_screenshots/explore_leg_*_*` after each run.
+- **Death is now actually detectable, and respawn is fixed:** a live flight on 2026-06-25 ended in real character death (most likely Hover Pack charge running out at altitude — there was no usable `death_screen` template at the time, so the cause couldn't be confirmed from screenshots). Fixed since:
+  - `templates/death_screen.png` is now a real template, cropped from that actual death screen ("Press RMB to Respawn" banner). Real death frames score 0.75-1.0 against it; normal gameplay scores ~0.25 — threshold set to 0.60 in `config.toml`.
+  - `handle_death_respawn` no longer depends on a `respawn_button` template (it never existed). Respawning is a global right-click ("Press RMB to Respawn"), not a clickable button at a fixed position — and the right-click was silently ignored until the cursor was re-centered (it had drifted to the screen edge from an earlier UI interaction). `inp.respawn_confirm()` now centers the cursor first, and the activity retries once and verifies via `death_screen` before giving up.
+  - `explore_leg` now runs each leg in `check_interval_seconds`-sized chunks (default 1.0s) instead of one long blind hold, checking health/death and saving a screenshot after **every** chunk, stopping immediately on death. Previously a single uninterrupted ~3.5s hold was the entire gap in which the death above happened, with no checkpoint inside it to pin down the cause.
+  - `[exploration] ascend_every_chunks`/`ascend_pulse_seconds`: optional periodic short `space` taps interleaved with movement, for "stay as high as possible without leaving Hover Pack charge range" flight, instead of holding `space` continuously (which is harder to judge against the charge gauge).
 - **Blind navigation:** The bot uses fixed-duration key presses to walk. If the character collides with something or gets pushed by an enemy, the route can drift. Temporal handles this through the failed-activity retry flow.
 - **Mobile combat:** Target tracking is reactive and works best against slow enemies. Fast enemies (like agile Spitters) may require more ammo.
 - **Window focus on Wayland:** `focus_game()` uses `xdotool windowfocus`, which reports success but can't actually bring the game window to the foreground in native Wayland sessions (KWin's focus-stealing protection) — it only works if the game is already focused. Since the `uinput` virtual mouse sends input to whatever currently has focus (not to a specific window), **the Satisfactory window needs to stay in the foreground for the entire duration of a workflow run** — avoid switching to another window (ex: a terminal) while a workflow is running.
