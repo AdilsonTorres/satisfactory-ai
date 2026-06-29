@@ -17,6 +17,7 @@ Usage:
     uv run python passive_capture.py --interval 5 --max-shots 200
     uv run python passive_capture.py --dedup-threshold 0.0   # save everything, no dedup
 """
+
 import argparse
 import time
 from datetime import datetime
@@ -72,8 +73,10 @@ def main() -> None:
     parser.add_argument("--interval", type=float, default=4.0, help="Seconds between captures [4.0]")
     parser.add_argument("--max-shots", type=int, default=0, help="Screenshot limit, 0 = unlimited [0]")
     parser.add_argument(
-        "--dedup-threshold", type=float, default=0.02,
-        help="Deduplication sensitivity — 0 disables it (saves every frame) [0.02]"
+        "--dedup-threshold",
+        type=float,
+        default=0.02,
+        help="Deduplication sensitivity — 0 disables it (saves every frame) [0.02]",
     )
     args = parser.parse_args()
     run(args.interval, args.max_shots, args.dedup_threshold)

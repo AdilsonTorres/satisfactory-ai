@@ -2,6 +2,7 @@
 utils/config.py
 Loads config.toml and provides typed access by key path.
 """
+
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -15,8 +16,7 @@ def load() -> dict:
     if _cache is None:
         if not _CONFIG_PATH.exists():
             raise FileNotFoundError(
-                f"config.toml not found at {_CONFIG_PATH}.\n"
-                "The file must exist at the project root."
+                f"config.toml not found at {_CONFIG_PATH}.\nThe file must exist at the project root."
             )
         with open(_CONFIG_PATH, "rb") as f:
             _cache = tomllib.load(f)

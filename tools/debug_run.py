@@ -11,6 +11,7 @@ Usage:
     uv run python debug_run.py --screenshot
     uv run python debug_run.py --config
 """
+
 import argparse
 import json
 import sys
@@ -18,9 +19,9 @@ from pathlib import Path
 
 import cv2
 
-from utils.vision import Vision
-from utils.screenshot import save_debug_screenshot, save_annotated_screenshot
 from utils import config as cfg
+from utils.screenshot import save_annotated_screenshot, save_debug_screenshot
+from utils.vision import Vision
 
 ALL_TEMPLATES = [
     "gift_prompt",
@@ -56,7 +57,7 @@ def cmd_scan(threshold_override: float | None = None) -> None:
     v = Vision()
     frame = v.capture()
 
-    print(f"\nScanning screen...\n")
+    print("\nScanning screen...\n")
     print(f"{'Template':<35} {'Status':<8} {'Conf':>6}  {'Threshold':>9}  {'Position'}")
     print("─" * 75)
 
@@ -64,8 +65,10 @@ def cmd_scan(threshold_override: float | None = None) -> None:
     missing_files: list[str] = []
 
     for name in ALL_TEMPLATES:
-        thr = threshold_override if threshold_override is not None else (
-            cfg.get(f"vision.thresholds.{name}") or cfg.get("vision.default_threshold", 0.82)
+        thr = (
+            threshold_override
+            if threshold_override is not None
+            else (cfg.get(f"vision.thresholds.{name}") or cfg.get("vision.default_threshold", 0.82))
         )
         try:
             r = v.find(name, frame=frame, threshold=thr)
@@ -94,8 +97,10 @@ def cmd_scan(threshold_override: float | None = None) -> None:
 def cmd_find(template_name: str, threshold_override: float | None = None) -> None:
     """Looks for a specific template and shows the confidence."""
     v = Vision()
-    thr = threshold_override if threshold_override is not None else (
-        cfg.get(f"vision.thresholds.{template_name}") or cfg.get("vision.default_threshold", 0.82)
+    thr = (
+        threshold_override
+        if threshold_override is not None
+        else (cfg.get(f"vision.thresholds.{template_name}") or cfg.get("vision.default_threshold", 0.82))
     )
 
     print(f"\nLooking for '{template_name}' (threshold={thr:.3f})...")
@@ -149,8 +154,10 @@ def cmd_scan_dir(directory: str, threshold_override: float | None = None) -> Non
         for name in ALL_TEMPLATES:
             if name in missing_files:
                 continue
-            thr = threshold_override if threshold_override is not None else (
-                cfg.get(f"vision.thresholds.{name}") or cfg.get("vision.default_threshold", 0.82)
+            thr = (
+                threshold_override
+                if threshold_override is not None
+                else (cfg.get(f"vision.thresholds.{name}") or cfg.get("vision.default_threshold", 0.82))
             )
             try:
                 r = v.find(name, frame=frame, threshold=thr)
@@ -201,12 +208,12 @@ Examples:
   uv run python debug_run.py --config
 """,
     )
-    parser.add_argument("--scan",       action="store_true", help="Scan all templates")
-    parser.add_argument("--find",       metavar="TEMPLATE",  help="Look for a template")
-    parser.add_argument("--scan-dir",   metavar="DIR",       help="Run --scan over every PNG in a directory (ex: captures/)")
+    parser.add_argument("--scan", action="store_true", help="Scan all templates")
+    parser.add_argument("--find", metavar="TEMPLATE", help="Look for a template")
+    parser.add_argument("--scan-dir", metavar="DIR", help="Run --scan over every PNG in a directory (ex: captures/)")
     parser.add_argument("--screenshot", action="store_true", help="Screenshot of the current screen")
-    parser.add_argument("--config",     action="store_true", help="Show current config.toml")
-    parser.add_argument("--threshold",  type=float,          help="Threshold override")
+    parser.add_argument("--config", action="store_true", help="Show current config.toml")
+    parser.add_argument("--threshold", type=float, help="Threshold override")
 
     args = parser.parse_args()
 

@@ -2,6 +2,7 @@
 utils/logger.py
 Logging to console + rotating file at logs/bot.log.
 """
+
 import logging
 import logging.handlers
 from pathlib import Path

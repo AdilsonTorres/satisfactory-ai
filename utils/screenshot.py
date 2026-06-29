@@ -2,28 +2,19 @@
 utils/screenshot.py
 Saves timestamped debug screenshots to debug_screenshots/.
 """
-import cv2
-import numpy as np
+
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
-from utils.vision import Vision
+import cv2
+import numpy as np
+
+from utils.vision import get_shared as _get_vision
 
 SCREENSHOTS_DIR = Path("debug_screenshots")
 
-_vision: Vision | None = None
 
-
-def _get_vision() -> Vision:
-    """Shared Vision instance — has the capture fallback (ImageMagick) for X11."""
-    global _vision
-    if _vision is None:
-        _vision = Vision()
-    return _vision
-
-
-def save_debug_screenshot(label: str, frame: Optional[np.ndarray] = None) -> Path:
+def save_debug_screenshot(label: str, frame: np.ndarray | None = None) -> Path:
     SCREENSHOTS_DIR.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     path = SCREENSHOTS_DIR / f"{ts}_{label}.png"
@@ -38,7 +29,7 @@ def save_debug_screenshot(label: str, frame: Optional[np.ndarray] = None) -> Pat
 def save_annotated_screenshot(
     label: str,
     matches: dict[str, tuple[int, int, float]],
-    frame: Optional[np.ndarray] = None,
+    frame: np.ndarray | None = None,
 ) -> Path:
     """Screenshot with circles and labels over each match found."""
     SCREENSHOTS_DIR.mkdir(exist_ok=True)

@@ -17,6 +17,7 @@ Usage:
     uv run python label_captures.py
     uv run python label_captures.py --dir captures
 """
+
 import argparse
 import os
 import shutil
@@ -60,7 +61,7 @@ def _crop_and_save(frame, name: str) -> None:
         print("Cancelled (no region selected).")
         return
 
-    cropped = frame[y:y + h, x:x + w]
+    cropped = frame[y : y + h, x : x + w]
     out_path = TEMPLATES_DIR / f"{name}.png"
     if out_path.exists():
         resp = input(f"  '{out_path}' already exists. Overwrite? [y/N] ").strip().lower()

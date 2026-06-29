@@ -3,6 +3,7 @@ utils/stats.py
 Persists session stats to stats/{timestamp}_{workflow}.json
 for later analysis.
 """
+
 import json
 from datetime import datetime
 from pathlib import Path

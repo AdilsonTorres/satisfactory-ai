@@ -9,8 +9,10 @@ Usage:
 
 Press ENTER to confirm the selected region, C to cancel.
 """
+
 import os
 import time
+
 import numpy as np
 
 # The Qt bundled with cv2 only ships the "xcb" plugin — under Wayland
@@ -22,8 +24,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 os.environ.setdefault("QT_AUTO_SCREEN_SCALE_FACTOR", "0")
 os.environ.setdefault("QT_SCALE_FACTOR", "1")
 
-import cv2
 from pathlib import Path
+
+import cv2
 
 from utils.vision import Vision
 
@@ -63,7 +66,7 @@ def select_roi_and_save(name: str) -> bool:
         print("Cancelled.")
         return False
 
-    cropped = frame[y:y+h, x:x+w]
+    cropped = frame[y : y + h, x : x + w]
     out_path = TEMPLATES_DIR / f"{name}.png"
     cv2.imwrite(str(out_path), cropped)
     print(f"Saved: {out_path} ({w}x{h}px)")
@@ -71,31 +74,31 @@ def select_roi_and_save(name: str) -> bool:
 
 
 TEMPLATES_NEEDED = [
-    ("gift_prompt",               "Interaction icon/text when the Doggo has a gift"),
-    ("inventory_open",            "Element indicating the inventory is open"),
-    ("doggo_loot_window",         "The Doggo's own loot window (1 slot), when interacting with E"),
-    ("doggo_body",                "Tamed Lizard Doggo body/face, used to aim the camera at it"),
-    ("wild_doggo_prompt",         "Silhouette of a wild (not yet tamed) Lizard Doggo on screen"),
-    ("paleberry_icon",            "Paleberry icon in the open inventory"),
-    ("inventory_full_indicator",  "Visual indicator that the inventory is full"),
-    ("health_low_indicator",      "Low health bar (red)"),
+    ("gift_prompt", "Interaction icon/text when the Doggo has a gift"),
+    ("inventory_open", "Element indicating the inventory is open"),
+    ("doggo_loot_window", "The Doggo's own loot window (1 slot), when interacting with E"),
+    ("doggo_body", "Tamed Lizard Doggo body/face, used to aim the camera at it"),
+    ("wild_doggo_prompt", "Silhouette of a wild (not yet tamed) Lizard Doggo on screen"),
+    ("paleberry_icon", "Paleberry icon in the open inventory"),
+    ("inventory_full_indicator", "Visual indicator that the inventory is full"),
+    ("health_low_indicator", "Low health bar (red)"),
     ("equipment_workshop_prompt", "E prompt at the Equipment Workshop"),
-    ("workshop_menu_open",        "Element of the open Workshop menu"),
-    ("rifle_ammo_icon",           "Rifle Ammo icon in the craft menu"),
-    ("craft_button",              "Craft button in the Workshop"),
-    ("enemy_spitter",             "Spitter silhouette on screen"),
-    ("enemy_hog",                 "Alpha Hog silhouette on screen"),
-    ("enemy_stinger",             "Stinger silhouette on screen"),
-    ("enemy_spitter_elite",       "Elite Spitter silhouette on screen"),
-    ("enemy_hatcher",             "Flying Crab Hatcher (nest) silhouette on screen"),
-    ("enemy_flying_crab",         "Flying Crab silhouette on screen"),
-    ("enemy_hog_nuclear",         "HAZARD: Nuclear/irradiated Cliff Hog — area radiation damage"),
-    ("enemy_stinger_elite_gas",   "HAZARD: Elite Gas Stinger — emits poison gas in an area"),
-    ("enemy_remains_prompt",      "E prompt to loot remains"),
-    ("resource_node_prompt",      "Interaction prompt when looking at a resource node in range"),
-    ("storage_prompt",            "Interaction prompt when looking at a storage container in range"),
-    ("storage_open",              "Element indicating the storage container window is open"),
-    ("death_screen",              "Character death screen ('Press RMB to Respawn' banner) — captured live 2026-06-25, see README"),
+    ("workshop_menu_open", "Element of the open Workshop menu"),
+    ("rifle_ammo_icon", "Rifle Ammo icon in the craft menu"),
+    ("craft_button", "Craft button in the Workshop"),
+    ("enemy_spitter", "Spitter silhouette on screen"),
+    ("enemy_hog", "Alpha Hog silhouette on screen"),
+    ("enemy_stinger", "Stinger silhouette on screen"),
+    ("enemy_spitter_elite", "Elite Spitter silhouette on screen"),
+    ("enemy_hatcher", "Flying Crab Hatcher (nest) silhouette on screen"),
+    ("enemy_flying_crab", "Flying Crab silhouette on screen"),
+    ("enemy_hog_nuclear", "HAZARD: Nuclear/irradiated Cliff Hog — area radiation damage"),
+    ("enemy_stinger_elite_gas", "HAZARD: Elite Gas Stinger — emits poison gas in an area"),
+    ("enemy_remains_prompt", "E prompt to loot remains"),
+    ("resource_node_prompt", "Interaction prompt when looking at a resource node in range"),
+    ("storage_prompt", "Interaction prompt when looking at a storage container in range"),
+    ("storage_open", "Element indicating the storage container window is open"),
+    ("death_screen", "Character death screen ('Press RMB to Respawn' banner) — captured live 2026-06-25, see README"),
 ]
 
 

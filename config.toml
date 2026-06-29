@@ -68,19 +68,44 @@ doggo_loot_slot_x = 995
 doggo_loot_slot_y = 1045
 
 # ---------------------------------------------------------------------------
-# Player inventory grid, used by open_storage_and_deposit_loot to sweep
-# every slot with shift-click (shift-clicking an empty slot does nothing,
-# so there's no need to detect items one by one). CALIBRATE with a
+# Player inventory grid, used by check_inventory_full (slot-scan) and
+# open_storage_and_deposit_loot (shift-click sweep). CALIBRATE with a
 # screenshot of the open inventory: origin = top-left corner of the first
 # slot, slot_w/slot_h = spacing between slots in pixels.
+# Calibrated 2026-06-29 from live 2560x1440 screenshot:
+#   - Panel starts at x=568, panel header is ~32px tall
+#   - Slots begin at y=170 (past the panel header)
+#   - 10 columns × 6 rows, each slot 32×32px
 # ---------------------------------------------------------------------------
 [inventory_grid]
-origin_x = 100
-origin_y = 100
-slot_w   = 90
-slot_h   = 90
+origin_x = 568
+origin_y = 330
+slot_w   = 32
+slot_h   = 32
 columns  = 10
-rows     = 4
+rows     = 5
+
+# ---------------------------------------------------------------------------
+# Inventory sort button — clicked by check_inventory_full when all slots
+# appear occupied, to merge partial stacks before re-checking.
+# The '≡ Sort' button is at the bottom-centre of the Inventory panel.
+# Calibrated 2026-06-29 from live screenshot at 2560x1440.
+# ---------------------------------------------------------------------------
+[inventory_sort_button]
+x = 630
+y = 575
+
+# ---------------------------------------------------------------------------
+# Inventory full detection thresholds
+# empty_slot_brightness: BGR median below this value = slot is empty.
+# At 2560x1440: empty inventory slots read ~57-63 BGR median brightness.
+# Filled slots (item icons) read >85. Threshold of 80 gives a clear margin.
+# low_guard (hardcoded to 50 in activities/inventory.py): panel chrome
+# (borders, headers) reads <50 and is excluded from the empty-slot check.
+# Recalibrate if you change the UI scale or resolution.
+# ---------------------------------------------------------------------------
+[inventory]
+empty_slot_brightness = 80
 
 # ---------------------------------------------------------------------------
 # Navigation (seconds of key held down)
@@ -146,6 +171,17 @@ duration = 3.0
 [exploration]
 max_total_duration_seconds = 25.0
 screenshot_every_leg       = true
+
+# Health is read from the bottom-left HUD bar (10 lit segments at full health,
+# depletes right-to-left), via Vision.assess(). A leg aborts the outbound
+# route when the health fraction drops to or below this. 0.4 = 4/10 segments.
+health_low_frac = 0.4
+
+# Hover Pack charge-ring fill is logged per chunk for death analysis (gauge
+# distance vs health). Calibrated live on 2026-06-25: the ring geometry is
+# hardcoded in utils/vision.py (_GAUGE_CENTER/_GAUGE_RADIUS, 2560x1440) and read
+# by Vision._read_gauge_fraction(), which returns the white-ring fill while
+# flying (the spinning fan icon) and None when grounded (objective checkmark).
 
 # Each leg now runs in check_interval_seconds-sized chunks instead of one
 # long blind hold, checking health/death AND saving a screenshot after
