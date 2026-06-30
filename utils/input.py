@@ -84,13 +84,53 @@ def _resolve_key_code(key: str) -> int:
 
 
 def focus_game(window_title: str = "Satisfactory") -> bool:
+    """
+    Make the game the ACTIVE X11 window. `windowactivate --sync` (not
+    `windowfocus`) is what XWayland actually needs — `windowfocus` leaves
+    a different window active and the game keeps ignoring input.
+    """
     result = subprocess.run(
-        ["xdotool", "search", "--name", window_title, "windowfocus", "--sync"],
+        ["xdotool", "search", "--name", window_title, "windowactivate", "--sync"],
         capture_output=True,
         timeout=3,
     )
     time.sleep(0.2)
     return result.returncode == 0
+
+
+def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
+    """
+    Restore the game's keyboard input path before sending keys.
+
+    UE5 silently drops keyboard input until the viewport regains *mouse
+    capture* — which only happens on a mouse click inside the window. So a
+    bare `focus_game()` isn't enough: keys like E/Tab are swallowed even
+    with the window active. The fix is activate-window → centre the OS
+    cursor → RIGHT-click.
+
+    Right-click is the safe recapture primitive: unlike left-click it never
+    fires the equipped weapon or places a building, so it won't hurt a tamed
+    Doggo or the world while just restoring focus.
+
+    A single click only flips capture ~50% of the time (measured live), so
+    we click twice — two clicks scored best (4/6 vs 1/6 for activate-only).
+    It is still not 100%, so callers must verify the resulting UI and retry
+    (see collect_doggo_gift / check_inventory_full).
+    """
+    activated = focus_game(window_title)
+    sw = cfg.get("display.screen_width", 2560)
+    sh = cfg.get("display.screen_height", 1440)
+    _mouse.position = (sw // 2, sh // 2)
+    time.sleep(0.08)
+    ui = _get_uinput_mouse()
+    for _ in range(2):
+        ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 1)
+        ui.syn()
+        time.sleep(0.05)
+        ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 0)
+        ui.syn()
+        time.sleep(0.1)
+    return activated
 
 
 def press(key: str, delay_after: float = 0.05) -> None:
@@ -162,9 +202,63 @@ def opposite_keys(keys: list[str]) -> list[str]:
     return [_OPPOSITE_KEY.get(k, k) for k in keys]
 
 
+def _home_cursor() -> None:
+    """
+    Park the in-game UI cursor at the top-left corner (0, 0).
+
+    The game holds an XWayland pointer lock even inside menus, so the OS
+    pointer is frozen — pynput/xdotool absolute warps do NOT move the
+    in-game cursor (verified live: pynput reads a constant locked position).
+    Only relative motion drives it. Large negative deltas saturate against
+    the screen edge, giving a known origin to move from.
+    """
+    for _ in range(3):
+        move_mouse_relative(-1500, -1500)
+        time.sleep(0.12)
+    time.sleep(0.15)
+
+
+def _step_move(dx: int, dy: int, step: int = 2, pause: float = 0.012) -> None:
+    """
+    Move the cursor by a relative (dx, dy) in small slow steps.
+
+    KWin/libinput pointer acceleration amplifies fast relative motion (~2x
+    measured), so a single big delta overshoots. Small slow steps stay under
+    the accel threshold and map ~1:1 to pixels. Calibrated live 2026-06-30
+    against inventory-slot tooltips (targets within a few px of where the
+    cursor actually landed across the whole screen).
+    """
+    sx = 1 if dx >= 0 else -1
+    rem = abs(int(dx))
+    while rem > 0:
+        d = min(step, rem)
+        move_mouse_relative(sx * d, 0)
+        rem -= d
+        time.sleep(pause)
+    sy = 1 if dy >= 0 else -1
+    rem = abs(int(dy))
+    while rem > 0:
+        d = min(step, rem)
+        move_mouse_relative(0, sy * d)
+        rem -= d
+        time.sleep(pause)
+
+
+def move_cursor_to(x: int, y: int) -> None:
+    """
+    Position the in-game UI cursor at absolute screen coords (x, y).
+
+    Homes to the top-left corner then walks to the target in slow steps.
+    This is the ONLY reliable way to place the menu cursor — see
+    _home_cursor / _step_move for why absolute positioning is impossible.
+    """
+    _home_cursor()
+    _step_move(x, y)
+    time.sleep(0.15)
+
+
 def click(x: int, y: int, button: str = "left", delay_after: float = 0.1) -> None:
-    _mouse.position = (x, y)
-    time.sleep(0.05)
+    move_cursor_to(x, y)
     code = ev_codes.BTN_LEFT if button == "left" else ev_codes.BTN_RIGHT
     ui = _get_uinput_mouse()
     ui.write(ev_codes.EV_KEY, code, 1)
@@ -193,8 +287,7 @@ def respawn_confirm() -> None:
 
 
 def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:
-    _mouse.position = (x, y)
-    time.sleep(0.05)
+    move_cursor_to(x, y)
     ui_kb = _get_uinput_keyboard()
     ui_m = _get_uinput_mouse()
     # Press Shift on virtual keyboard
@@ -214,19 +307,14 @@ def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:
 
 
 def drag(start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.4) -> None:
-    _mouse.position = (start_x, start_y)
-    time.sleep(0.05)
+    move_cursor_to(start_x, start_y)
     ui = _get_uinput_mouse()
     ui.write(ev_codes.EV_KEY, ev_codes.BTN_LEFT, 1)
     ui.syn()
-    steps = max(int(duration / 0.02), 1)
-    for i in range(1, steps + 1):
-        t = i / steps
-        _mouse.position = (
-            int(start_x + (end_x - start_x) * t),
-            int(start_y + (end_y - start_y) * t),
-        )
-        time.sleep(duration / steps)
+    time.sleep(0.05)
+    # Cursor is at (start_x, start_y); walk the relative delta to the end
+    # point in slow steps so the held-button drag tracks ~1:1.
+    _step_move(end_x - start_x, end_y - start_y)
     ui.write(ev_codes.EV_KEY, ev_codes.BTN_LEFT, 0)
     ui.syn()
     time.sleep(0.1)
@@ -262,6 +350,10 @@ def open_inventory() -> None:
 
 
 def close_menu() -> None:
+    # Escape is dropped unless the game window is X-active (UE5 swallows keys
+    # otherwise — measured live: a bare Escape left the inventory open at
+    # conf 0.999). Activate the window first so the close actually lands.
+    focus_game()
     press("escape", delay_after=0.2)
 
 

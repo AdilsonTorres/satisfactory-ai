@@ -87,12 +87,15 @@ async def extract_templates_from_screen(
         if w == 2560 and h == 1440:
             coords = {
                 "health_low_indicator": (1330, 1380, 70, 120),  # Heart icon (health)
-                "inventory_open": (1215, 1265, 2185, 2245),  # Tab icon in the HUD
+                # Pioneer equipment panel — only present while the inventory
+                # is OPEN. The old crop was the permanent Tab HUD hint, which
+                # matched ~1.0 even in gameplay (useless as an open-detector).
+                "inventory_open": (192, 922, 1600, 1978),
             }
         else:
             coords = {
                 "health_low_indicator": (int(h * 0.923), int(h * 0.958), int(w * 0.027), int(w * 0.047)),
-                "inventory_open": (int(h * 0.843), int(h * 0.878), int(w * 0.853), int(w * 0.877)),
+                "inventory_open": (int(h * 0.133), int(h * 0.640), int(w * 0.625), int(w * 0.773)),
             }
     elif target == "workshop":
         # Note: temporary calibration coordinates for the Equipment Workshop at 2560x1440

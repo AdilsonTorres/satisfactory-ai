@@ -14,7 +14,7 @@ default_threshold = 0.82
 
 # Per-template thresholds. Static menus: 0.85+. Moving enemies: 0.65–0.72.
 [vision.thresholds]
-gift_prompt               = 0.82
+gift_prompt               = 0.75   # live 2026-06-30: the "Press E…has found anything" prompt scores ~0.79 present vs ~0.20 absent — 0.82 was rejecting real prompts
 inventory_open            = 0.82
 doggo_loot_window         = 0.82
 inventory_full_indicator  = 0.75

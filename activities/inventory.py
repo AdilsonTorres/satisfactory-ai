@@ -19,6 +19,42 @@ from ._shared import get_vision, screenshot_on_error
 
 logger = logging.getLogger(__name__)
 
+# How many recapture+key attempts before giving up on a UI opening. UE5
+# drops keyboard input until the viewport regains mouse capture, and a
+# single recapture click only restores it ~50-65% of the time, so we verify
+# the target template and retry. Detection is crisp (~0.98 open vs ~0.45
+# closed), so 5 attempts gives >98% effective reliability.
+_OPEN_WINDOW_ATTEMPTS = 5
+
+
+def _press_until_window_open(
+    v: Vision,
+    template: str,
+    key_action=inp.interact,
+) -> MatchResult:
+    """
+    Recapture the game's mouse focus and press `key_action`, retrying until
+    `template` is detected on screen or the attempt budget is exhausted.
+
+    Returns the final MatchResult (check `.found`). Used wherever a keyboard
+    press must open a UI: the press is silently swallowed unless the UE5
+    viewport currently holds mouse capture, which `ensure_game_input_ready`
+    only restores intermittently — verifying + retrying makes it reliable.
+    """
+    result = v.find(template)
+    attempt = 0
+    while not result.found and attempt < _OPEN_WINDOW_ATTEMPTS:
+        attempt += 1
+        inp.ensure_game_input_ready()
+        key_action()
+        time.sleep(0.8)
+        result = v.find(template)
+        logger.debug(
+            "%s open attempt %d/%d: conf=%.2f found=%s",
+            template, attempt, _OPEN_WINDOW_ATTEMPTS, result.confidence, result.found,
+        )
+    return result
+
 
 def _face_doggo_and_recheck(v: Vision) -> MatchResult:
     """
@@ -83,21 +119,16 @@ async def collect_doggo_gift() -> bool:
             "Gift prompt at (%d,%d) conf=%.2f — pressing E.",
             result.x, result.y, result.confidence,
         )
-        inp.interact()
-
-        # Allow up to 5 s for the loot window to render (Wayland capture
-        # can take ~1-2 frames to see the new UI state).
-        confirm = v.wait_for("doggo_loot_window", timeout=5.0)
+        # Pressing E only registers when the UE5 viewport holds mouse
+        # capture, which a single recapture click restores intermittently,
+        # so retry recapture+E until the loot window is confirmed open.
+        confirm = _press_until_window_open(v, "doggo_loot_window")
         if not confirm.found:
-            # The window may have opened but the template didn't match
-            # (e.g. stale template). Press Escape to close whatever is
-            # open and continue the loop — don't crash the workflow.
             logger.warning(
-                "Doggo loot window not detected after E (conf=%.2f). "
-                "Pressing Escape to recover.",
-                confirm.confidence,
+                "Doggo loot window did not open after %d recapture+E "
+                "attempts (conf=%.2f). Skipping this cycle.",
+                _OPEN_WINDOW_ATTEMPTS, confirm.confidence,
             )
-            inp.close_menu()
             return False
 
         # Window confirmed open — shift-click the item slot to transfer
@@ -164,8 +195,18 @@ async def check_inventory_full() -> bool:
         return empty
 
 
-    inp.open_inventory()
-    time.sleep(0.5)  # wait for the inventory panel to fully render
+    # Tab is swallowed unless the viewport holds mouse capture; retry
+    # recapture+Tab until the inventory panel is confirmed open, otherwise
+    # we'd scan the game world and mis-report "full".
+    opened = _press_until_window_open(v, "inventory_open", key_action=inp.open_inventory)
+    if not opened.found:
+        logger.warning(
+            "Inventory did not open after %d recapture+Tab attempts "
+            "(conf=%.2f). Reporting not-full to avoid a false craft.",
+            _OPEN_WINDOW_ATTEMPTS, opened.confidence,
+        )
+        return False
+    time.sleep(0.3)  # let the panel finish rendering before sampling
 
     frame = v.capture()
     empty_count = _count_empty(frame)
