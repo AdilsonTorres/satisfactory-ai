@@ -7,6 +7,7 @@ Inventory and Doggo gift activities.
 import logging
 import time
 
+import cv2
 import numpy as np
 from temporalio import activity
 
@@ -56,40 +57,123 @@ def _press_until_window_open(
     return result
 
 
-def _face_doggo_and_recheck(v: Vision) -> MatchResult:
+def _gift_prompt_region(sw: int, sh: int) -> tuple[int, int, int, int]:
     """
-    If 'gift_prompt' isn't visible, looks for a Doggo on screen ('doggo_body')
-    and aims/steps toward it so the 'E' interact prompt has a chance to show
-    up, instead of requiring the player to already be looking straight at it.
-    Lizard Doggos near the pen barely move, so a small bounded mouse sweep
-    (left, past center to the right, back to center) plus a short step
-    forward is enough to bring one into frame.
+    Screen rectangle where the 'Press E … Lizard Doggo …' prompt renders.
+
+    The prompt is a UI band anchored to the crosshair, NOT to the Doggo's
+    world position: it's horizontally centred and sits ~9% of the screen
+    height below centre (measured live 2026-06-30 at 2560x1440: the 740x50
+    band landed at x 920-1660, y 785-835). Returning a snug band lets us
+    detect it with a ~0.2s cropped grab instead of a ~7.5s full frame.
+    """
+    cx = sw // 2
+    cy = int(sh * 0.5625)
+    half_w, margin_y = 540, 70
+    x = max(0, cx - half_w)
+    y = max(0, cy - margin_y)
+    return (x, y, min(sw - x, 2 * half_w), min(sh - y, 2 * margin_y))
+
+
+def _camera_responds(v: Vision) -> bool:
+    """
+    True if the gameplay camera actually turns when we send a relative mouse
+    move. The virtual mouse only drives the camera while the game holds
+    pointer capture; in a free-pointer state the same motion moves the menu
+    cursor instead and the view is frozen (measured live: a 2500px yaw left
+    the frame pixel-identical).
+
+    We nudge yaw and measure the horizontal SHIFT of a central patch via
+    phase correlation, recapturing once before giving up. Phase correlation
+    is used instead of a frame difference because grass and the Doggo's idle
+    animation make a plain abs-diff read ~13 even with the camera frozen
+    (false 'moved'); a real yaw shows up as a coherent x-translation while
+    in-place animation produces ~0 net shift (measured: frozen 0.01px).
     """
     disp = cfg.get("display", {})
     sw = disp.get("screen_width", 1920)
     sh = disp.get("screen_height", 1080)
-    center_x, center_y = sw // 2, sh // 2
+    # A central patch grabbed with the fast cropped path (~0.2s); a full-frame
+    # capture would cost ~7.5s per probe.
+    px, py, pw, ph = sw // 2 - 300, sh // 2 - 200, 600, 400
+    window = cv2.createHanningWindow((pw, ph), cv2.CV_32F)
 
-    doggo_threshold = cfg.get("vision.thresholds.doggo_body", 0.62)
-    doggo = v.find("doggo_body", threshold=doggo_threshold)
+    def _luma() -> np.ndarray:
+        return cv2.cvtColor(v.grab_region(px, py, pw, ph), cv2.COLOR_BGR2GRAY).astype(np.float32)
 
-    if not doggo.found:
-        for dx in cfg.get("taming.search_sweep_dx", [-400, 800, -400]):
-            inp.move_mouse_relative(dx, 0)
-            time.sleep(0.3)
-            doggo = v.find("doggo_body", threshold=doggo_threshold)
-            if doggo.found:
-                break
+    for attempt in range(2):
+        before = _luma()
+        inp.move_mouse_relative(300, 0)
+        time.sleep(0.25)
+        after = _luma()
+        inp.move_mouse_relative(-300, 0)  # undo the probe
+        time.sleep(0.15)
+        (shift_x, _), _ = cv2.phaseCorrelate(before, after, window)
+        if abs(shift_x) > 5.0:  # in-place animation reads ~0; a real turn shifts many px
+            return True
+        logger.debug("Camera probe %d: x-shift %.2fpx (frozen) — recapturing.", attempt, shift_x)
+        inp.ensure_game_input_ready()
+        time.sleep(0.2)
+    return False
 
-    if not doggo.found:
-        return v.find("gift_prompt")
 
-    logger.debug("Doggo spotted at (%d,%d) conf=%.2f — aiming.", doggo.x, doggo.y, doggo.confidence)
-    inp.aim_at_screen_position(doggo.x, doggo.y, center_x, center_y)
-    time.sleep(0.2)
-    inp.move_forward(0.3)
-    time.sleep(0.2)
-    return v.find("gift_prompt")
+def _face_doggo_and_recheck(v: Vision) -> MatchResult:
+    """
+    Bring the 'gift_prompt' into view when it isn't already, by sweeping the
+    camera until the interaction prompt appears.
+
+    Uses 'gift_prompt' (a crisp, fixed-position UI band: ~0.8 present vs ~0.2
+    absent) as the locator rather than the old 'doggo_body' world-crop, which
+    matched ~0.5-0.6 everywhere — including a blank wall — and never reliably
+    found the Doggo. The sweep walks PITCH as well as yaw because a Lizard
+    Doggo is a ground creature: a yaw-only sweep with the camera pitched at
+    the horizon misses it entirely. Bails early (and cheaply) if the camera
+    isn't responding, and restores the original orientation if nothing is
+    found, so a miss doesn't leave the view pointing at the ground.
+    """
+    disp = cfg.get("display", {})
+    sw = disp.get("screen_width", 1920)
+    sh = disp.get("screen_height", 1080)
+    region = _gift_prompt_region(sw, sh)
+
+    gp = v.find_in_region("gift_prompt", region)
+    if gp.found:
+        return gp
+
+    if not _camera_responds(v):
+        logger.warning("Camera not responding to mouse-look — cannot sweep for the Doggo.")
+        return v.find_in_region("gift_prompt", region)
+
+    # Grid sweep: a few downward pitch rows, each swept across yaw. Track the
+    # net offset so we can undo it if the prompt never shows.
+    yaw_step = int(cfg.get("taming.search_yaw_step", 180))
+    yaw_count = int(cfg.get("taming.search_yaw_count", 8))
+    pitch_rows = cfg.get("taming.search_pitch_rows", [0, 160, 160])
+
+    net_pitch = 0
+    try:
+        for pitch in pitch_rows:
+            if pitch:
+                inp.move_mouse_relative(0, pitch)
+                net_pitch += pitch
+                time.sleep(0.2)
+            net_yaw = 0
+            for _ in range(yaw_count):
+                gp = v.find_in_region("gift_prompt", region)
+                if gp.found:
+                    logger.info("Gift prompt acquired (conf=%.2f) after sweep.", gp.confidence)
+                    return gp
+                inp.move_mouse_relative(yaw_step, 0)
+                net_yaw += yaw_step
+                time.sleep(0.12)
+            inp.move_mouse_relative(-net_yaw, 0)  # back to this row's yaw origin
+            time.sleep(0.15)
+    finally:
+        if net_pitch:
+            inp.move_mouse_relative(0, -net_pitch)  # restore original pitch
+            time.sleep(0.15)
+
+    return v.find_in_region("gift_prompt", region)
 
 
 @activity.defn
@@ -106,7 +190,11 @@ async def collect_doggo_gift() -> bool:
     """
     with screenshot_on_error("collect_doggo_gift"):
         v = get_vision()
-        result = v.find("gift_prompt")
+        disp = cfg.get("display", {})
+        region = _gift_prompt_region(
+            disp.get("screen_width", 1920), disp.get("screen_height", 1080)
+        )
+        result = v.find_in_region("gift_prompt", region)
 
         if not result.found:
             result = _face_doggo_and_recheck(v)

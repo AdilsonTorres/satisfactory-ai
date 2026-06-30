@@ -55,10 +55,14 @@ swing_interval_seconds = 0.5
 drop_point_x = 1280
 drop_point_y = 720
 
-# Mouse-x deltas swept in sequence by collect_doggo_gift when no gift prompt
-# is visible and no Doggo is yet in frame — looks left, then past center to
-# the right, then back to center, searching for a Doggo to aim at.
-search_sweep_dx = [-400, 800, -400]
+# Camera sweep used by _face_doggo_and_recheck when the gift prompt isn't
+# already visible: it walks several downward PITCH rows (Doggos are ground
+# creatures, so a yaw-only sweep at the horizon misses them) and steps yaw
+# across each row, watching for the 'gift_prompt' UI band. search_pitch_rows
+# are relative pitch deltas applied in sequence (positive = look down).
+search_yaw_step = 180
+search_yaw_count = 8
+search_pitch_rows = [0, 160, 160]
 
 # Screen coords of the Doggo's single Inventory slot in its name/management
 # dialog (opened by interacting with a tamed Doggo) — shift-clicked by

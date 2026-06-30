@@ -345,6 +345,37 @@ class Vision:
 
         return MatchResult(found=False, confidence=max_val, template_name=template_name)
 
+    def find_in_region(
+        self,
+        template_name: str,
+        region: tuple[int, int, int, int],
+        threshold: float | None = None,
+    ) -> MatchResult:
+        """
+        Like find(), but matches inside a fixed screen rectangle grabbed with
+        the fast cropped 'import' path (~0.2s vs ~7.5s for a full frame).
+
+        Only correct for templates anchored at a KNOWN screen position — e.g.
+        HUD/interaction prompts like 'gift_prompt', which always render at the
+        same place (just below the crosshair) regardless of where the world
+        object is. Coordinates in the returned MatchResult are full-frame.
+        """
+        x, y, w, h = region
+        sub = self.grab_region(x, y, w, h)
+        template = self._load_template(template_name)
+        thr = self._threshold_for(template_name, threshold)
+        th, tw = template.shape[:2]
+        if sub.shape[0] < th or sub.shape[1] < tw:
+            return MatchResult(found=False, confidence=0.0, template_name=template_name)
+
+        result = cv2.matchTemplate(sub, template, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        if max_val >= thr:
+            cx = x + max_loc[0] + tw // 2
+            cy = y + max_loc[1] + th // 2
+            return MatchResult(found=True, x=cx, y=cy, confidence=max_val, template_name=template_name)
+        return MatchResult(found=False, confidence=max_val, template_name=template_name)
+
     def wait_for(
         self,
         template_name: str,
