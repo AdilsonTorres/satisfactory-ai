@@ -42,6 +42,35 @@ storage_open              = 0.85
 pause_menu                = 0.55   # 'Resume/Save/Load Game' text block. Live 2026-07-01: pause menu ~1.0, gameplay ~0.18 — 0.55 leaves a wide margin while tolerating the dimmed scene behind it changing
 
 # ---------------------------------------------------------------------------
+# Fixed screen regions for menu templates that always render at the same
+# place. When a template has an entry here, the verified open/close helpers
+# (activities/_shared.py) match it with the fast cropped grab (~0.2s) instead
+# of a full-frame capture (~5s) — this makes press_until_closed drop from ~10s
+# to <1s for these menus. Calibrated live 2026-07-01 at 2560x1440: each region
+# is the template's on-screen bounding box + a 25px margin. RE-CALIBRATE if the
+# UI scale or resolution changes (a wrong region silently breaks detection).
+# Regenerate with the match-location of each template on a full frame with the
+# menu open (see scratchpad/calibrate_regions.py).
+# ---------------------------------------------------------------------------
+[vision.regions.inventory_open]
+x = 1575
+y = 167
+w = 428
+h = 780
+
+[vision.regions.doggo_loot_window]
+x = 905
+y = 905
+w = 270
+h = 105
+
+[vision.regions.pause_menu]
+x = 25
+y = 160
+w = 410
+h = 275
+
+# ---------------------------------------------------------------------------
 # Manual resource harvesting (player already positioned at the node)
 # ---------------------------------------------------------------------------
 [harvesting]

@@ -8,6 +8,7 @@ import logging
 import time
 from contextlib import contextmanager
 
+from utils import config as cfg
 from utils import input as inp
 from utils.screenshot import save_debug_screenshot
 from utils.vision import MatchResult, Vision
@@ -24,8 +25,26 @@ _vision: Vision | None = None
 MENU_TOGGLE_ATTEMPTS = 5
 
 
+def _region_for(template: str) -> tuple[int, int, int, int] | None:
+    """
+    Fixed screen region configured for `template` under [vision.regions.<name>]
+    in config.toml, or None. Lets fixed-position menus be matched with the fast
+    ~0.2s cropped grab instead of a ~5s full-frame capture.
+    """
+    r = cfg.get("vision.regions", {}).get(template)
+    if isinstance(r, dict) and {"x", "y", "w", "h"} <= r.keys():
+        return (int(r["x"]), int(r["y"]), int(r["w"]), int(r["h"]))
+    return None
+
+
 def _finder(v: Vision, template: str, region):
-    """A zero-arg callable that looks for `template`, region-cropped if given."""
+    """
+    A zero-arg callable that looks for `template`. Uses the fast cropped path
+    when a region is given explicitly OR configured for the template; otherwise
+    falls back to a full-frame match.
+    """
+    if region is None:
+        region = _region_for(template)
     if region is not None:
         return lambda: v.find_in_region(template, region)
     return lambda: v.find(template)
