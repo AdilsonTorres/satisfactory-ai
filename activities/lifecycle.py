@@ -14,10 +14,9 @@ from utils.exceptions import RespawnError
 from utils.screenshot import save_debug_screenshot
 
 from ._shared import (
-    MENU_TOGGLE_ATTEMPTS,
     _check_health_inline,
+    close_open_menus,
     get_vision,
-    press_until_closed,
     screenshot_on_error,
 )
 
@@ -73,18 +72,9 @@ async def reset_to_safe_state() -> bool:
     """
     v = get_vision()
     inp.focus_game()
-    # One capture, checked against every menu we have a template for. Escape
-    # is only ever sent to close a menu we've CONFIRMED is open — so from plain
-    # gameplay we send nothing (a blind Escape there would open the pause menu).
-    frame = v.capture()
-    known_menus = ("inventory_open", "doggo_loot_window", "workshop_menu_open", "pause_menu")
-    open_now = [t for t in known_menus if v.find(t, frame=frame).found]
+    open_now = close_open_menus(v)
     if not open_now:
         logger.info("Safe state: no menu detected, already in gameplay.")
-        return True
-    all_closed = all(press_until_closed(v, t, attempts=MENU_TOGGLE_ATTEMPTS) for t in open_now)
-    logger.info(
-        "Safe state %s (closed: %s).",
-        "restored" if all_closed else "uncertain", ", ".join(open_now),
-    )
-    return all_closed
+    else:
+        logger.info("Safe state: closed %s.", ", ".join(open_now))
+    return True

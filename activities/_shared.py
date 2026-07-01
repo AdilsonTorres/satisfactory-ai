@@ -82,6 +82,30 @@ def press_until_open(
     return result
 
 
+# Menus we have templates for and can therefore detect + close. Checked in one
+# capture by close_open_menus.
+KNOWN_MENUS = ("inventory_open", "doggo_loot_window", "workshop_menu_open", "pause_menu")
+
+
+def close_open_menus(v: Vision) -> list[str]:
+    """
+    Detect every known menu currently open (one capture, matched against each
+    template) and close each with a verified press. Returns the list that was
+    open. Sends Escape ONLY to a menu confirmed open, so from plain gameplay it
+    does nothing (a blind Escape there would open the pause menu).
+
+    Shared self-heal used by reset_to_safe_state and by collect_doggo_gift when
+    the gift prompt is hidden — a menu left open by a previous cycle both hides
+    the prompt and puts the mouse in menu-mode (camera won't turn), so clearing
+    it first is what breaks a desync cascade.
+    """
+    frame = v.capture()
+    open_now = [t for t in KNOWN_MENUS if v.find(t, frame=frame).found]
+    for template in open_now:
+        press_until_closed(v, template)
+    return open_now
+
+
 def press_until_closed(
     v: Vision,
     template: str,

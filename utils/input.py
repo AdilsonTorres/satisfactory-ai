@@ -151,24 +151,43 @@ def _kwin_activate(window_title: str) -> bool:
         return False
 
 
-def focus_game(window_title: str = "Satisfactory") -> bool:
+def _active_window_name() -> str:
+    """Name of the currently active window per XWayland, or '' if none/unknown.
+    With the KWin activation path this reliably reads back the game's title;
+    with a bare xdotool activate on this Wayland session it often reads ''."""
+    try:
+        r = subprocess.run(
+            ["xdotool", "getactivewindow", "getwindowname"],
+            capture_output=True, text=True, timeout=2,
+        )
+        return r.stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        return ""
+
+
+def focus_game(window_title: str = "Satisfactory", retries: int = 3) -> bool:
     """
-    Give the game real input focus. KWin scripting is the primary path (the only
-    thing that actually routes keys + mouse-look to an XWayland game on this
-    Wayland session); xdotool `windowactivate --sync` is a fallback for X11 /
-    other compositors. `windowactivate` (not `windowfocus`) is what XWayland
-    needs there — `windowfocus` leaves a different window active.
+    Give the game real input focus, VERIFIED. KWin scripting is the primary path
+    (the only thing that actually routes keys + mouse-look to an XWayland game on
+    this Wayland session); xdotool `windowactivate --sync` is a fallback for X11
+    / other compositors.
+
+    Activation is racy — it occasionally doesn't take — and a dropped focus is
+    exactly what makes a streak of Escape/Tab presses vanish (measured live: a
+    whole gift-farm cycle where 10 consecutive Escapes failed to close menus).
+    So we confirm the window actually became active and retry, rather than
+    trusting a single activation call.
     """
-    if _kwin_activate(window_title):
-        time.sleep(0.2)
-        return True
-    result = subprocess.run(
-        ["xdotool", "search", "--name", window_title, "windowactivate", "--sync"],
-        capture_output=True,
-        timeout=3,
-    )
-    time.sleep(0.2)
-    return result.returncode == 0
+    for _ in range(retries):
+        if not _kwin_activate(window_title):
+            subprocess.run(
+                ["xdotool", "search", "--name", window_title, "windowactivate", "--sync"],
+                capture_output=True, timeout=3,
+            )
+        time.sleep(0.15)
+        if window_title in _active_window_name():
+            return True
+    return window_title in _active_window_name()
 
 
 def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:

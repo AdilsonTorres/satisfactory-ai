@@ -18,6 +18,7 @@ from utils.vision import MatchResult, Vision
 
 from ._shared import (
     MENU_TOGGLE_ATTEMPTS,
+    close_open_menus,
     get_vision,
     press_until_closed,
     press_until_open,
@@ -176,6 +177,16 @@ async def collect_doggo_gift() -> bool:
             disp.get("screen_width", 1920), disp.get("screen_height", 1080)
         )
         result = v.find_in_region("gift_prompt", region)
+
+        if not result.found:
+            # A menu left open by a previous cycle hides the prompt AND puts the
+            # mouse in menu-mode (the camera won't turn, so a sweep can't help).
+            # Clear any stuck menu first — this is what stops a failed close on
+            # one cycle from cascading into "can't find the Doggo" on the next.
+            closed = close_open_menus(v)
+            if closed:
+                logger.info("Cleared stuck menu(s) before re-checking: %s", ", ".join(closed))
+                result = v.find_in_region("gift_prompt", region)
 
         if not result.found:
             result = _face_doggo_and_recheck(v)
