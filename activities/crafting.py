@@ -13,7 +13,7 @@ from utils import config as cfg
 from utils import input as inp
 from utils.exceptions import MenuError, VisionError
 
-from ._shared import get_vision, screenshot_on_error
+from ._shared import get_vision, press_until_closed, screenshot_on_error
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
 
         ammo_icon = v.find("rifle_ammo_icon")
         if not ammo_icon.found:
-            inp.close_menu()
+            press_until_closed(v, "workshop_menu_open")
             r = ammo_icon
             raise VisionError("rifle_ammo_icon", r.confidence, cfg.get("vision.thresholds.rifle_ammo_icon", 0.85))
 
@@ -39,7 +39,7 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
 
         craft_btn = v.find("craft_button")
         if not craft_btn.found:
-            inp.close_menu()
+            press_until_closed(v, "workshop_menu_open")
             raise VisionError("craft_button", craft_btn.confidence, cfg.get("vision.thresholds.craft_button", 0.87))
 
         activity.heartbeat(f"crafting {quantity} unit(s)")
@@ -53,7 +53,7 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
         _m.release(_Btn.left)
 
         time.sleep(0.5)
-        inp.close_menu()
+        press_until_closed(v, "workshop_menu_open")
 
         logger.info("Crafted ~%d Rifle Ammo.", quantity)
         return quantity

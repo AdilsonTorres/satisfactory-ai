@@ -13,7 +13,12 @@ from utils import config as cfg
 from utils import input as inp
 from utils.screenshot import save_debug_screenshot
 
-from ._shared import _check_health_inline, get_vision, screenshot_on_error
+from ._shared import (
+    _check_health_inline,
+    get_vision,
+    press_until_closed,
+    screenshot_on_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +115,7 @@ async def engage_enemy(
                 inp.loot_remains()
                 if v.wait_for("inventory_open", timeout=3.0).found:
                     time.sleep(0.4)
-                    inp.close_menu()
+                    press_until_closed(v, "inventory_open")
                     logger.info("Loot collected.")
         except FileNotFoundError:
             logger.warning("Template 'enemy_remains_prompt' not found in templates/. Skipping remains looting.")

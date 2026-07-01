@@ -16,45 +16,21 @@ from utils import input as inp
 from utils.exceptions import MenuError, VisionError
 from utils.vision import MatchResult, Vision
 
-from ._shared import get_vision, screenshot_on_error
+from ._shared import (
+    MENU_TOGGLE_ATTEMPTS,
+    get_vision,
+    press_until_closed,
+    press_until_open,
+    screenshot_on_error,
+)
 
 logger = logging.getLogger(__name__)
 
-# How many recapture+key attempts before giving up on a UI opening. UE5
-# drops keyboard input until the viewport regains mouse capture, and a
-# single recapture click only restores it ~50-65% of the time, so we verify
-# the target template and retry. Detection is crisp (~0.98 open vs ~0.45
-# closed), so 5 attempts gives >98% effective reliability.
-_OPEN_WINDOW_ATTEMPTS = 5
-
-
-def _press_until_window_open(
-    v: Vision,
-    template: str,
-    key_action=inp.interact,
-) -> MatchResult:
-    """
-    Recapture the game's mouse focus and press `key_action`, retrying until
-    `template` is detected on screen or the attempt budget is exhausted.
-
-    Returns the final MatchResult (check `.found`). Used wherever a keyboard
-    press must open a UI: the press is silently swallowed unless the UE5
-    viewport currently holds mouse capture, which `ensure_game_input_ready`
-    only restores intermittently — verifying + retrying makes it reliable.
-    """
-    result = v.find(template)
-    attempt = 0
-    while not result.found and attempt < _OPEN_WINDOW_ATTEMPTS:
-        attempt += 1
-        inp.ensure_game_input_ready()
-        key_action()
-        time.sleep(0.8)
-        result = v.find(template)
-        logger.debug(
-            "%s open attempt %d/%d: conf=%.2f found=%s",
-            template, attempt, _OPEN_WINDOW_ATTEMPTS, result.confidence, result.found,
-        )
-    return result
+# Kept as a module alias for readability at call sites; the verified
+# open/close primitives now live in activities/_shared.py so every activity
+# module shares one hardened key-press path.
+_OPEN_WINDOW_ATTEMPTS = MENU_TOGGLE_ATTEMPTS
+_press_until_window_open = press_until_open
 
 
 def _gift_prompt_region(sw: int, sh: int) -> tuple[int, int, int, int]:
@@ -233,10 +209,10 @@ async def collect_doggo_gift() -> bool:
         slot_y = int(cfg.get("taming.doggo_loot_slot_y", confirm.y + 80))
         inp.shift_click(slot_x, slot_y)
         time.sleep(0.3)
-        inp.close_menu()
+        closed = press_until_closed(v, "doggo_loot_window")
         logger.info(
-            "Doggo loot window closed (shift-clicked slot at %d,%d).",
-            slot_x, slot_y,
+            "Doggo loot window %s (shift-clicked slot at %d,%d).",
+            "closed" if closed else "may still be open", slot_x, slot_y,
         )
         return True
 
@@ -306,7 +282,7 @@ async def check_inventory_full() -> bool:
     logger.debug("Inventory scan: %d empty slot(s) found.", empty_count)
 
     if empty_count > 0:
-        inp.close_menu()
+        press_until_closed(v, "inventory_open")
         logger.debug("Inventory has free space (%d empty). Not full.", empty_count)
         return False
 
@@ -326,7 +302,7 @@ async def check_inventory_full() -> bool:
             "inventory_sort_button not configured in config.toml — skipping sort step."
         )
 
-    inp.close_menu()
+    press_until_closed(v, "inventory_open")
     is_full = empty_count == 0
     logger.info("Inventory full: %s (empty slots after scan: %d).", is_full, empty_count)
     return is_full

@@ -39,6 +39,7 @@ doggo_body                = 0.62   # tamed Doggo silhouette — used to aim the 
 paleberry_icon            = 0.85   # static UI icon
 storage_prompt            = 0.82
 storage_open              = 0.85
+pause_menu                = 0.55   # 'Resume/Save/Load Game' text block. Live 2026-07-01: pause menu ~1.0, gameplay ~0.18 — 0.55 leaves a wide margin while tolerating the dimmed scene behind it changing
 
 # ---------------------------------------------------------------------------
 # Manual resource harvesting (player already positioned at the node)
