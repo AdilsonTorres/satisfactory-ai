@@ -140,6 +140,11 @@ def _face_doggo_and_recheck(v: Vision) -> MatchResult:
     if gp.found:
         return gp
 
+    # Mouse-look only reaches the game when it holds real KWin input focus;
+    # take it before probing (focus routinely drifts to other windows between
+    # activities on this Wayland session).
+    inp.focus_game()
+
     if not _camera_responds(v):
         logger.warning("Camera not responding to mouse-look — cannot sweep for the Doggo.")
         return v.find_in_region("gift_prompt", region)

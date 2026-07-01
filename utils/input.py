@@ -7,7 +7,9 @@ X11 (pynput) is still used only to query and move the desktop cursor position ab
 """
 
 import atexit
+import os
 import subprocess
+import tempfile
 import time
 from collections.abc import Sequence
 
@@ -83,12 +85,83 @@ def _resolve_key_code(key: str) -> int:
         raise ValueError(f"Unsupported uinput key: {key}") from err
 
 
+# KWin (Wayland) input focus. On this KDE/Wayland session, xdotool/wmctrl only
+# flip XWayland's EWMH "active window" flag — KWin does NOT treat that as input
+# focus, so keyboard and relative mouse-look stay dead even though
+# `getactivewindow` reports the game (verified live 2026-07-01). The ONLY thing
+# that actually routes input to the game is asking KWin itself to activate the
+# window via its scripting D-Bus API: a one-shot script that sets
+# `workspace.activeWindow`. This restores both keys AND camera-look.
+_KWIN_ACTIVATE_JS = """\
+var wins = (typeof workspace.windowList === "function")
+    ? workspace.windowList() : workspace.clientList();
+for (var i = 0; i < wins.length; i++) {
+    var w = wins[i];
+    if ((w.caption || "").indexOf("%TITLE%") !== -1) {
+        w.minimized = false;
+        if ("activeWindow" in workspace) { workspace.activeWindow = w; }
+        else { workspace.activeClient = w; }
+        break;
+    }
+}
+"""
+_kwin_script_for: dict[str, str] = {}
+
+
+def _qdbus_bin() -> str | None:
+    for name in ("qdbus6", "qdbus"):
+        if subprocess.run(["which", name], capture_output=True).returncode == 0:
+            return name
+    return None
+
+
+def _kwin_activate(window_title: str) -> bool:
+    """Give the game REAL KWin input focus via the KWin scripting D-Bus API.
+
+    Writes (once per title) a temp JS script that sets workspace.activeWindow to
+    the game window, then load+start it. Must unload first: loadScript with an
+    already-registered pluginName is a no-op that never runs. Returns False if
+    qdbus/KWin scripting isn't available (caller falls back to xdotool).
+    """
+    qdbus = _qdbus_bin()
+    if qdbus is None:
+        return False
+    path = _kwin_script_for.get(window_title)
+    if path is None or not os.path.exists(path):
+        fd, path = tempfile.mkstemp(suffix=".js", prefix="kwin_activate_")
+        with os.fdopen(fd, "w") as f:
+            f.write(_KWIN_ACTIVATE_JS.replace("%TITLE%", window_title))
+        _kwin_script_for[window_title] = path
+    base = [qdbus, "org.kde.KWin", "/Scripting"]
+    try:
+        subprocess.run(
+            [*base, "org.kde.kwin.Scripting.unloadScript", "sat-activate"],
+            capture_output=True, timeout=3,
+        )
+        loaded = subprocess.run(
+            [*base, "org.kde.kwin.Scripting.loadScript", path, "sat-activate"],
+            capture_output=True, timeout=3,
+        )
+        subprocess.run(
+            [*base, "org.kde.kwin.Scripting.start"], capture_output=True, timeout=3
+        )
+        time.sleep(0.3)
+        return loaded.returncode == 0
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
 def focus_game(window_title: str = "Satisfactory") -> bool:
     """
-    Make the game the ACTIVE X11 window. `windowactivate --sync` (not
-    `windowfocus`) is what XWayland actually needs — `windowfocus` leaves
-    a different window active and the game keeps ignoring input.
+    Give the game real input focus. KWin scripting is the primary path (the only
+    thing that actually routes keys + mouse-look to an XWayland game on this
+    Wayland session); xdotool `windowactivate --sync` is a fallback for X11 /
+    other compositors. `windowactivate` (not `windowfocus`) is what XWayland
+    needs there — `windowfocus` leaves a different window active.
     """
+    if _kwin_activate(window_title):
+        time.sleep(0.2)
+        return True
     result = subprocess.run(
         ["xdotool", "search", "--name", window_title, "windowactivate", "--sync"],
         capture_output=True,
