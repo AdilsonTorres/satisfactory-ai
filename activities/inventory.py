@@ -13,6 +13,7 @@ from temporalio import activity
 
 from utils import config as cfg
 from utils import input as inp
+from utils import stats as stats_module
 from utils.exceptions import MenuError, VisionError
 from utils.vision import MatchResult, Vision
 
@@ -167,8 +168,12 @@ async def collect_doggo_gift() -> bool:
     item slot to transfer any gift to the player's inventory before
     closing. If the slot is empty the shift-click is a no-op.
 
-    Doggos only find something ~0.2%/s (~8 min average), so most
-    interactions open an empty window — that is expected, not a failure.
+    Returns True only if an item was ACTUALLY transferred (verified by a
+    before/after pixel diff on the slot), not merely that the interaction
+    succeeded — most interactions open an empty window, since (per the
+    Satisfactory wiki) a Doggo with an empty slot has only a 0.2% chance
+    each second of finding an item (memoryless; averages ~500s/8.33min).
+    That's expected, not a failure.
     """
     with screenshot_on_error("collect_doggo_gift"):
         v = get_vision()
@@ -218,14 +223,32 @@ async def collect_doggo_gift() -> bool:
         # to an offset from the template match centre if not configured.
         slot_x = int(cfg.get("taming.doggo_loot_slot_x", confirm.x))
         slot_y = int(cfg.get("taming.doggo_loot_slot_y", confirm.y + 80))
+
+        # Detect an ACTUAL transfer, not just a successful interaction: most
+        # interactions open an empty window (the Doggo only fills its one
+        # slot ~0.2%/s), and shift-clicking an empty slot is a documented
+        # no-op — so compare a patch centred on the slot before/after the
+        # click. This is self-calibrating (works for any item icon) rather
+        # than needing an absolute brightness baseline: no-op diff measured
+        # live at ~2, a real transfer at ~103.
+        hw = int(cfg.get("taming.loot_slot_patch_half_w", 50))
+        hh = int(cfg.get("taming.loot_slot_patch_half_h", 55))
+        threshold = float(cfg.get("taming.loot_slot_diff_threshold", 12.0))
+        before = v.grab_region(slot_x - hw, slot_y - hh, 2 * hw, 2 * hh).astype(np.float32)
         inp.shift_click(slot_x, slot_y)
         time.sleep(0.3)
+        after = v.grab_region(slot_x - hw, slot_y - hh, 2 * hw, 2 * hh).astype(np.float32)
+        diff = float(np.mean(np.abs(before - after)))
+        transferred = diff > threshold
+
         closed = press_until_closed(v, "doggo_loot_window")
         logger.info(
-            "Doggo loot window %s (shift-clicked slot at %d,%d).",
-            "closed" if closed else "may still be open", slot_x, slot_y,
+            "Doggo loot window %s (slot diff=%.1f, transferred=%s).",
+            "closed" if closed else "may still be open", diff, transferred,
         )
-        return True
+        if transferred:
+            stats_module.log_gift_event(diff)
+        return transferred
 
 
 @activity.defn

@@ -101,6 +101,20 @@ search_pitch_rows = [0, 160, 160]
 doggo_loot_slot_x = 995
 doggo_loot_slot_y = 1045
 
+# Real-transfer detection for collect_doggo_gift: it captures a patch centred
+# on the loot slot before and after the shift-click and compares them, since
+# shift-clicking an EMPTY slot is a documented no-op — so "did the patch
+# change" is a self-calibrating signal, no absolute brightness baseline
+# needed (icon art varies by item; the patch region does not). Measured live
+# 2026-07-01 at 2560x1440: no-op (already empty) diff=1.86; a real transfer
+# (item -> empty) diff=103.17. loot_slot_diff_threshold=12.0 sits with wide
+# margin on both sides. Patch half-width/height define a box big enough to
+# contain the item icon + quantity badge without spilling into neighbouring
+# UI text.
+loot_slot_patch_half_w = 50
+loot_slot_patch_half_h = 55
+loot_slot_diff_threshold = 12.0
+
 # ---------------------------------------------------------------------------
 # Player inventory grid, used by check_inventory_full (slot-scan) and
 # open_storage_and_deposit_loot (shift-click sweep). CALIBRATE with a
