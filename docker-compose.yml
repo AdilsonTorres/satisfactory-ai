@@ -108,6 +108,8 @@ services:
     volumes:
       # SQLite gift history + session stats land on the host
       - ./stats:/app/stats
+      - ./workflows:/app/workflows
+      - ./config.toml:/app/config.toml
     networks:
       - temporal-net
 
