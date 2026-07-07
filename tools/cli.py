@@ -66,6 +66,7 @@ def main() -> None:
     exp_parser.add_argument("--id", default="exploration-run", help="Workflow id")
     exp_parser.add_argument("--max-seconds", type=float, default=None, help="Override movement budget")
     exp_parser.add_argument("--ignore-health", action="store_true", help="Skip low-health abort")
+    exp_parser.add_argument("--no-return", action="store_true", help="Skip the return-to-base sequence and stay at destination")
 
     # --- save ---
     save_parser = subparsers.add_parser("save", help="Satisfactory save file diagnostics")
@@ -194,11 +195,11 @@ async def _trigger_exploration(args: argparse.Namespace) -> None:
     from workflows.exploration import ExplorationWorkflow
 
     client = await Client.connect("localhost:7233")
-    print(f"Connected. Starting ExplorationWorkflow(id={args.id}, max_seconds={args.max_seconds})...")
+    print(f"Connected. Starting ExplorationWorkflow(id={args.id}, max_seconds={args.max_seconds}, no_return={args.no_return})...")
 
     result = await client.execute_workflow(
         ExplorationWorkflow.run,
-        args=[args.max_seconds, args.ignore_health],
+        args=[args.max_seconds, args.ignore_health, args.no_return],
         id=args.id,
         task_queue="satisfactory-bot",
     )

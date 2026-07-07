@@ -63,10 +63,11 @@ class ExplorationWorkflow(_ControlMixin):
         self,
         max_total_duration_seconds: float | None = None,
         ignore_health_check: bool = False,
+        no_return: bool = False,
     ) -> dict:
         workflow.logger.info("ExplorationWorkflow started.")
         try:
-            return await self._run_exploration(max_total_duration_seconds, ignore_health_check)
+            return await self._run_exploration(max_total_duration_seconds, ignore_health_check, no_return)
         except asyncio.CancelledError:
             workflow.logger.warning("ExplorationWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("ExplorationWorkflow"))
@@ -76,6 +77,7 @@ class ExplorationWorkflow(_ControlMixin):
         self,
         max_total_duration_seconds: float | None,
         ignore_health_check: bool = False,
+        no_return: bool = False,
     ) -> dict:
         route_cfg = await workflow.execute_activity(
             get_exploration_route,
@@ -178,7 +180,7 @@ class ExplorationWorkflow(_ControlMixin):
             await _save_stats("ExplorationWorkflow", self._stats)
             return self._stats
 
-        if legs_taken:
+        if legs_taken and not no_return:
             return_budget = sum(leg["duration"] for leg in legs_taken)
             try:
                 await workflow.execute_activity(
@@ -192,6 +194,8 @@ class ExplorationWorkflow(_ControlMixin):
                 self._stats["returned"] = True
             except Exception as exc:
                 workflow.logger.error("Return trip failed (%s) — character may not be back at the start.", exc)
+        elif no_return:
+            workflow.logger.info("no_return is True — staying at the destination.")
 
         self._stats["status"] = "completed"
         await _save_stats("ExplorationWorkflow", self._stats)
