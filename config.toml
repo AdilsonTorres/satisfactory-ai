@@ -347,33 +347,33 @@ check_interval_seconds = 1.0
 # loss during sustained flight — use this to "stay as high as possible
 # without losing the Hover Pack's charge range" rather than relying on
 # legs that hold space continuously.
-ascend_every_chunks  = 0
+ascend_every_chunks  = 2
 ascend_pulse_seconds = 0.3
 
 [[exploration.route]]
 keys = ["w"]
 duration = 2.0
-turn_dx = 700
+turn_dx = 0
 
 [[exploration.route]]
-keys = ["w", "space"]
+keys = ["w", "d"]
 duration = 1.5
 turn_dx = 0
 
 [[exploration.route]]
-keys = ["w"]
-duration = 2.0
-turn_dx = 300
-
-[[exploration.route]]
 keys = ["w", "space"]
-duration = 1.5
-turn_dx = -300
+duration = 2.0
+turn_dx = 0
 
 [[exploration.route]]
-keys = ["w"]
+keys = ["a"]
+duration = 1.5
+turn_dx = 0
+
+[[exploration.route]]
+keys = ["s"]
 duration = 2.0
-turn_dx = -300
+turn_dx = 0
 
 # ---------------------------------------------------------------------------
 # Combat
