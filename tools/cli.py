@@ -86,6 +86,9 @@ def main() -> None:
         "--track", action="store_true", help="Record this snapshot in stats/save_history.json after generating the plan"
     )
 
+    # --- map ---
+    subparsers.add_parser("map", help="Build Hover Pack power grid connectivity map and suggested routes")
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -106,6 +109,8 @@ def main() -> None:
         _run_save_info(args)
     elif args.command == "plan":
         _run_plan(args)
+    elif args.command == "map":
+        _run_map()
     else:
         parser.print_help()
 
@@ -527,6 +532,39 @@ def _run_plan(args: argparse.Namespace) -> None:
 
     if args.track:
         _track_save_progress(save)
+
+
+def _run_map() -> None:
+    from tools.map_power import generate_power_map
+
+    map_data = generate_power_map()
+    if not map_data:
+        return
+
+    stats = map_data["stats"]
+    print("\n================== Hover Pack Power Grid Map ==================")
+    print(f"Total Active Power Nodes:    {stats['total_active_nodes']}")
+    print(f"Total Power Wires Matched:   {stats['total_wires']}")
+    print(f"Reachable Nodes from Player: {stats['reachable_nodes_count']}")
+    print(f"Reachable Network Length:    {stats['reachable_network_length_meters']:.1f} meters ({stats['reachable_network_length_meters']/1000.0:.2f} km)")
+    print(f"Is Player Powered Right Now: {'YES' if stats['is_currently_powered'] else 'NO'}")
+
+    routes = map_data.get("suggested_routes", [])
+    if routes:
+        print("\nSuggested Flying Routes (Hover Pack Only):")
+        for r in routes:
+            print(f"\n  * Route: {r['name']}")
+            print(f"    Total Legs: {r['total_legs']}, Total Distance: {r['total_distance_meters']:.1f} meters")
+            print("    Legs Configuration (copy to config.toml):")
+            for _i, leg in enumerate(r["legs"]):
+                keys_str = ", ".join(f'"{k}"' for k in leg["keys"])
+                print("      [[exploration.route]]")
+                print(f"      keys = [{keys_str}]")
+                print(f"      duration = {leg['duration']}")
+                print(f"      turn_dx = 0  # direction_yaw={leg['direction_yaw']}°")
+    else:
+        if not stats["is_currently_powered"]:
+            print("\n[Tip] Walk closer to your power poles (within 30m) to get powered, then run this command again to trace your reachable paths!")
 
 
 if __name__ == "__main__":

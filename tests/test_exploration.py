@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, patch
-import numpy as np
+from unittest.mock import patch
 
-from activities.exploration import explore_leg
+import numpy as np
+import pytest
+
 import activities._shared as shared
+from activities.exploration import explore_leg
 
 
 class MockVision:
@@ -41,8 +42,8 @@ def mock_input():
 
 
 def test_explore_leg_normal_flight(mock_input):
-    mock_inp, mock_screenshot = mock_input
-    
+    mock_inp, _mock_screenshot = mock_input
+
     # Flying with good charge (0.90)
     vision = MockVision(gauge_frac=0.90)
     shared._vision = vision
@@ -61,7 +62,7 @@ def test_explore_leg_normal_flight(mock_input):
 
 
 def test_explore_leg_low_charge_abort(mock_input):
-    mock_inp, mock_screenshot = mock_input
+    mock_inp, _mock_screenshot = mock_input
 
     # Flying with low charge (0.15), below threshold (0.25)
     vision = MockVision(gauge_frac=0.15)
@@ -82,7 +83,7 @@ def test_explore_leg_low_charge_abort(mock_input):
 
 
 def test_explore_leg_grounded_no_abort(mock_input):
-    mock_inp, mock_screenshot = mock_input
+    mock_inp, _mock_screenshot = mock_input
 
     # Grounded (gauge_frac is None)
     vision = MockVision(gauge_frac=None)
