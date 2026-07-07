@@ -2,7 +2,8 @@
 tools/map_power.py
 
 Parses the game save file to reconstruct the player's built power grid,
-computes the Hover Pack coverage graph, and outputs flyable routes.
+computes the Hover Pack coverage graph, outputs flyable routes,
+and extracts world points of interest (nests, remains, drop pods, fauna).
 """
 
 import json
@@ -26,9 +27,8 @@ def dist_3d(p1, p2):
 
 
 def get_node_range(type_path):
-    # Power Towers have a massive 150m coverage radius
     if "PowerTower" in type_path:
-        return 15000.0  # 150m in Unreal Units (cm)
+        return 15000.0  # 150m for Power Towers
     return 3000.0       # 30m standard Hover Pack range
 
 
@@ -51,20 +51,70 @@ def generate_power_map():
 
     # Extract all Build_ objects as potential power nodes
     nodes = {}
+    pois = {
+        "lizard_doggos": [],
+        "drop_pods": [],
+        "enemy_nests": [],
+        "enemy_remains": [],
+        "resource_nodes": [],
+        "geysers": []
+    }
+
     for name, obj in save.levels_objects.items():
         t_path = obj.get("type_path", "")
-        # Include all Build_ items except PowerLines themselves
+        class_name = t_path.split(".")[-1].removesuffix("_C")
+        pos = obj.get("position", [0.0, 0.0, 0.0])
+        props = obj.get("properties", {}) or {}
+
+        # 1. Power grid nodes
         if "/Build_" in t_path and "Build_PowerLine" not in t_path:
             nodes[name] = {
                 "id": name,
-                "type": t_path.split(".")[-1].removesuffix("_C"),
-                "pos": obj["position"],
+                "type": class_name,
+                "pos": pos,
                 "range": get_node_range(t_path)
             }
 
+        # 2. Points of interest / hazards
+        elif class_name == "Char_SpaceRabbit":
+            pois["lizard_doggos"].append({
+                "id": name,
+                "pos": pos,
+                "properties": props
+            })
+        elif class_name == "BP_DropPod":
+            pois["drop_pods"].append({
+                "id": name,
+                "pos": pos,
+                "properties": props
+            })
+        elif class_name in ("Char_CrabHatcher", "Char_BigCrabHatcher"):
+            pois["enemy_nests"].append({
+                "id": name,
+                "type": class_name.replace("Char_", ""),
+                "pos": pos
+            })
+        elif "parts" in class_name.lower() and ("hog" in class_name.lower() or "spitter" in class_name.lower() or "stinger" in class_name.lower()):
+            pois["enemy_remains"].append({
+                "id": name,
+                "type": class_name.replace("BP_", "").replace("Parts", ""),
+                "pos": pos
+            })
+        elif class_name == "BP_ResourceNode" and "Geyser" not in t_path:
+            pois["resource_nodes"].append({
+                "id": name,
+                "purity": props.get("mPurityOverride", "RP_Normal"),
+                "pos": pos
+            })
+        elif class_name == "BP_ResourceNodeGeyser":
+            pois["geysers"].append({
+                "id": name,
+                "pos": pos
+            })
+
     print(f"Extracted {len(nodes)} candidate power structures.")
 
-    # Extract all Power Lines
+    # Extract all Power Wires
     lines = []
     for name, obj in save.levels_objects.items():
         if "Build_PowerLine" in obj.get("type_path", ""):
@@ -76,7 +126,6 @@ def generate_power_map():
 
     print(f"Extracted {len(lines)} power wires. Reconstructing connectivity...")
 
-    # Fast numpy-based geometric matching
     node_list = list(nodes.values())
     node_positions = np.array([n["pos"] for n in node_list])
 
@@ -87,12 +136,12 @@ def generate_power_map():
         M = np.array(line["midpoint"])
         L = line["length"]
 
-        # 1. Source is the node closest to the wire midpoint actor position (which sits on source terminal)
+        # Source is the node closest to the wire midpoint actor position
         dists_to_M = np.linalg.norm(node_positions - M, axis=1)
         idx_a = np.argmin(dists_to_M)
         A = node_positions[idx_a]
 
-        # 2. Target is the node whose distance to A is closest to wire length L
+        # Target is the node whose distance to A is closest to wire length L
         dists_to_A = np.linalg.norm(node_positions - A, axis=1)
         errors = np.abs(dists_to_A - L)
         idx_b = np.argmin(errors)
@@ -115,8 +164,7 @@ def generate_power_map():
 
     print(f"Reconstructed {len(matched_lines)} wires geometrically.")
 
-    # Filter out isolated machines that do not have any power wires connected to them
-    # This leaves us with only the active power grid nodes
+    # Filter active grid nodes
     active_nodes = {n_id: n for n_id, n in nodes.items() if connections[n_id]}
     print(f"Active power grid network: {len(active_nodes)} connected nodes.")
 
@@ -158,7 +206,7 @@ def generate_power_map():
         if w["node_a"] in reachable_nodes and w["node_b"] in reachable_nodes:
             reachable_wires.append(w)
 
-    total_wire_length = sum(w["length"] for w in reachable_wires) / 100.0 # in meters
+    total_wire_length = sum(w["length"] for w in reachable_wires) / 100.0
 
     # Generate stats report
     stats = {
@@ -177,44 +225,51 @@ def generate_power_map():
     # Generate exploration route suggestions along straight paths (chains)
     suggested_routes = generate_route_suggestions(reachable_nodes, connections, player_pos)
 
-    # Save to stats/power_map.json
+    # Save outputs
     stats_dir = project_root / "stats"
     stats_dir.mkdir(exist_ok=True)
-    out_file = stats_dir / "power_map.json"
 
+    # Save power map and suggested routes
+    out_file = stats_dir / "power_map.json"
     map_data = {
         "stats": stats,
         "reachable_nodes": list(reachable_nodes.values()),
         "reachable_wires": reachable_wires,
         "suggested_routes": suggested_routes
     }
-
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(map_data, f, indent=2, ensure_ascii=False)
 
+    # Save detailed world POIs and hazards
+    poi_file = stats_dir / "spatial_data.json"
+    poi_data = {
+        "stats": stats,
+        "points_of_interest": pois
+    }
+    with open(poi_file, "w", encoding="utf-8") as f:
+        json.dump(poi_data, f, indent=2, ensure_ascii=False)
+
     print(f"Map data saved to {out_file.absolute()}")
-    return map_data
+    print(f"Spatial POIs & hazards data saved to {poi_file.absolute()}")
+
+    return {
+        "map": map_data,
+        "pois": pois
+    }
 
 
 def generate_route_suggestions(reachable_nodes, connections, player_pos):
-    """
-    Finds chains of connected poles extending away from the player
-    and converts them into recommended exploration leg movements.
-    """
     if not reachable_nodes:
         return []
 
-    # Sort nodes by distance from the player to find start paths
     sorted_nodes = sorted(reachable_nodes.values(), key=lambda n: dist_3d(player_pos, n["pos"]))
-
     routes = []
     visited_in_routes = set()
 
-    for start_node in sorted_nodes[:3]: # look at closest nodes
+    for start_node in sorted_nodes[:3]:
         if start_node["id"] in visited_in_routes:
             continue
 
-        # DFS to find a long chain
         chain = []
         curr = start_node["id"]
 
@@ -222,7 +277,6 @@ def generate_route_suggestions(reachable_nodes, connections, player_pos):
             chain.append(reachable_nodes[curr])
             visited_in_routes.add(curr)
 
-            # Find next neighbor in connections not yet visited in this chain
             next_node = None
             for neighbor in connections[curr]:
                 if neighbor in reachable_nodes and neighbor not in visited_in_routes:
@@ -235,16 +289,13 @@ def generate_route_suggestions(reachable_nodes, connections, player_pos):
             curr_pos = player_pos
 
             for i, target in enumerate(chain):
-                # Calculate vector and distance
                 dx = target["pos"][0] - curr_pos[0]
                 dy = target["pos"][1] - curr_pos[1]
                 dz = target["pos"][2] - curr_pos[2]
                 distance = math.sqrt(dx**2 + dy**2 + dz**2)
 
-                # Satisfactory default runspeed is ~9.5 m/s (950 cm/s) for Hover Pack glide.
                 duration = max(1.0, round(distance / 950.0, 1))
 
-                # Compute heading turn relative to straight ahead
                 angle_rad = math.atan2(dy, dx)
                 angle_deg = math.degrees(angle_rad)
 

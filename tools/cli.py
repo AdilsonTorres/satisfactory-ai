@@ -537,17 +537,27 @@ def _run_plan(args: argparse.Namespace) -> None:
 def _run_map() -> None:
     from tools.map_power import generate_power_map
 
-    map_data = generate_power_map()
-    if not map_data:
+    result = generate_power_map()
+    if not result:
         return
 
+    map_data = result["map"]
+    pois = result["pois"]
     stats = map_data["stats"]
+
     print("\n================== Hover Pack Power Grid Map ==================")
     print(f"Total Active Power Nodes:    {stats['total_active_nodes']}")
     print(f"Total Power Wires Matched:   {stats['total_wires']}")
     print(f"Reachable Nodes from Player: {stats['reachable_nodes_count']}")
     print(f"Reachable Network Length:    {stats['reachable_network_length_meters']:.1f} meters ({stats['reachable_network_length_meters']/1000.0:.2f} km)")
     print(f"Is Player Powered Right Now: {'YES' if stats['is_currently_powered'] else 'NO'}")
+
+    print("\n================== Discovered Points of Interest ==================")
+    print(f"Lizard Doggos found:         {len(pois['lizard_doggos'])}")
+    print(f"Drop Pods (Crash Sites):     {len(pois['drop_pods'])}")
+    print(f"Fauna Nests (Crab Hatchers): {len(pois['enemy_nests'])}")
+    print(f"Enemy Threat Spots (Remains): {len(pois['enemy_remains'])}")
+    print(f"Resource Nodes & Geysers:    {len(pois['resource_nodes']) + len(pois['geysers'])}")
 
     routes = map_data.get("suggested_routes", [])
     if routes:
