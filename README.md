@@ -92,7 +92,40 @@ uv run python workers/worker.py
 If the game worker is down, workflows keep running in Docker and game
 activities wait in the queue until it's back.
 
-### 6. Trigger workflows
+## CLI Command Utility (`sbot`)
+
+The project includes a command-line utility named `sbot` to assist in planning gameplay, analyzing save files, and managing automation tasks.
+
+### 1. Installation
+To make the `sbot` command globally accessible in your terminal without needing to manually activate the virtual environment, install the project as an editable tool using `uv`:
+```bash
+uv tool install --editable .
+```
+This links the executable command `sbot` directly to your user binary path (e.g., `~/.local/bin`), which should be on your shell's `PATH`.
+
+### 2. Usage
+
+#### Gameplay Plan (`sbot plan`)
+Analyze your latest save file, review missing S-tier/A-tier alternate recipes, check resource sink coupons, review factory snapshot stats, and display self-updating guide tips:
+```bash
+# Display the current gameplay plan
+sbot plan
+
+# Display the plan and record progress to stats/save_history.json to track deltas over time
+sbot plan --track
+```
+
+#### Save File Diagnostics (`sbot save`)
+Show full diagnostics for a specific save file:
+```bash
+# Print general save info (location, phase, stats)
+sbot save
+
+# Print save info along with tier-list alternate recipe recommendations
+sbot save --advisor
+```
+
+### 3. Trigger workflows
 
 ```bash
 # Lizard Doggo gift farm — roster comes from config.toml [[taming.doggos]]
