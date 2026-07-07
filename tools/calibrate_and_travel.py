@@ -19,7 +19,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from tools.cli import _find_latest_save_file  # noqa: E402
-from utils.input import hold_keys, move_mouse_relative, press  # noqa: E402
+from utils.input import focus_game, hold_keys, move_mouse_relative, press  # noqa: E402
 from utils.save_parser import SatisfactorySave  # noqa: E402
 
 
@@ -48,24 +48,6 @@ def get_player_state():
     return pos, yaw, save_path
 
 
-def focus_game():
-    import subprocess
-    print("Searching for game window to focus...")
-    for pattern in ["Satisfactory", "FactoryGame"]:
-        try:
-            res = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--name", pattern]).decode().strip()
-            if res:
-                win_id = res.split()[0]
-                print(f"Found game window ID: {win_id}. Focusing it...")
-                subprocess.call(["xdotool", "windowactivate", "--sync", win_id])
-                time.sleep(1.0)
-                return True
-        except Exception as e:
-            print(f"Window search failed for pattern '{pattern}': {e}")
-    print("Warning: Could not find or focus Satisfactory window. Continuing anyway...")
-    return False
-
-
 def trigger_quicksave():
     print("Sending Quicksave command (F5)...")
     press("f5")
@@ -74,8 +56,12 @@ def trigger_quicksave():
 
 
 def calibrate_and_travel():
-    # 0. Focus game
-    focus_game()
+    # 0. Focus game using D-Bus scripting
+    print("Activating game window focus...")
+    if not focus_game("Satisfactory"):
+        print("Falling back to FactoryGame window name...")
+        focus_game("FactoryGame")
+    time.sleep(1.0)
 
     # 1. Capture initial state
     trigger_quicksave()
