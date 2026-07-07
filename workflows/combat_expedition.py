@@ -75,7 +75,10 @@ class CombatExpeditionWorkflow(_ControlMixin):
         screenshot_every_kills: int = 5,
         base_location: str = "base",
         nav_timeout_seconds: int = 45,
+        _resume_stats: dict | None = None,
     ) -> dict:
+        if _resume_stats is not None:
+            self._stats = _resume_stats
         workflow.logger.info("CombatExpeditionWorkflow started. location=%s max_kills=%d", location, max_kills)
         nav_start_to_close = timedelta(seconds=nav_timeout_seconds)
         nav_schedule_to_close = nav_start_to_close * NAV_RETRY.maximum_attempts + timedelta(seconds=20)
@@ -110,6 +113,21 @@ class CombatExpeditionWorkflow(_ControlMixin):
                 await self._wait_if_paused()
                 if self._stop_requested:
                     break
+
+                if workflow.info().is_continue_as_new_suggested():
+                    workflow.logger.info("History getting long — continuing as a new workflow.")
+                    workflow.continue_as_new(
+                        args=[
+                            location,
+                            max_kills,
+                            min_ammo_to_depart,
+                            ammo_per_craft,
+                            screenshot_every_kills,
+                            base_location,
+                            nav_timeout_seconds,
+                            self._stats,
+                        ]
+                    )
 
                 ammo = await _ammo()
                 if 0 <= ammo < min_ammo_to_depart:

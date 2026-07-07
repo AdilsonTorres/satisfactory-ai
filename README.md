@@ -32,7 +32,7 @@ For planning structures and layout automation, refer to the [Satisfactory Game D
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - [Docker](https://docs.docker.com/engine/install/) (with Compose V2)
-- Python 3.11+
+- Python 3.14+
 - `xdotool` on PATH
 - `tesseract-ocr` on PATH
 - `imagemagick` on PATH (screenshot fallback used when `mss` fails, e.g. on some Xwayland compositors)
@@ -76,21 +76,33 @@ uv run python debug_run.py --scan
 ```
 This takes a screenshot of the current screen and saves an annotated version to `debug_screenshots/` showing which templates were located and with what confidence.
 
-### 5. Run the worker
-With the Temporal services running and the templates ready, start the worker:
+### 5. Run the workers
+Two workers split the work (see `docs/deploy.md`):
+
+* **Orchestrator** (Docker, always on): runs all workflows + persistence
+  activities. Started automatically by `docker compose up -d` (service
+  `worker`).
+* **Game worker** (host): runs the activities that drive the game — screen
+  capture, uinput, KWin focus — so it must run in your desktop session:
+
 ```bash
 uv run python workers/worker.py
 ```
 
+If the game worker is down, workflows keep running in Docker and game
+activities wait in the queue until it's back.
+
 ### 6. Trigger workflows
-Trigger workflows through the Temporal CLI:
 
 ```bash
-# Lizard Doggo gift farm
+# Lizard Doggo gift farm — roster comes from config.toml [[taming.doggos]]
+uv run python trigger_gift_farm.py --interval 60
+
+# or via the Temporal CLI:
 temporal workflow start \
   --workflow-type GiftFarmWorkflow \
   --task-queue satisfactory-bot \
-  --input '{"ammo_per_craft": 50, "screenshot_every_cycles": 10}'
+  --input '[{"name": "doggo-1", "turn_dx": -400}, {"name": "doggo-2", "turn_dx": 400}]'
 
 # Static combat patrol
 temporal workflow start \

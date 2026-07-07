@@ -6,6 +6,7 @@ Shared helpers used by multiple activity modules.
 
 import logging
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 
 from utils import config as cfg
@@ -37,7 +38,7 @@ def _region_for(template: str) -> tuple[int, int, int, int] | None:
     return None
 
 
-def _finder(v: Vision, template: str, region):
+def _finder(v: Vision, template: str, region: tuple[int, int, int, int] | None) -> Callable[[], MatchResult]:
     """
     A zero-arg callable that looks for `template`. Uses the fast cropped path
     when a region is given explicitly OR configured for the template; otherwise

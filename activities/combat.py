@@ -29,7 +29,7 @@ HAZARD_ENEMY_TYPES = {"enemy_hog_nuclear", "enemy_stinger_elite_gas"}
 
 
 @activity.defn
-async def scan_for_enemy() -> dict:
+def scan_for_enemy() -> dict:
     v = get_vision()
     result = v.find_enemy()
 
@@ -56,7 +56,7 @@ async def scan_for_enemy() -> dict:
 
 
 @activity.defn
-async def engage_enemy(
+def engage_enemy(
     target_x: int,
     target_y: int,
     screen_w: int | None = None,
@@ -124,7 +124,7 @@ async def engage_enemy(
 
 
 @activity.defn
-async def retreat_from_hazard() -> bool:
+def retreat_from_hazard() -> bool:
     """
     Retreats without engaging — used when scan_for_enemy signals 'hazard'
     (a radiation/gas area-damage variant). engage_enemy's static
@@ -137,7 +137,7 @@ async def retreat_from_hazard() -> bool:
 
 
 @activity.defn
-async def check_ammo_count() -> int:
+def check_ammo_count() -> int:
     """
     Reads the ammo count from the HUD via OCR (region configurable in
     config.toml [combat.ammo_region]). Returns -1 if the reading fails or

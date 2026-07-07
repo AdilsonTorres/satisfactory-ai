@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+**/__pycache__
+captures
+debug_screenshots
+logs
+stats
+templates
+docs
+tests
+*.png
+*.jpg

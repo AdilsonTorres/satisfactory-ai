@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-async def navigate_to_location(location: str) -> bool:
+def navigate_to_location(location: str) -> bool:
     """
     Navigates to a named location in config.toml [locations.<location>]:
     runs the fixed key/duration sequence (steps) and, if the location has
@@ -54,7 +54,7 @@ async def navigate_to_location(location: str) -> bool:
 
 
 @activity.defn
-async def navigate_to_equipment_workshop() -> bool:
+def navigate_to_equipment_workshop() -> bool:
     """
     Navigates to the Equipment Workshop via the key sequence configured in
     config.toml. If it fails, adjust [navigation] in config.toml.
@@ -79,7 +79,7 @@ async def navigate_to_equipment_workshop() -> bool:
 
 
 @activity.defn
-async def navigate_back_to_base() -> bool:
+def navigate_back_to_base() -> bool:
     """
     Returns to the farming spot. Verifies the character actually left the
     Workshop area (if the prompt is still visible, the movement had no

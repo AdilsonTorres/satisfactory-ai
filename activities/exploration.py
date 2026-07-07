@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-async def get_exploration_route() -> dict:
+def get_exploration_route() -> dict:
     """Reads [exploration] from config.toml — config/file I/O must happen in an activity, not in workflow code (the Temporal sandbox forbids `open()` there)."""
     return {
         "route": cfg.get("exploration.route", []),
@@ -31,7 +31,7 @@ async def get_exploration_route() -> dict:
 
 
 @activity.defn
-async def capture_base_reference() -> str:
+def capture_base_reference() -> str:
     """
     Snapshots the character's current position as the 'base' reference
     point for an exploration run — assumes the player is at/near base when
@@ -47,7 +47,7 @@ async def capture_base_reference() -> str:
 
 
 @activity.defn
-async def explore_leg(
+def explore_leg(
     keys: list[str],
     duration: float,
     turn_dx: int = 0,
@@ -186,7 +186,7 @@ async def explore_leg(
 
 
 @activity.defn
-async def return_via_reverse_route(legs_taken: list[dict]) -> bool:
+def return_via_reverse_route(legs_taken: list[dict]) -> bool:
     """
     Retraces legs_taken in reverse order with mirrored keys (w<->s, a<->d;
     'space' passes through unchanged) and mirrored turns, to head back

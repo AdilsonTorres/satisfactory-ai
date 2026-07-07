@@ -58,7 +58,10 @@ class AfkSessionWorkflow(_ControlMixin):
         combat_kills_per_rotation: int = 5,
         total_rotations: int = 20,
         screenshot_every_rotations: int = 1,
+        _resume_stats: dict | None = None,
     ) -> dict:
+        if _resume_stats is not None:
+            self._stats = _resume_stats
         try:
             return await self._run_session(
                 gift_cycles, combat_kills_per_rotation, total_rotations, screenshot_every_rotations
@@ -75,10 +78,24 @@ class AfkSessionWorkflow(_ControlMixin):
         total_rotations: int,
         screenshot_every_rotations: int,
     ) -> dict:
-        for rotation in range(total_rotations):
+        # On continue-as-new, _stats["rotation"] holds the last started
+        # rotation, so a resumed run picks up where the old one left off.
+        for rotation in range(self._stats["rotation"], total_rotations):
             if self._stop_requested:
                 break
             await self._wait_if_paused()
+
+            if workflow.info().is_continue_as_new_suggested():
+                workflow.logger.info("History getting long — continuing as a new workflow.")
+                workflow.continue_as_new(
+                    args=[
+                        gift_cycles,
+                        combat_kills_per_rotation,
+                        total_rotations,
+                        screenshot_every_rotations,
+                        self._stats,
+                    ]
+                )
 
             self._stats["rotation"] = rotation + 1
             workflow.logger.info(
@@ -98,12 +115,12 @@ class AfkSessionWorkflow(_ControlMixin):
                     break
                 await self._wait_if_paused()
 
-                collected = await workflow.execute_activity(
+                gift_result = await workflow.execute_activity(
                     collect_doggo_gift,
-                    schedule_to_close_timeout=timedelta(seconds=15),
+                    schedule_to_close_timeout=timedelta(seconds=30),
                     retry_policy=GAME_RETRY,
                 )
-                if collected:
+                if gift_result.get("collected"):
                     self._stats["total_gifts"] += 1
 
                 inv_full = await workflow.execute_activity(
@@ -121,6 +138,12 @@ class AfkSessionWorkflow(_ControlMixin):
             kills_this_rotation = 0
             while kills_this_rotation < combat_kills_per_rotation and not self._stop_requested:
                 await self._wait_if_paused()
+
+                # The scan loop can spin for hours if no enemies spawn; bail
+                # to the rotation boundary where continue-as-new happens.
+                if workflow.info().is_continue_as_new_suggested():
+                    workflow.logger.info("History getting long — ending combat phase early.")
+                    break
 
                 enemy = await workflow.execute_activity(
                     scan_for_enemy,

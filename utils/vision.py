@@ -444,6 +444,31 @@ class Vision:
             return ""
 
 
+def ocr_text(img: np.ndarray) -> str:
+    """
+    Best-effort general text OCR of a BGR crop (e.g. an item tooltip).
+    Upscales 2x and binarizes at a high FIXED threshold: game UI text is
+    near-white on varied backgrounds (orange tooltip header band, dark
+    body), so Otsu across the whole crop washes the header out — measured
+    live 2026-07-04: Otsu lost 'Quickwire', fixed 190 read the full tooltip
+    verbatim. Falls back to Otsu if the fixed pass finds nothing.
+    Returns '' when nothing legible is found (never raises).
+    """
+    try:
+        import pytesseract
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+        _, binary = cv2.threshold(gray, 190, 255, cv2.THRESH_BINARY)
+        text = str(pytesseract.image_to_string(binary, config="--psm 6").strip())
+        if text:
+            return text
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        return str(pytesseract.image_to_string(binary, config="--psm 6").strip())
+    except Exception:
+        return ""
+
+
 _shared_instance: Vision | None = None
 
 

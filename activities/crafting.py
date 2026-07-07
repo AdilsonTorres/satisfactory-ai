@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-async def craft_rifle_ammo(quantity: int = 50) -> int:
+def craft_rifle_ammo(quantity: int = 50) -> int:
     with screenshot_on_error("craft_rifle_ammo"):
         v = get_vision()
 
@@ -60,7 +60,7 @@ async def craft_rifle_ammo(quantity: int = 50) -> int:
 
 
 @activity.defn
-async def harvest_resource_node(swings: int = 20) -> int:
+def harvest_resource_node(swings: int = 20) -> int:
     """
     Harvests a resource node (manual pickaxe or a node already opened up by
     a Nobelisk) by repeatedly pressing interact. Assumes the player is

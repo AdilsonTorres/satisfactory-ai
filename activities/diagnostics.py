@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-async def take_debug_screenshot(label: str = "manual") -> str:
+def take_debug_screenshot(label: str = "manual") -> str:
     """Takes an immediate screenshot. Can be called from any workflow."""
     path = save_debug_screenshot(label)
     logger.info("Screenshot: %s", path)
@@ -26,7 +26,7 @@ async def take_debug_screenshot(label: str = "manual") -> str:
 
 
 @activity.defn
-async def persist_session_stats(workflow_type: str, stats: dict) -> str:
+def persist_session_stats(workflow_type: str, stats: dict) -> str:
     """Saves session stats to stats/ at the end of the workflow."""
     path = stats_module.save(workflow_type, stats)
     logger.info("Stats saved: %s", path)
@@ -34,7 +34,7 @@ async def persist_session_stats(workflow_type: str, stats: dict) -> str:
 
 
 @activity.defn
-async def capture_template_screen(screen_name: str, key_to_open: str = "", key_to_close: str = "") -> str:
+def capture_template_screen(screen_name: str, key_to_open: str = "", key_to_close: str = "") -> str:
     """Focuses the game, sends the command to open, captures the screen, and closes the menu."""
     import time
 
@@ -58,7 +58,7 @@ async def capture_template_screen(screen_name: str, key_to_open: str = "", key_t
 
 
 @activity.defn
-async def extract_templates_from_screen(
+def extract_templates_from_screen(
     screenshot_path: str, target: str = "hud", resolution: str = "2560x1440"
 ) -> dict:
     """Extracts regions of interest from the capture and saves them as new PNG templates."""
@@ -125,7 +125,7 @@ async def extract_templates_from_screen(
 
 
 @activity.defn
-async def verify_matching_templates(template_names: list[str]) -> dict:
+def verify_matching_templates(template_names: list[str]) -> dict:
     """Scans the current screen for the templates and returns the confidence status."""
     v = get_vision()
     results = v.scan_all(template_names)

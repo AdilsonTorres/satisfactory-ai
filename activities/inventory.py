@@ -4,8 +4,11 @@ activities/inventory.py
 Inventory and Doggo gift activities.
 """
 
+import json
 import logging
 import time
+from datetime import UTC, datetime
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -13,9 +16,8 @@ from temporalio import activity
 
 from utils import config as cfg
 from utils import input as inp
-from utils import stats as stats_module
 from utils.exceptions import MenuError, VisionError
-from utils.vision import MatchResult, Vision
+from utils.vision import MatchResult, Vision, ocr_text
 
 from ._shared import (
     MENU_TOGGLE_ATTEMPTS,
@@ -106,8 +108,16 @@ def _face_doggo_and_recheck(v: Vision) -> MatchResult:
     found the Doggo. The sweep walks PITCH as well as yaw because a Lizard
     Doggo is a ground creature: a yaw-only sweep with the camera pitched at
     the horizon misses it entirely. Bails early (and cheaply) if the camera
-    isn't responding, and restores the original orientation if nothing is
-    found, so a miss doesn't leave the view pointing at the ground.
+    isn't responding.
+
+    On a MISS (nothing found in any row) the pitch is restored, so a failed
+    sweep doesn't leave the view pointing at the ground. On a HIT the camera
+    is deliberately left exactly where it found the Doggo — restoring pitch
+    there too was a bug (fixed 2026-07-02): it undid the very reorientation
+    that found the Doggo, so the next cycle's initial check always failed
+    again and re-triggered a full sweep every single cycle indefinitely
+    ("spinning"). Leaving the camera on-target means later cycles find the
+    prompt immediately with no sweep at all.
     """
     disp = cfg.get("display", {})
     sw = disp.get("screen_width", 1920)
@@ -128,62 +138,448 @@ def _face_doggo_and_recheck(v: Vision) -> MatchResult:
         return v.find_in_region("gift_prompt", region)
 
     # Grid sweep: a few downward pitch rows, each swept across yaw. Track the
-    # net offset so we can undo it if the prompt never shows.
+    # net offset so we can undo it if the prompt never shows anywhere.
     yaw_step = int(cfg.get("taming.search_yaw_step", 180))
     yaw_count = int(cfg.get("taming.search_yaw_count", 8))
     pitch_rows = cfg.get("taming.search_pitch_rows", [0, 160, 160])
 
     net_pitch = 0
-    try:
-        for pitch in pitch_rows:
-            if pitch:
-                inp.move_mouse_relative(0, pitch)
-                net_pitch += pitch
-                time.sleep(0.2)
-            net_yaw = 0
-            for _ in range(yaw_count):
-                gp = v.find_in_region("gift_prompt", region)
-                if gp.found:
-                    logger.info("Gift prompt acquired (conf=%.2f) after sweep.", gp.confidence)
-                    return gp
-                inp.move_mouse_relative(yaw_step, 0)
-                net_yaw += yaw_step
-                time.sleep(0.12)
-            inp.move_mouse_relative(-net_yaw, 0)  # back to this row's yaw origin
-            time.sleep(0.15)
-    finally:
-        if net_pitch:
-            inp.move_mouse_relative(0, -net_pitch)  # restore original pitch
-            time.sleep(0.15)
+    for pitch in pitch_rows:
+        if pitch:
+            inp.move_mouse_relative(0, pitch)
+            net_pitch += pitch
+            time.sleep(0.2)
+        net_yaw = 0
+        for _ in range(yaw_count):
+            gp = v.find_in_region("gift_prompt", region)
+            if gp.found:
+                logger.info("Gift prompt acquired (conf=%.2f) after sweep.", gp.confidence)
+                return gp  # leave the camera exactly where it found the Doggo
+            inp.move_mouse_relative(yaw_step, 0)
+            net_yaw += yaw_step
+            time.sleep(0.12)
+        inp.move_mouse_relative(-net_yaw, 0)  # back to this row's yaw origin
+        time.sleep(0.15)
+
+    # Exhausted every row with no hit — restore original pitch so the miss
+    # doesn't leave the view stuck pointing at the ground.
+    if net_pitch:
+        inp.move_mouse_relative(0, -net_pitch)
+        time.sleep(0.15)
 
     return v.find_in_region("gift_prompt", region)
 
 
-@activity.defn
-async def collect_doggo_gift() -> bool:
+def _micro_sweep_for_prompt(v: Vision, region: tuple[int, int, int, int]) -> tuple[MatchResult, int]:
     """
-    Interacting with a Lizard Doggo opens the Doggo's own ONE-slot loot
-    window — not the player's inventory (whether or not the Doggo found
-    something). We wait for 'doggo_loot_window', then shift-click the
-    item slot to transfer any gift to the player's inventory before
-    closing. If the slot is empty the shift-click is a no-op.
+    Small yaw sweep around the CURRENT facing to re-acquire 'gift_prompt' —
+    right side first, recenter, then left side. Used after turning to a
+    doggo whose configured/learned turn_dx is a little off (doggos wander
+    a few steps between checks). Unlike _face_doggo_and_recheck this stays
+    near the expected facing so it can't (on its own) lock onto the WRONG
+    doggo of the pair — identity is still verified by the caller via the
+    loot window title. Leaves the camera where the prompt was found.
 
-    Returns True only if an item was ACTUALLY transferred (verified by a
-    before/after pixel diff on the slot), not merely that the interaction
-    succeeded — most interactions open an empty window, since (per the
-    Satisfactory wiki) a Doggo with an empty slot has only a 0.2% chance
-    each second of finding an item (memoryless; averages ~500s/8.33min).
-    That's expected, not a failure.
+    Returns (result, net_yaw_applied) — net_yaw is 0 on a miss (the sweep
+    undoes each direction before trying the next, so a total miss leaves
+    the camera exactly where it started) and the caller folds a hit's net
+    yaw into the total offset tracked for _save_turn_offset.
     """
+    step = int(cfg.get("taming.micro_yaw_step", 60))
+    count = int(cfg.get("taming.micro_yaw_count", 3))
+    for direction in (1, -1):
+        net = 0
+        for _ in range(count):
+            inp.move_mouse_relative(direction * step, 0)
+            net += direction * step
+            time.sleep(0.12)
+            gp = v.find_in_region("gift_prompt", region)
+            if gp.found:
+                return gp, net
+        inp.move_mouse_relative(-net, 0)
+        time.sleep(0.12)
+    return v.find_in_region("gift_prompt", region), 0
+
+
+def _doggo_name_matches(ocr_name: str, expected_name: str) -> bool:
+    """
+    Tolerant OCR-name compare: startswith rather than exact equality, since
+    the title OCR occasionally trails a stray character or word off a
+    genuinely correct read (measured live: 'dogginha e' for 'dogginha'),
+    which an exact match rejected — sending a correctly-found doggo into a
+    pointless (and camera-displacing) active search. The two roster names
+    diverge at their first differing character ('dogginh-o' vs 'dogginh-a'),
+    so startswith can't cross-confuse them.
+    """
+    return bool(ocr_name) and ocr_name.strip().lower().startswith(expected_name.strip().lower())
+
+
+def _read_loot_window_doggo_name(v: Vision) -> str:
+    """
+    OCR the loot window's title bar — the doggo's REAL in-game name, and
+    the only authoritative way to know which doggo we actually opened
+    (there's no in-world nameplate before interacting). Returns '' if
+    nothing legible was read.
+    """
+    nx = int(cfg.get("taming.name_region_x", 740))
+    ny = int(cfg.get("taming.name_region_y", 180))
+    nw = int(cfg.get("taming.name_region_w", 560))
+    nh = int(cfg.get("taming.name_region_h", 60))
+    title = ocr_text(v.grab_region(nx, ny, nw, nh))
+    for line in title.splitlines():
+        cleaned = "".join(ch for ch in line if ch.isalnum() or ch in " -'").strip()
+        if len(cleaned) >= 3:
+            return cleaned
+    return ""
+
+
+def _search_for_named_doggo(
+    v: Vision,
+    region: tuple[int, int, int, int],
+    expected_name: str,
+) -> tuple[MatchResult | None, str, int, int]:
+    """
+    Actively hunt for a SPECIFIC doggo by name, used when the loot window
+    that opened is the WRONG one. Doggos wander independently — a fixed or
+    previously-learned turn_dx can go stale enough to miss the target
+    entirely (measured live: an entire overnight run had 'dogginha's turn
+    landing on 'dogginho' 479/479 times). Silently accepting whichever
+    doggo is in frame would just keep re-checking the same one.
+
+    Two phases. First, a FINE yaw-only zigzag close to the current facing:
+    two doggos sitting close together can be a SMALL lateral offset apart
+    (measured live 2026-07-06: dogginho sat just barely to the right of
+    dogginha) that a coarse search jumps straight over. Only if that fails
+    does it escalate to a coarser grid sweep — a few downward pitch rows,
+    each swept across yaw (same shape as _face_doggo_and_recheck) — for a
+    doggo that's wandered further. Opens each candidate's window to verify
+    the title; every wrong window is closed before continuing.
+
+    Returns (confirm, ocr_name, net_yaw, net_pitch): on success confirm is
+    the loot window MatchResult and its window is left OPEN for the caller
+    to collect from, with the camera deliberately left on-target; on
+    failure confirm is None and the camera (yaw AND pitch) is restored to
+    where it started (a stranded camera after a failed search is what left
+    a doggo undetectable for the rest of a run — measured live 2026-07-05:
+    dogginha's offset got saved mid-failed-search and then missed for 7+
+    hours straight with no recovery). net_yaw/net_pitch are the total
+    relative movement applied here (0 on failure, since it's undone).
+    """
+    inp.focus_game()
+
+    fine_step = int(cfg.get("taming.identify_fine_yaw_step", 20))
+    fine_count = int(cfg.get("taming.identify_fine_yaw_count", 10))
+    for direction in (1, -1):
+        side = 0
+        for _ in range(fine_count):
+            inp.move_mouse_relative(direction * fine_step, 0)
+            side += direction * fine_step
+            time.sleep(0.1)
+            gp = v.find_in_region("gift_prompt", region)
+            if gp.found:
+                confirm = _press_until_window_open(v, "doggo_loot_window")
+                if confirm.found:
+                    ocr_name = _read_loot_window_doggo_name(v)
+                    if _doggo_name_matches(ocr_name, expected_name):
+                        return confirm, ocr_name, side, 0
+                    press_until_closed(v, "doggo_loot_window")
+        inp.move_mouse_relative(-side, 0)
+        time.sleep(0.1)
+
+    yaw_step = int(cfg.get("taming.search_yaw_step", 180))
+    yaw_count = int(cfg.get("taming.search_yaw_count", 8))
+    pitch_rows = cfg.get("taming.search_pitch_rows", [0, 160, 160])
+
+    net_pitch = 0
+    for pitch in pitch_rows:
+        if pitch:
+            inp.move_mouse_relative(0, pitch)
+            net_pitch += pitch
+            time.sleep(0.2)
+        net_yaw = 0
+        for _ in range(yaw_count):
+            gp = v.find_in_region("gift_prompt", region)
+            if gp.found:
+                confirm = _press_until_window_open(v, "doggo_loot_window")
+                if confirm.found:
+                    ocr_name = _read_loot_window_doggo_name(v)
+                    if _doggo_name_matches(ocr_name, expected_name):
+                        return confirm, ocr_name, net_yaw, net_pitch
+                    press_until_closed(v, "doggo_loot_window")
+            inp.move_mouse_relative(yaw_step, 0)
+            net_yaw += yaw_step
+            time.sleep(0.12)
+        inp.move_mouse_relative(-net_yaw, 0)
+        time.sleep(0.15)
+
+    if net_pitch:
+        inp.move_mouse_relative(0, -net_pitch)
+        time.sleep(0.15)
+    return None, "", 0, 0
+
+
+_TURN_OFFSET_PATH = Path("stats") / "doggo_turn_offsets.json"
+
+
+def _load_turn_offset(name: str) -> int | None:
+    """
+    Self-learned yaw offset for turning to `name` from the previously
+    checked doggo, preferred over config.toml's static turn_dx once we've
+    actually confirmed this doggo's identity at least once.
+
+    Doggos wander independently, so a fixed config value goes stale (see
+    _search_for_named_doggo's docstring for the measured 2026-07-05
+    failure). This file is updated by _save_turn_offset every time
+    collect_doggo_gift CONFIRMS the target via the loot window title, so
+    the offset tracks the doggo's actual position over time instead of
+    needing a human recalibration.
+    """
+    try:
+        with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        val = data.get(name)
+        return int(val) if val is not None else None
+    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+        return None
+
+
+def _save_turn_offset(name: str, net_yaw: int) -> None:
+    _TURN_OFFSET_PATH.parent.mkdir(exist_ok=True)
+    data: dict = {}
+    try:
+        with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    data[name] = net_yaw
+    with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def _reset_turn_offset(name: str) -> None:
+    """Drops a doggo's learned offset so the next cycle retries from config.toml's turn_dx."""
+    try:
+        with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    if data.pop(name, None) is not None:
+        with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+
+_MISS_COUNT_PATH = Path("stats") / "doggo_miss_counts.json"
+
+
+def _record_miss_or_reset(name: str, max_misses: int) -> bool:
+    """
+    Tracks consecutive 'no gift prompt visible' misses for a non-anchor doggo
+    (turn_dx != 0, so it has no wide pitch/yaw sweep fallback of its own — see
+    the comment above _face_doggo_and_recheck's caller). A learned offset that
+    drifted onto empty space had NO way back: measured live 2026-07-05,
+    dogginha's offset got stuck on a bad value for 7+ hours straight with zero
+    gifts collected, no warning logged. After max_misses in a row, drop the
+    learned offset (_reset_turn_offset) so the next cycle retries from the
+    configured seed instead of repeating the same dead angle forever. Returns
+    True if a reset just happened.
+    """
+    _MISS_COUNT_PATH.parent.mkdir(exist_ok=True)
+    data: dict = {}
+    try:
+        with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    misses = int(data.get(name, 0)) + 1
+    reset = misses >= max_misses
+    data[name] = 0 if reset else misses
+    with open(_MISS_COUNT_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    if reset:
+        _reset_turn_offset(name)
+    return reset
+
+
+def _clear_miss_count(name: str) -> None:
+    try:
+        with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    if data.get(name, 0) != 0:
+        data[name] = 0
+        with open(_MISS_COUNT_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+
+_EMPTY_SLOT_REF_DIR = Path("templates")
+_empty_slot_refs: dict[str, tuple[float, np.ndarray]] = {}
+
+
+def _empty_ref_key(doggo_name: str) -> str:
+    return "".join(ch for ch in doggo_name.lower() if ch.isalnum() or ch in "-_") or "default"
+
+
+def _empty_slot_reference(doggo_name: str) -> np.ndarray | None:
+    """
+    Per-doggo reference capture of the EMPTY loot slot patch. Lets
+    collect_doggo_gift skip the ~8s cursor walk + hover on the ~90% of
+    checks where the slot is empty. A reference DIFF is used instead of a
+    brightness heuristic because dark item icons (e.g. Cable, measured
+    2026-07-04) would read as 'empty' on brightness and be skipped forever.
+
+    The loot window is translucent, so the world behind it bleeds into the
+    patch: references are per-doggo AND self-refreshing — every full-path
+    check that confirms an empty slot re-saves the reference (see
+    _refresh_empty_slot_reference), because the doggos wander and the
+    backdrop drifts (measured live 2026-07-05: a fresh ref went stale
+    within two cycles). References older than empty_ref_max_age_seconds
+    are ignored, which bounds both staleness and any mis-saved reference.
+    A missing/stale ref only means the full walk runs — never a wrong skip.
+    """
+    key = _empty_ref_key(doggo_name)
+    path = _EMPTY_SLOT_REF_DIR / f"loot_slot_empty_{key}.png"
+    if not path.exists():
+        return None
+    mtime = path.stat().st_mtime
+    if time.time() - mtime > float(cfg.get("taming.empty_ref_max_age_seconds", 3600)):
+        return None
+    cached = _empty_slot_refs.get(key)
+    if cached is None or cached[0] != mtime:
+        img = cv2.imread(str(path))
+        if img is None:
+            return None
+        _empty_slot_refs[key] = (mtime, img)
+    return _empty_slot_refs[key][1]
+
+
+def _refresh_empty_slot_reference(doggo_name: str, patch: np.ndarray) -> None:
+    """Save `patch` (grabbed PRE-walk, so no cursor overlay) as the doggo's
+    empty-slot reference. Called only after a full-path check confirmed the
+    slot empty (no tooltip band after retries AND a no-op transfer diff)."""
+    key = _empty_ref_key(doggo_name)
+    _EMPTY_SLOT_REF_DIR.mkdir(exist_ok=True)
+    cv2.imwrite(str(_EMPTY_SLOT_REF_DIR / f"loot_slot_empty_{key}.png"), patch)
+    _empty_slot_refs.pop(key, None)
+
+
+def _tooltip_band_visible(crop: np.ndarray) -> bool:
+    """
+    True if the tooltip's ORANGE item-name header band is actually rendered
+    in the crop (top rows). Without this check, OCR happily reads whatever
+    UI sits under the tooltip region (measured live 2026-07-04: the 'Sort'
+    button OCR'd as 'I sSort' and got persisted as an item name) — the
+    tooltip render often lags the hover by more than the initial wait.
+    """
+    band = crop[5:45]
+    b = float(band[..., 0].mean())
+    g = float(band[..., 1].mean())
+    r = float(band[..., 2].mean())
+    return r > 150 and (r - b) > 80 and g > 90
+
+
+def _read_item_tooltip(v: Vision, slot_x: int, slot_y: int) -> tuple[str | None, np.ndarray]:
+    """
+    Grab the item tooltip shown while hovering the loot slot and OCR the
+    item name (first legible line). Returns (name_or_None, tooltip_crop).
+    The crop region is cursor-relative and configured under [taming]
+    tooltip_*. Waits for the orange header band to actually render (with a
+    cursor-nudge retry — the hover event sometimes needs fresh mouse motion)
+    and returns None rather than OCR'ing unrelated UI when it never shows
+    (empty slot, or tooltip too slow).
+    """
+    tdx = int(cfg.get("taming.tooltip_dx", 30))
+    tdy = int(cfg.get("taming.tooltip_dy", 10))
+    tw = int(cfg.get("taming.tooltip_w", 520))
+    th = int(cfg.get("taming.tooltip_h", 140))
+    sw = int(cfg.get("display.screen_width", 2560))
+    sh = int(cfg.get("display.screen_height", 1440))
+    x = min(max(0, slot_x + tdx), sw - tw)
+    y = min(max(0, slot_y + tdy), sh - th)
+    crop = v.grab_region(x, y, tw, th)
+    # 3 attempts ~0.5s apart: measured live 2026-07-04, the tooltip can lag
+    # the hover by well over a second (two real transfers had it still
+    # mid-render at click time), and each retry only costs time when the
+    # slot actually holds an item.
+    for _ in range(3):
+        if _tooltip_band_visible(crop):
+            text = ocr_text(crop)
+            for line in text.splitlines():
+                cleaned = "".join(ch for ch in line if ch.isalnum() or ch in " -'").strip()
+                if len(cleaned) >= 3:
+                    return cleaned, crop
+            return None, crop
+        # No band yet — nudge the cursor to (re)trigger hover and give the
+        # tooltip more time to render.
+        inp.move_mouse_relative(3, 3)
+        time.sleep(0.05)
+        inp.move_mouse_relative(-3, -3)
+        time.sleep(0.45)
+        crop = v.grab_region(x, y, tw, th)
+    return None, crop
+
+
+@activity.defn
+def collect_doggo_gift(doggo: dict | None = None) -> dict:
+    """
+    Check ONE named doggo for a gift and collect it if present.
+
+    `doggo` comes from config.toml [[taming.doggos]]:
+        name    — used for per-doggo history in stats/gift_history.db
+        turn_dx — INITIAL relative yaw from the PREVIOUSLY checked doggo
+                  (the list wraps: the first entry's turn_dx turns back
+                  from the last doggo to the first). 0 = don't turn
+                  (single-doggo setup). This is only a starting guess: once
+                  a doggo's identity is confirmed via the loot window
+                  title, the ACTUAL yaw used is saved to
+                  stats/doggo_turn_offsets.json and preferred over this
+                  config value from then on — doggos wander independently,
+                  so a fixed turn goes stale (measured live 2026-07-05: an
+                  entire overnight run had turn_dx=110 landing on the wrong
+                  doggo 479/479 times). If the initial turn misses, this
+                  activity actively searches for the NAMED doggo (see
+                  _search_for_named_doggo) rather than silently mislabeling
+                  whatever's in frame.
+
+    Interacting opens the Doggo's ONE-slot loot window. We hover the slot
+    (reading the item-name tooltip for the history log), shift-click to
+    transfer, and verify a REAL transfer via a before/after pixel diff on
+    the slot — most checks find an empty slot, which is expected (the wiki
+    gives ~0.2%/s fill chance; measured live closer to ~15min mean).
+
+    Returns {doggo, prompt_found, collected, item, slot_diff, crop_path,
+    checked_at} for the record_gift_check persistence activity.
+    """
+    spec = doggo or {}
+    name = str(spec.get("name", "doggo"))
+    configured_turn_dx = int(spec.get("turn_dx", 0))
+    learned_turn_dx = _load_turn_offset(name)
+    turn_dx = learned_turn_dx if learned_turn_dx is not None else configured_turn_dx
+    result: dict = {
+        "doggo": name,
+        "prompt_found": False,
+        "collected": False,
+        "item": None,
+        "slot_diff": None,
+        "crop_path": None,
+        "checked_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
     with screenshot_on_error("collect_doggo_gift"):
         v = get_vision()
         disp = cfg.get("display", {})
         region = _gift_prompt_region(
             disp.get("screen_width", 1920), disp.get("screen_height", 1080)
         )
-        result = v.find_in_region("gift_prompt", region)
+        net_yaw = 0
 
-        if not result.found:
+        if turn_dx:
+            inp.focus_game()
+            inp.move_mouse_relative(turn_dx, 0)
+            net_yaw += turn_dx
+            time.sleep(0.25)
+        gp = v.find_in_region("gift_prompt", region)
+
+        if not gp.found:
             # A menu left open by a previous cycle hides the prompt AND puts the
             # mouse in menu-mode (the camera won't turn, so a sweep can't help).
             # Clear any stuck menu first — this is what stops a failed close on
@@ -191,18 +587,44 @@ async def collect_doggo_gift() -> bool:
             closed = close_open_menus(v)
             if closed:
                 logger.info("Cleared stuck menu(s) before re-checking: %s", ", ".join(closed))
-                result = v.find_in_region("gift_prompt", region)
+                if turn_dx:
+                    # the earlier turn was swallowed while the menu held the mouse
+                    inp.focus_game()
+                    inp.move_mouse_relative(turn_dx, 0)
+                    time.sleep(0.25)
+                gp = v.find_in_region("gift_prompt", region)
 
-        if not result.found:
-            result = _face_doggo_and_recheck(v)
+        if not gp.found:
+            inp.focus_game()
+            gp, micro_yaw = _micro_sweep_for_prompt(v, region)
+            net_yaw += micro_yaw
 
-        if not result.found:
-            logger.debug("No gift prompt visible (conf=%.2f)", result.confidence)
-            return False
+        # Full pitch/yaw sweep only for the anchor doggo (turn_dx == 0 or the
+        # first of the roster): near a second doggo it could acquire the
+        # WRONG one and corrupt the per-doggo history.
+        if not gp.found and turn_dx == 0:
+            gp = _face_doggo_and_recheck(v)
+
+        if not gp.found:
+            if turn_dx != 0:
+                max_misses = int(cfg.get("taming.max_consecutive_misses", 3))
+                if _record_miss_or_reset(name, max_misses):
+                    logger.warning(
+                        "[%s] missed %d cycles in a row on learned offset %d — "
+                        "reverting to configured turn_dx (%d) for the next attempt.",
+                        name, max_misses, turn_dx, configured_turn_dx,
+                    )
+            logger.info(
+                "[%s] no gift prompt visible after focus+sweep (conf=%.2f) — "
+                "likely lost input focus or player not at the pen.",
+                name, gp.confidence,
+            )
+            return result
+        result["prompt_found"] = True
 
         logger.info(
-            "Gift prompt at (%d,%d) conf=%.2f — pressing E.",
-            result.x, result.y, result.confidence,
+            "[%s] gift prompt at (%d,%d) conf=%.2f — pressing E.",
+            name, gp.x, gp.y, gp.confidence,
         )
         # Pressing E only registers when the UE5 viewport holds mouse
         # capture, which a single recapture click restores intermittently,
@@ -210,19 +632,88 @@ async def collect_doggo_gift() -> bool:
         confirm = _press_until_window_open(v, "doggo_loot_window")
         if not confirm.found:
             logger.warning(
-                "Doggo loot window did not open after %d recapture+E "
+                "[%s] Doggo loot window did not open after %d recapture+E "
                 "attempts (conf=%.2f). Skipping this cycle.",
-                _OPEN_WINDOW_ATTEMPTS, confirm.confidence,
+                name, _OPEN_WINDOW_ATTEMPTS, confirm.confidence,
             )
-            return False
+            return result
 
-        # Window confirmed open — shift-click the item slot to transfer
-        # the gift (if any) into the player's inventory. Coordinates come
-        # from config.toml [taming] keys doggo_loot_slot_x / _y, which
-        # are already calibrated for this display (2560x1440). Fall back
-        # to an offset from the template match centre if not configured.
+        # The window title bar shows the doggo's REAL name — the only way
+        # to know which doggo we actually opened (no in-world nameplate
+        # before interacting).
+        ocr_name = _read_loot_window_doggo_name(v)
+
+        if ocr_name and not _doggo_name_matches(ocr_name, name):
+            # Wrong doggo. Do NOT silently relabel and move on — that's
+            # exactly what turned every 'check dogginha' into a second,
+            # mislabeled 'check dogginho' overnight. Applies even for an
+            # anchor (turn_dx == 0): 'gift_prompt' is a fixed-position HUD
+            # band that can trivially trigger for whichever doggo is
+            # nearer/more centred regardless of camera angle (measured live
+            # 2026-07-06: with both doggos simultaneously visible, checking
+            # dogginho immediately after dogginha kept silently re-opening
+            # dogginha's window instead, starving dogginho every cycle).
+            # Actively hunt for the actual target instead.
+            logger.info("[%s] found '%s' instead — searching.", name, ocr_name)
+            press_until_closed(v, "doggo_loot_window")
+            search_confirm, ocr_name, search_yaw, _search_pitch = _search_for_named_doggo(v, region, name)
+            net_yaw += search_yaw
+            if search_confirm is None or not _doggo_name_matches(ocr_name, name):
+                logger.warning(
+                    "[%s] could not be located after searching (last seen: %s) "
+                    "— skipping this doggo this cycle.",
+                    name, ocr_name or "nothing",
+                )
+                return result
+            confirm = search_confirm
+
+        if turn_dx != 0 and _doggo_name_matches(ocr_name, name):
+            _save_turn_offset(name, net_yaw)
+            _clear_miss_count(name)
+            if net_yaw != turn_dx:
+                logger.info("[%s] learned turn offset updated: %d -> %d.", name, turn_dx, net_yaw)
+
+        if ocr_name and not _doggo_name_matches(ocr_name, name):
+            logger.warning(
+                "[%s] loot window title reads '%s' — attributing this check to the OCR name.",
+                name, ocr_name,
+            )
+        if ocr_name:
+            result["doggo"] = ocr_name
+
+        # Window confirmed open. Coordinates come from config.toml [taming]
+        # doggo_loot_slot_x/_y (calibrated for this display); fall back to an
+        # offset from the template match centre if not configured.
         slot_x = int(cfg.get("taming.doggo_loot_slot_x", confirm.x))
         slot_y = int(cfg.get("taming.doggo_loot_slot_y", confirm.y + 80))
+        hw = int(cfg.get("taming.loot_slot_patch_half_w", 50))
+        hh = int(cfg.get("taming.loot_slot_patch_half_h", 55))
+        threshold = float(cfg.get("taming.loot_slot_diff_threshold", 12.0))
+
+        # Fast path: if the slot patch matches this doggo's (fresh)
+        # empty-slot reference, there is nothing to collect — close and
+        # skip the cursor walk (~8s saved on the vast majority of checks).
+        # The pre-walk patch is grabbed unconditionally: it doubles as the
+        # refresh source when the full path confirms empty below.
+        prewalk_patch = v.grab_region(slot_x - hw, slot_y - hh, 2 * hw, 2 * hh)
+        ref = _empty_slot_reference(result["doggo"])
+        if ref is not None and ref.shape == prewalk_patch.shape:
+            empty_diff = float(np.mean(np.abs(prewalk_patch.astype(np.float32) - ref.astype(np.float32))))
+            if empty_diff < threshold:
+                window_closed = press_until_closed(v, "doggo_loot_window")
+                logger.info(
+                    "[%s] slot empty (ref diff=%.1f) — skipped collection walk%s.",
+                    result["doggo"], empty_diff,
+                    "" if window_closed else " (window may still be open)",
+                )
+                result["slot_diff"] = round(empty_diff, 2)
+                return result
+
+        # ONE cursor trip: park on the slot, read the tooltip while hovering,
+        # then shift-click in place (shift_click would re-home and re-walk).
+        inp.move_cursor_to(slot_x, slot_y)
+        time.sleep(float(cfg.get("taming.tooltip_hover_seconds", 0.6)))
+        item_name, _tooltip_crop = _read_item_tooltip(v, slot_x, slot_y)
 
         # Detect an ACTUAL transfer, not just a successful interaction: most
         # interactions open an empty window (the Doggo only fills its one
@@ -231,28 +722,40 @@ async def collect_doggo_gift() -> bool:
         # click. This is self-calibrating (works for any item icon) rather
         # than needing an absolute brightness baseline: no-op diff measured
         # live at ~2, a real transfer at ~103.
-        hw = int(cfg.get("taming.loot_slot_patch_half_w", 50))
-        hh = int(cfg.get("taming.loot_slot_patch_half_h", 55))
-        threshold = float(cfg.get("taming.loot_slot_diff_threshold", 12.0))
-        before = v.grab_region(slot_x - hw, slot_y - hh, 2 * hw, 2 * hh).astype(np.float32)
-        inp.shift_click(slot_x, slot_y)
+        before = v.grab_region(slot_x - hw, slot_y - hh, 2 * hw, 2 * hh)
+        inp.shift_click_here()
         time.sleep(0.3)
         after = v.grab_region(slot_x - hw, slot_y - hh, 2 * hw, 2 * hh).astype(np.float32)
-        diff = float(np.mean(np.abs(before - after)))
+        diff = float(np.mean(np.abs(before.astype(np.float32) - after)))
         transferred = diff > threshold
 
-        closed = press_until_closed(v, "doggo_loot_window")
+        window_closed = press_until_closed(v, "doggo_loot_window")
         logger.info(
-            "Doggo loot window %s (slot diff=%.1f, transferred=%s).",
-            "closed" if closed else "may still be open", diff, transferred,
+            "[%s] loot window %s (slot diff=%.1f, transferred=%s, item=%s).",
+            name, "closed" if window_closed else "may still be open",
+            diff, transferred, item_name,
         )
         if transferred:
-            stats_module.log_gift_event(diff)
-        return transferred
+            # Archive the slot icon crop: OCR ground truth for later labeling
+            # (and the fallback when the tooltip read fails).
+            crops = Path("captures") / "gifts"
+            crops.mkdir(parents=True, exist_ok=True)
+            crop_path = crops / f"{result['checked_at'].replace(':', '-')}_{name}.png"
+            cv2.imwrite(str(crop_path), before)
+            result.update(collected=True, item=item_name, slot_diff=round(diff, 2), crop_path=str(crop_path))
+        else:
+            result["slot_diff"] = round(diff, 2)
+            if item_name is None and diff < 3.0:
+                # Full path just CONFIRMED the slot is empty (no tooltip
+                # band after retries, click was a no-op): refresh this
+                # doggo's empty-slot reference so the next checks take the
+                # fast path against the current backdrop.
+                _refresh_empty_slot_reference(result["doggo"], prewalk_patch)
+        return result
 
 
 @activity.defn
-async def check_inventory_full() -> bool:
+def check_inventory_full() -> bool:
     """
     Opens the player inventory (Tab), scans every slot's centre pixel
     for occupancy, optionally clicks the sort/merge button if all slots
@@ -343,7 +846,7 @@ async def check_inventory_full() -> bool:
 
 
 @activity.defn
-async def open_storage_and_deposit_loot() -> int:
+def open_storage_and_deposit_loot() -> int:
     """
     Opens a storage container (needs the interaction prompt in range) and
     sweeps the player's inventory grid with a shift-click on every slot to
@@ -388,7 +891,7 @@ async def open_storage_and_deposit_loot() -> int:
 
 
 @activity.defn
-async def feed_wild_doggo() -> bool:
+def feed_wild_doggo() -> bool:
     """
     Attempts to tame a wild Lizard Doggo: opens the inventory, drags a
     Paleberry to a fixed screen point (drops it in the world, near the

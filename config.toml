@@ -3,7 +3,22 @@
 
 [temporal]
 address    = "localhost:7233"
-task_queue = "satisfactory-bot"
+task_queue = "satisfactory-bot"          # workflows (Docker orchestrator) + game activities (host worker)
+persist_task_queue = "satisfactory-persist"  # persistence activities (Docker orchestrator)
+
+# ---------------------------------------------------------------------------
+# Input / cursor walking (see utils/input.py _step_move)
+# The in-game menu cursor can only be driven by RELATIVE motion under the
+# game's pointer lock, walked in small steps to stay under KWin/libinput
+# pointer acceleration. Bigger step / smaller pause = faster but less
+# precise. Calibrated LIVE 2026-07-04: 3/0.009 overshot ~7.5% (accel);
+# 2/0.012 with the diagonal walk lands dead-centre and is still ~45% faster
+# than the old axis-sequential walk. Setting KDE's pointer accel profile to
+# "flat" would remove the ceiling and allow much faster steps.
+# ---------------------------------------------------------------------------
+[input]
+cursor_step       = 2
+cursor_step_pause = 0.012
 
 # ---------------------------------------------------------------------------
 # Vision
@@ -85,6 +100,60 @@ swing_interval_seconds = 0.5
 drop_point_x = 1280
 drop_point_y = 720
 
+# ---------------------------------------------------------------------------
+# The doggo roster checked by GiftFarmWorkflow, IN ORDER, once per cycle.
+# name    — your in-game name for the doggo; keys the per-doggo history in
+#           stats/gift_history.db.
+# turn_dx — INITIAL relative yaw (mouse-x delta) from the PREVIOUS doggo in
+#           the list to this one (the list wraps: the FIRST entry's turn_dx
+#           is the turn back from the LAST doggo to the first). This is
+#           only a SEED value used until a doggo is first confirmed by
+#           name — after that, the ACTUAL yaw that found it is learned and
+#           saved to stats/doggo_turn_offsets.json, and preferred over this
+#           config value from then on. Doggos wander independently, so a
+#           fixed value goes stale — measured live 2026-07-05: turn_dx=110
+#           (fine the day it was calibrated) landed on the WRONG doggo
+#           479/479 times by the next morning. If the turn misses, the
+#           activity actively searches for the NAMED doggo (expanding yaw
+#           zigzag, identify_* below) rather than silently mislabeling
+#           whatever's in frame — delete doggo_turn_offsets.json to force
+#           re-learning from this seed (e.g. after moving the pen).
+# On each check a small yaw micro-sweep (micro_yaw_step/micro_yaw_count,
+# right then left) absorbs minor wandering/drift before falling back to
+# the wider identify_* search. The full pitch/yaw sweep only ever runs for
+# the FIRST doggo, so it can't lock onto the wrong doggo of a side-by-side
+# pair.
+# NOTE: the [[taming.doggos]] entries themselves live at the BOTTOM of this
+# [taming] section — in TOML, any key after an [[array]] entry would belong
+# to that entry, not to [taming].
+# ---------------------------------------------------------------------------
+micro_yaw_step  = 40
+micro_yaw_count = 2
+
+# Wider search used when the micro-sweep's doggo doesn't match the target
+# by name: a pitch+yaw grid sweep (same shape/config knobs as the
+# search_yaw_step/search_yaw_count/search_pitch_rows used below for the
+# anchor's own sweep) — needed because the fixed-position 'gift_prompt' HUD
+# band can trigger for whichever doggo is nearer/more centred regardless of
+# yaw alone (measured live 2026-07-06).
+
+# Loot-window title bar region (doggo name) — authoritative attribution.
+name_region_x = 740
+name_region_y = 180
+name_region_w = 560
+name_region_h = 60
+
+# Item tooltip shown while hovering the loot slot (OCR'd for the gift
+# history). Offsets are relative to the slot. Calibrated LIVE 2026-07-04
+# (Quickwire gift): the tooltip renders BELOW-RIGHT of the cursor — orange
+# item-name band at slot+(35,18), ~490px wide; 140px of height also grabs
+# the first description lines (OCR takes the first legible line = name).
+tooltip_dx = 30
+tooltip_dy = 10
+tooltip_w  = 520
+tooltip_h  = 140
+tooltip_hover_seconds = 0.6
+
 # Camera sweep used by _face_doggo_and_recheck when the gift prompt isn't
 # already visible: it walks several downward PITCH rows (Doggos are ground
 # creatures, so a yaw-only sweep at the horizon misses them) and steps yaw
@@ -114,6 +183,40 @@ doggo_loot_slot_y = 1045
 loot_slot_patch_half_w = 50
 loot_slot_patch_half_h = 55
 loot_slot_diff_threshold = 12.0
+
+# Doggo roster — see the note at the top of [taming] for turn_dx semantics.
+# Keep these entries LAST inside [taming]. Both are turn_dx=0 (independent
+# anchors) since 2026-07-06: a relative turn_dx between them left NEITHER
+# doggo recoverable once the player's base facing drifted (the wide
+# pitch+yaw sweep in _face_doggo_and_recheck only triggers for turn_dx==0)
+# — measured live: both went unfindable for 5+ cycles after a small player
+# reposition, with no fallback. turn_dx==0 costs the identity-mismatch
+# active-search relearning (gated on turn_dx != 0) but the OCR title read
+# still correctly attributes whichever doggo is actually found, so history
+# stays accurate even if a cycle happens to recheck the same one twice.
+[[taming.doggos]]
+name = "dogginho"
+turn_dx = 0
+
+[[taming.doggos]]
+name = "dogginha"
+turn_dx = 0
+
+# ---------------------------------------------------------------------------
+# Optional daily auto start/stop schedule (see schedule_gift_farm.py) —
+# defaults used by `schedule_gift_farm.py create` when its own --start/
+# --stop/--timezone flags are omitted. timezone is a tz database name
+# (e.g. "America/Sao_Paulo"); detected from this host at setup time — if
+# the orchestrator container's clock disagrees (it runs UTC by default),
+# this explicit name is what Temporal actually uses to fire the cron, not
+# the container's local time. This table comes AFTER [[taming.doggos]] for
+# the same TOML reason noted above (a bare key/table after an array-of-
+# tables entry doesn't belong to the array).
+# ---------------------------------------------------------------------------
+[taming.schedule]
+start_time = "08:00"
+stop_time  = "23:00"
+timezone   = "America/Sao_Paulo"
 
 # ---------------------------------------------------------------------------
 # Player inventory grid, used by check_inventory_full (slot-scan) and

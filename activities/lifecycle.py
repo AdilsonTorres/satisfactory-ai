@@ -24,13 +24,13 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-async def check_health_low() -> bool:
+def check_health_low() -> bool:
     """Checks for low health. When called from a workflow, uses normal Temporal dispatch."""
     return _check_health_inline(get_vision())
 
 
 @activity.defn
-async def handle_death_respawn() -> bool:
+def handle_death_respawn() -> bool:
     """
     Confirms 'Press RMB to Respawn'. This isn't a clickable UI button at a
     fixed position (no 'respawn_button' template exists) — it's a global
@@ -57,7 +57,7 @@ async def handle_death_respawn() -> bool:
 
 
 @activity.defn
-async def reset_to_safe_state() -> bool:
+def reset_to_safe_state() -> bool:
     """
     Defensive cleanup: drive the game back to plain gameplay (no menu),
     called when cancelling/ending a workflow so it isn't left with an open

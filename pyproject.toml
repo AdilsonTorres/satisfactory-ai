@@ -2,22 +2,22 @@
 name = "satisfactory-ai"
 version = "0.3.0"
 description = "Satisfactory AFK bot orchestrated via Temporal"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
-    "temporalio>=1.7.0",
-    "mss>=9.0.1",
-    "opencv-python>=4.9.0",
-    "numpy>=1.26.0",
-    "pynput>=1.7.6",
-    "pytesseract>=0.3.10",
+    "temporalio>=1.30.0",
+    "mss>=10.2.0",
+    "opencv-python>=5.0.0",
+    "numpy>=2.5.0",
+    "pynput>=1.8.2",
+    "pytesseract>=0.3.13",
     "evdev>=1.9.3",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.11.0",
-    "mypy>=1.15.0",
-    "pytest>=8.0.0",
+    "ruff>=0.15.0",
+    "mypy>=2.1.0",
+    "pytest>=9.1.0",
 ]
 
 [build-system]
@@ -31,7 +31,7 @@ packages = ["activities", "workflows", "workers", "utils", "tools"]
 sbot = "tools.cli:main"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 120
 
 [tool.ruff.lint]
@@ -54,7 +54,7 @@ ignore = [
 known-first-party = ["activities", "workflows", "workers", "utils", "tools"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

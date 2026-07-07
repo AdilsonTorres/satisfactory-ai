@@ -15,13 +15,27 @@ from collections.abc import Sequence
 
 from evdev import UInput
 from evdev import ecodes as ev_codes
-from pynput.mouse import Controller as MouseController
 
 from utils import config as cfg
 
-_mouse = MouseController()
+_mouse = None
 _uinput_mouse: UInput | None = None
 _uinput_keyboard: UInput | None = None
+
+
+def _get_mouse():
+    """Desktop cursor controller (pynput), created lazily.
+
+    Lazy because pynput needs a display connection: the orchestrator worker
+    runs headless in Docker and imports this module (workflow sandbox pulls
+    activity modules in) without ever driving the cursor.
+    """
+    global _mouse
+    if _mouse is None:
+        from pynput.mouse import Controller as MouseController
+
+        _mouse = MouseController()
+    return _mouse
 
 
 def _get_uinput_mouse() -> UInput:
@@ -212,7 +226,7 @@ def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
     activated = focus_game(window_title)
     sw = cfg.get("display.screen_width", 2560)
     sh = cfg.get("display.screen_height", 1440)
-    _mouse.position = (sw // 2, sh // 2)
+    _get_mouse().position = (sw // 2, sh // 2)
     time.sleep(0.08)
     ui = _get_uinput_mouse()
     for _ in range(2):
@@ -304,35 +318,47 @@ def _home_cursor() -> None:
     Only relative motion drives it. Large negative deltas saturate against
     the screen edge, giving a known origin to move from.
     """
-    for _ in range(3):
-        move_mouse_relative(-1500, -1500)
-        time.sleep(0.12)
-    time.sleep(0.15)
+    for _ in range(2):
+        move_mouse_relative(-2800, -2800)
+        time.sleep(0.08)
+    time.sleep(0.12)
 
 
-def _step_move(dx: int, dy: int, step: int = 2, pause: float = 0.012) -> None:
+def _step_move(dx: int, dy: int, step: int | None = None, pause: float | None = None) -> None:
     """
     Move the cursor by a relative (dx, dy) in small slow steps.
 
     KWin/libinput pointer acceleration amplifies fast relative motion (~2x
     measured), so a single big delta overshoots. Small slow steps stay under
-    the accel threshold and map ~1:1 to pixels. Calibrated live 2026-06-30
-    against inventory-slot tooltips (targets within a few px of where the
-    cursor actually landed across the whole screen).
+    the accel threshold and map ~1:1 to pixels. Originally calibrated live
+    2026-06-30 at step=2/pause=0.012, x-axis then y-axis.
+
+    Both axes now step TOGETHER (diagonal walk) — total time is governed by
+    max(|dx|,|dy|) instead of |dx|+|dy| — and step/pause come from
+    [input] in config.toml so speed can be tuned without touching code.
+    NOTE: the diagonal per-event magnitude is step*sqrt(2); if targets start
+    landing off-mark, lower input.cursor_step back toward 2 or raise
+    cursor_step_pause (or set KDE's pointer accel profile to "flat", which
+    removes the accel problem entirely and allows much bigger/faster steps).
     """
+    # Calibrated LIVE 2026-07-04 against the doggo loot slot: diagonal
+    # step=3/pause=0.009 (~470px/s vector) overshot ~7.5% (accel kicked in);
+    # step=2/pause=0.012 (~236px/s) landed dead-centre with the tooltip
+    # showing. Diagonal at 2/0.012 still cuts the walk ~45% vs the old
+    # axis-sequential path (6.8s vs 12.2s to the loot slot).
+    if step is None:
+        step = int(cfg.get("input.cursor_step", 2))
+    if pause is None:
+        pause = float(cfg.get("input.cursor_step_pause", 0.012))
     sx = 1 if dx >= 0 else -1
-    rem = abs(int(dx))
-    while rem > 0:
-        d = min(step, rem)
-        move_mouse_relative(sx * d, 0)
-        rem -= d
-        time.sleep(pause)
     sy = 1 if dy >= 0 else -1
-    rem = abs(int(dy))
-    while rem > 0:
-        d = min(step, rem)
-        move_mouse_relative(0, sy * d)
-        rem -= d
+    rx, ry = abs(int(dx)), abs(int(dy))
+    while rx > 0 or ry > 0:
+        mx = min(step, rx)
+        my = min(step, ry)
+        move_mouse_relative(sx * mx, sy * my)
+        rx -= mx
+        ry -= my
         time.sleep(pause)
 
 
@@ -368,7 +394,7 @@ def right_click(x: int, y: int, delay_after: float = 0.1) -> None:
 def respawn_confirm() -> None:
     sw = cfg.get("display.screen_width", 2560)
     sh = cfg.get("display.screen_height", 1440)
-    _mouse.position = (sw // 2, sh // 2)
+    _get_mouse().position = (sw // 2, sh // 2)
     time.sleep(0.2)
     ui = _get_uinput_mouse()
     ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 1)
@@ -380,6 +406,16 @@ def respawn_confirm() -> None:
 
 def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:
     move_cursor_to(x, y)
+    shift_click_here(delay_after)
+
+
+def shift_click_here(delay_after: float = 0.15) -> None:
+    """Shift+left-click at the CURRENT cursor position (no cursor walk).
+
+    Used when the caller has already parked the cursor (e.g. hovering the
+    Doggo loot slot to read the item tooltip) — re-walking would double the
+    slowest part of the interaction.
+    """
     ui_kb = _get_uinput_keyboard()
     ui_m = _get_uinput_mouse()
     # Press Shift on virtual keyboard

@@ -21,6 +21,11 @@ with workflow.unsafe.imports_passed_through():
 
 logger = logging.getLogger(__name__)
 
+# Queue for persistence activities (SQLite gift history, session stats JSON),
+# served by the Dockerized orchestrator worker. Game activities use the
+# workflow's own queue, which only the host game worker polls for activities.
+PERSIST_TASK_QUEUE = "satisfactory-persist"
+
 GAME_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
     maximum_attempts=3,
@@ -53,6 +58,7 @@ async def _save_stats(workflow_type: str, stats: dict) -> None:
     await workflow.execute_activity(
         persist_session_stats,
         args=[workflow_type, stats],
+        task_queue=PERSIST_TASK_QUEUE,
         schedule_to_close_timeout=timedelta(seconds=15),
         retry_policy=RetryPolicy(maximum_attempts=2),
     )
@@ -126,5 +132,7 @@ class _ControlMixin:
         return self._stats
 
     async def _wait_if_paused(self) -> None:
-        while self._paused and not self._stop_requested:
-            await workflow.sleep(timedelta(seconds=1))
+        # wait_condition wakes on signal delivery — unlike a 1s sleep-poll
+        # loop, it adds no timer events to history while paused (an hour of
+        # pause used to cost ~7200 history events).
+        await workflow.wait_condition(lambda: not self._paused or self._stop_requested)
