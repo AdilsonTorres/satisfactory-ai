@@ -19,24 +19,59 @@ services:
     networks:
       - temporal-net
 
-  temporal:
-    image: temporalio/auto-setup:1.29.7
-    container_name: temporal
-    restart: unless-stopped
+  temporal-schema-setup:
+    image: temporalio/admin-tools:1.30.5
+    container_name: temporal-schema-setup
     depends_on:
       postgresql:
         condition: service_healthy
+    environment:
+      SQL_USER: temporal
+      SQL_PASSWORD: temporal
+      SQL_HOST: postgresql
+      SQL_PORT: 5432
+      SQL_PLUGIN: postgres12
+    command: >
+      sh -c "temporal-sql-tool --db temporal create || true &&
+             temporal-sql-tool --db temporal setup-schema -v 0.0 || true &&
+             temporal-sql-tool --db temporal update-schema -d /etc/temporal/schema/postgresql/v12/temporal/versioned &&
+             temporal-sql-tool --db temporal_visibility create --defaultdb temporal || true &&
+             temporal-sql-tool --db temporal_visibility setup-schema -v 0.0 || true &&
+             temporal-sql-tool --db temporal_visibility update-schema -d /etc/temporal/schema/postgresql/v12/visibility/versioned"
+    networks:
+      - temporal-net
+
+  temporal:
+    image: temporalio/server:1.30.5
+    container_name: temporal
+    restart: unless-stopped
+    depends_on:
+      temporal-schema-setup:
+        condition: service_completed_successfully
+    entrypoint: ["sh", "-c", "touch /tmp/dynamicconfig.yaml && exec /etc/temporal/entrypoint.sh"]
     environment:
       DB: postgres12
       DB_PORT: "5432"
       POSTGRES_USER: temporal
       POSTGRES_PWD: temporal
       POSTGRES_SEEDS: postgresql
-      # Retention for freshly registered namespaces; an existing namespace
-      # keeps its own setting (update via `temporal operator namespace update`)
-      DEFAULT_NAMESPACE_RETENTION: 168h
+      DYNAMIC_CONFIG_FILE_PATH: /tmp/dynamicconfig.yaml
     ports:
       - "7233:7233"
+    networks:
+      - temporal-net
+
+  temporal-namespace-setup:
+    image: temporalio/admin-tools:1.30.5
+    container_name: temporal-namespace-setup
+    depends_on:
+      - temporal
+    command: >
+      sh -c "until temporal --address temporal:7233 operator cluster health | grep -q SERVING; do
+               echo 'Waiting for Temporal server to start...' &&
+               sleep 1;
+             done &&
+             temporal --address temporal:7233 operator namespace create --retention 168h default || true"
     networks:
       - temporal-net
 
@@ -65,7 +100,8 @@ services:
     # (SQLite gift history) stay writable from the host.
     user: "1000:1000"
     depends_on:
-      - temporal
+      temporal-namespace-setup:
+        condition: service_completed_successfully
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       HOME: /tmp
