@@ -12,6 +12,8 @@ Usage:
     sbot passive --interval 5
     sbot trigger calibration --target hud
     sbot trigger exploration --max-seconds 30
+    sbot save
+    sbot plan --track
 """
 
 import argparse
@@ -67,11 +69,22 @@ def main() -> None:
 
     # --- save ---
     save_parser = subparsers.add_parser("save", help="Satisfactory save file diagnostics")
-    save_parser.add_argument("filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)")
+    save_parser.add_argument(
+        "filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)"
+    )
     save_parser.add_argument("--depot", action="store_true", help="Show Dimensional Depot contents")
     save_parser.add_argument("--collectibles", action="store_true", help="Show collected collectibles summary")
     save_parser.add_argument("--advisor", action="store_true", help="Show alternate recipe advice & recommendations")
     save_parser.add_argument("--track", action="store_true", help="Track save file progress in stats/save_history.json")
+
+    # --- plan ---
+    plan_parser = subparsers.add_parser("plan", help="Actionable next-steps report from your current save")
+    plan_parser.add_argument(
+        "filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)"
+    )
+    plan_parser.add_argument(
+        "--track", action="store_true", help="Record this snapshot in stats/save_history.json after generating the plan"
+    )
 
     args = parser.parse_args()
 
@@ -91,6 +104,8 @@ def main() -> None:
         _run_trigger(args, trigger_parser)
     elif args.command == "save":
         _run_save_info(args)
+    elif args.command == "plan":
+        _run_plan(args)
     else:
         parser.print_help()
 
@@ -189,8 +204,11 @@ async def _trigger_exploration(args: argparse.Namespace) -> None:
 def _find_latest_save_file() -> str | None:
     import glob
     import os
+
     paths = [
-        os.path.expanduser("~/.local/share/Steam/steamapps/compatdata/526870/pfx/drive_c/users/steamuser/AppData/Local/FactoryGame/Saved/SaveGames/"),
+        os.path.expanduser(
+            "~/.local/share/Steam/steamapps/compatdata/526870/pfx/drive_c/users/steamuser/AppData/Local/FactoryGame/Saved/SaveGames/"
+        ),
         os.path.expanduser("~/.local/share/FactoryGame/Saved/SaveGames/"),
     ]
     all_files = []
@@ -220,7 +238,9 @@ def _track_save_progress(save) -> None:
     coupons_earned = 0
     coupons_avail = 0
     if save.resource_sink:
-        coupons_earned = (save.resource_sink.get("coupons_earned_items") or 0) + (save.resource_sink.get("coupons_earned_dna") or 0)
+        coupons_earned = (save.resource_sink.get("coupons_earned_items") or 0) + (
+            save.resource_sink.get("coupons_earned_dna") or 0
+        )
         coupons_avail = save.resource_sink.get("coupons_available") or 0
 
     record = {
@@ -255,13 +275,17 @@ def _track_save_progress(save) -> None:
     # Check for duplicates
     is_duplicate = False
     for item in history:
-        if (item.get("session_name") == record["session_name"] and
-                item.get("play_duration_seconds") == record["play_duration_seconds"]):
+        if (
+            item.get("session_name") == record["session_name"]
+            and item.get("play_duration_seconds") == record["play_duration_seconds"]
+        ):
             is_duplicate = True
             break
 
     if is_duplicate:
-        print(f"Skipping track: Save state for session '{record['session_name']}' at duration {record['play_duration_seconds']}s already recorded.")
+        print(
+            f"Skipping track: Save state for session '{record['session_name']}' at duration {record['play_duration_seconds']}s already recorded."
+        )
     else:
         history.append(record)
         with open(history_file, "w", encoding="utf-8") as f:
@@ -412,6 +436,97 @@ def _run_save_info(args: argparse.Namespace) -> None:
             print("  B-Tier Missing Details:")
             for r in adv_res["missing"]["B"]:
                 print(f"    * {r['name']}: {r['desc']}")
+
+
+def _run_plan(args: argparse.Namespace) -> None:
+    import os
+    import sys
+
+    from utils.gameplay_plan import build_gameplay_plan, load_save_history
+    from utils.save_parser import SatisfactorySave
+
+    filename = args.filename
+    if filename is None:
+        filename = _find_latest_save_file()
+        if filename is None:
+            print("Error: No save file specified and could not auto-discover any Satisfactory save files.")
+            sys.exit(1)
+        print(f"Auto-discovered latest save file: {filename}")
+
+    if not os.path.exists(filename):
+        print(f"Error: File not found: {filename}")
+        sys.exit(1)
+
+    print(f"Parsing save file: {filename}...")
+    try:
+        save = SatisfactorySave(filename)
+    except Exception as e:
+        print(f"Error parsing save file: {e}")
+        sys.exit(1)
+
+    stats_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "stats")
+    history = load_save_history(os.path.join(stats_dir, "save_history.json"))
+    plan = build_gameplay_plan(save, history)
+
+    print("\n=== Gameplay Plan ===")
+    m = plan["milestone"]
+    print(f"Session: {save.header.get('session_name')}  |  Phase: {m['game_phase']}")
+    print(f"Active Milestone: {m['active_schematic'] or 'None'}")
+    print(
+        f"Purchased Schematics: {m['purchased_schematics_count']}  |  Hard Drives Unlocked: {m['hard_drives_unlocked']}"
+    )
+
+    print("\n--- Next Alternate Recipes To Target ---")
+    r = plan["recipes"]
+    missing_s = [x["name"] for x in r["missing"]["S"]]
+    missing_a = [x["name"] for x in r["missing"]["A"]]
+    if missing_s:
+        print(f"  S-Tier missing: {', '.join(missing_s)}")
+    if missing_a:
+        print(f"  A-Tier missing: {', '.join(missing_a)}")
+    for advice in r["advice"]:
+        print(f"  * {advice}")
+    if not missing_s and not missing_a and not r["advice"]:
+        print("  You have every S/A-Tier alternate recipe unlocked.")
+
+    print("\n--- Resource Sink & Depot ---")
+    res = plan["resources"]
+    if res["coupons_available"]:
+        print(f"  Coupons Available: {res['coupons_available']} (spend them!)")
+    else:
+        print("  No coupons currently available.")
+    print(f"  Total Coupons Earned: {res['total_coupons_earned']}")
+    print(f"  Dimensional Depot item types stored: {res['dimensional_depot_item_types']}")
+
+    print("\n--- Factory Snapshot ---")
+    f = plan["factory"]
+    print(
+        f"  Producers: {f['producers']}  Extractors: {f['extractors']}  Generators: {f['generators']}  Batteries: {f['batteries']}"
+    )
+
+    if plan["delta"]:
+        d = plan["delta"]
+        print(f"\n--- Since Last Snapshot ({d['prior_timestamp']}) ---")
+        print(
+            f"  +{d['hours_played_delta']}h played, +{d['recipes_delta']} recipes, "
+            f"+{d['alternates_delta']} alternates, +{d['coupons_earned_delta']} coupons, "
+            f"+{d['producers_delta']} producers"
+        )
+    else:
+        print("\n--- Since Last Snapshot ---")
+        print(
+            "  No prior snapshot found. Run `sbot plan --track` (or `sbot save --track`) periodically to see progress deltas here."
+        )
+
+    print(f"\n--- Guide Tips ({plan['guide_doc_path']}) ---")
+    if plan["guide_sections"]:
+        for h in plan["guide_sections"]:
+            print(f"  * {h}")
+    else:
+        print("  (guide doc not found)")
+
+    if args.track:
+        _track_save_progress(save)
 
 
 if __name__ == "__main__":
