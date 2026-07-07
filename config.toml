@@ -322,6 +322,7 @@ duration = 3.0
 [exploration]
 max_total_duration_seconds = 25.0
 screenshot_every_leg       = true
+gauge_low_abort            = 0.25
 
 # Health is read from the bottom-left HUD bar (10 lit segments at full health,
 # depletes right-to-left), via Vision.assess(). A leg aborts the outbound

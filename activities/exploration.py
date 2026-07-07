@@ -27,6 +27,7 @@ def get_exploration_route() -> dict:
         "check_interval": cfg.get("exploration.check_interval_seconds", 1.0),
         "ascend_every": cfg.get("exploration.ascend_every_chunks", 0),
         "ascend_pulse": cfg.get("exploration.ascend_pulse_seconds", 0.3),
+        "gauge_low_abort": cfg.get("exploration.gauge_low_abort", 0.25),
     }
 
 
@@ -55,6 +56,7 @@ def explore_leg(
     check_interval: float = 1.0,
     ascend_every: int = 0,
     ascend_pulse: float = 0.3,
+    gauge_low_abort: float = 0.25,
 ) -> dict:
     """
     Runs one leg of an exploration route: turns the camera by turn_dx,
@@ -93,6 +95,7 @@ def explore_leg(
         chunk_index = 0
         died = False
         health_low = False
+        gauge_low = False
         screenshots: list[str] = []
         samples: list[dict] = []
         min_health = 1.0
@@ -129,6 +132,8 @@ def explore_leg(
 
                 health_low = status["health_low"]
                 died = status["died"]
+                gauge_frac = status["gauge_frac"]
+                gauge_low = gauge_frac is not None and gauge_frac <= gauge_low_abort
                 min_health = min(min_health, status["health_frac"])
                 samples.append(
                     {
@@ -137,7 +142,7 @@ def explore_leg(
                         "health_frac": status["health_frac"],
                         "health_segments": status["health_segments"],
                         "damage_red": round(status["damage_red"], 4),
-                        "gauge_frac": status["gauge_frac"],
+                        "gauge_frac": gauge_frac,
                         "died": died,
                     }
                 )
@@ -152,7 +157,7 @@ def explore_leg(
                     turn_dx,
                     status["health_segments"],
                     status["damage_red"],
-                    status["gauge_frac"],
+                    gauge_frac,
                     died,
                 )
                 chunk_index += 1
@@ -170,6 +175,13 @@ def explore_leg(
                         status["health_segments"],
                     )
                     break
+                if gauge_low:
+                    logger.warning(
+                        "Low Hover Pack charge mid-leg (chunk %d, %.2f) — stopping this leg to prevent falling.",
+                        chunk_index,
+                        gauge_frac,
+                    )
+                    break
         finally:
             inp.keys_up(keys)
 
@@ -178,6 +190,7 @@ def explore_leg(
             "duration": elapsed,
             "turn_dx": turn_dx,
             "health_low": health_low,
+            "gauge_low": gauge_low,
             "died": died,
             "min_health_frac": min_health,
             "screenshots": screenshots,

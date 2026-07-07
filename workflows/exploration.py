@@ -51,6 +51,7 @@ class ExplorationWorkflow(_ControlMixin):
         self._stats = {
             "legs_completed": 0,
             "health_aborts": 0,
+            "gauge_aborts": 0,
             "died": 0,
             "returned": False,
             "min_health_frac": 1.0,
@@ -90,6 +91,7 @@ class ExplorationWorkflow(_ControlMixin):
         check_interval = route_cfg["check_interval"]
         ascend_every = route_cfg["ascend_every"]
         ascend_pulse = route_cfg["ascend_pulse"]
+        gauge_low_abort = route_cfg.get("gauge_low_abort", 0.25)
 
         await workflow.execute_activity(
             capture_base_reference,
@@ -130,6 +132,7 @@ class ExplorationWorkflow(_ControlMixin):
                         check_interval,
                         ascend_every,
                         ascend_pulse,
+                        gauge_low_abort,
                     ],
                     start_to_close_timeout=timedelta(seconds=chunk_budget),
                     schedule_to_close_timeout=timedelta(seconds=chunk_budget + 20),
@@ -158,6 +161,11 @@ class ExplorationWorkflow(_ControlMixin):
             if result["health_low"] and not ignore_health_check:
                 self._stats["health_aborts"] += 1
                 workflow.logger.warning("Low health mid-exploration — aborting outbound route early.")
+                break
+
+            if result.get("gauge_low", False):
+                self._stats["gauge_aborts"] += 1
+                workflow.logger.warning("Low Hover Pack gauge mid-exploration — aborting outbound route early to prevent falling.")
                 break
 
         if died_mid_route:
