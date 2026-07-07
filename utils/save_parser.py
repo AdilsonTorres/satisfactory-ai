@@ -382,6 +382,7 @@ class SatisfactorySave:
                 _r_y, offset = read_float(data, offset)
                 _r_z, offset = read_float(data, offset)
                 _r_w, offset = read_float(data, offset)
+                header["rotation"] = [_r_x, _r_y, _r_z, _r_w]
                 # position (3 floats)
                 p_x, offset = read_float(data, offset)
                 p_y, offset = read_float(data, offset)
@@ -485,6 +486,7 @@ class SatisfactorySave:
                 "instance_name": instance_name,
                 "type_path": header["type_path"],
                 "position": header["position"],
+                "rotation": header.get("rotation", [0.0, 0.0, 0.0, 1.0]),
                 "properties": properties,
             }
 
