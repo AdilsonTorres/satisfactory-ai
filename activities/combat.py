@@ -59,11 +59,12 @@ def scan_for_enemy() -> dict:
 def engage_enemy(
     target_x: int,
     target_y: int,
+    enemy_type: str = "",
     screen_w: int | None = None,
     screen_h: int | None = None,
 ) -> str:
     """
-    Engages an enemy at (target_x, target_y).
+    Engages an enemy at (target_x, target_y) using tactical movement strategies.
     Combat parameters come from config.toml[combat].
     Returns: 'killed' | 'escaped' | 'died'
     """
@@ -75,12 +76,19 @@ def engage_enemy(
         center_x, center_y = sw // 2, sh // 2
         max_dur = cfg.get("combat.max_combat_duration_seconds", 10.0)
 
-        logger.info("Engaging enemy at (%d,%d)", target_x, target_y)
+        # Classify enemy characteristics to choose movement strategy
+        is_hog = "hog" in enemy_type.lower()
+        is_spitter = "spitter" in enemy_type.lower()
+        is_stinger = "stinger" in enemy_type.lower()
+        is_hatcher = "hatcher" in enemy_type.lower()
+
+        logger.info("Engaging enemy '%s' at (%d,%d)", enemy_type or "unknown", target_x, target_y)
         inp.aim_at_screen_position(target_x, target_y, center_x, center_y)
         time.sleep(0.1)
 
         combat_start = time.time()
         bursts_fired = 0
+        strafe_dir = 1  # Used to alternate strafing direction
 
         while time.time() - combat_start < max_dur:
             activity.heartbeat(f"combat — {bursts_fired} bursts")
@@ -92,9 +100,34 @@ def engage_enemy(
                 inp.move_backward(1.0)
                 return "escaped"
 
-            inp.shoot()
+            # Execute tactical movement and weapon fire patterns based on classification
+            if is_hog:
+                # 1. Hogs: Charge in straight lines. Strategy: Fire, then dodge sideways.
+                inp.shoot(bursts=3, interval=0.06)
+                inp.dodge(direction="a" if bursts_fired % 2 == 0 else "d")
+            elif is_spitter:
+                # 2. Spitters: Shoot fireballs. Strategy: Continuously strafe sideways to dodge projectiles.
+                if strafe_dir == 1:
+                    inp.strafe_left(0.25)
+                else:
+                    inp.strafe_right(0.25)
+                if bursts_fired % 4 == 0:
+                    strafe_dir = -strafe_dir  # Alternate direction
+                inp.shoot(bursts=2, interval=0.08)
+            elif is_stinger:
+                # 3. Stingers: Jump directly at player. Strategy: Backpedal and fire rapid bursts.
+                inp.move_backward(0.25)
+                inp.shoot(bursts=4, interval=0.06)
+            elif is_hatcher:
+                # 4. Hatchers: Stationary. Strategy: Stand still to maximize aiming precision and burst.
+                time.sleep(0.05)
+                inp.shoot(bursts=5, interval=0.06)
+            else:
+                # Default fallback
+                inp.shoot()
+
             bursts_fired += 1
-            time.sleep(0.1)
+            time.sleep(0.05)
 
             enemy = v.find_enemy()
             if not enemy:

@@ -95,7 +95,7 @@ class CombatPatrolWorkflow(_ControlMixin):
 
             result = await workflow.execute_activity(
                 engage_enemy,
-                args=[enemy["x"], enemy["y"]],
+                args=[enemy["x"], enemy["y"], enemy["type"]],
                 schedule_to_close_timeout=timedelta(seconds=90),
                 heartbeat_timeout=timedelta(seconds=25),
                 retry_policy=NO_RETRY,
