@@ -87,6 +87,13 @@ def main() -> None:
         "--track", action="store_true", help="Record this snapshot in stats/save_history.json after generating the plan"
     )
 
+    # --- plan-production ---
+    plan_prod_parser = subparsers.add_parser("plan-production", help="Calculate optimal factory building and raw node requirements for item or coupon rate goals")
+    plan_prod_parser.add_argument("--item", help="Target output item name (e.g. 'Modular Frame')")
+    plan_prod_parser.add_argument("--rate", type=float, help="Target production rate of the item per minute")
+    plan_prod_parser.add_argument("--coupons", type=float, help="Target coupons per minute to produce")
+    plan_prod_parser.add_argument("filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)")
+
     # --- map ---
     subparsers.add_parser("map", help="Build Hover Pack power grid connectivity map and suggested routes")
 
@@ -110,6 +117,8 @@ def main() -> None:
         _run_save_info(args)
     elif args.command == "plan":
         _run_plan(args)
+    elif args.command == "plan-production":
+        _run_plan_production(args)
     elif args.command == "map":
         _run_map()
     else:
@@ -576,6 +585,71 @@ def _run_map() -> None:
     else:
         if not stats["is_currently_powered"]:
             print("\n[Tip] Walk closer to your power poles (within 30m) to get powered, then run this command again to trace your reachable paths!")
+
+
+def _run_plan_production(args: argparse.Namespace) -> None:
+    import os
+    import sys
+    from tools.factory_planner import generate_production_plan
+
+    filename = args.filename
+    if filename is None:
+        filename = _find_latest_save_file()
+        if filename is None:
+            print("Error: No save file specified and could not auto-discover any Satisfactory save files.")
+            sys.exit(1)
+        print(f"Auto-discovered latest save file: {filename}")
+
+    if not os.path.exists(filename):
+        print(f"Error: File not found: {filename}")
+        sys.exit(1)
+
+    try:
+        plan = generate_production_plan(
+            target_item=args.item,
+            target_rate=args.rate,
+            coupons_per_minute=args.coupons,
+            save_file_path=filename
+        )
+    except Exception as e:
+        print(f"Error generating production plan: {e}")
+        sys.exit(1)
+
+    # Print output report
+    print("\n" + "="*55)
+    print("=== FACTORY PRODUCTION PLAN ===")
+    print("="*55)
+    
+    if plan["coupons_per_minute"] is not None:
+        print(f"Goal:           {plan['coupons_per_minute']:.2f} Coupons/minute")
+        print(f"Current count:  {plan['current_coupons']} coupons earned")
+        print(f"Required rate:  {plan['points_required']:.2f} Awesome Sink Points/min")
+        print(f"Plan Target:    {plan['target_rate']:.4f} {plan['target_item']}/min")
+    else:
+        print(f"Goal Target:    {plan['target_rate']:.2f} {plan['target_item']}/min")
+
+    if plan["warnings"]:
+        print("\n[WARNINGS]")
+        for w in plan["warnings"]:
+            print(f"  * {w}")
+            
+    print("\n--- Raw Resource Node Extraction Requirements ---")
+    print(f"{'Raw Item':<25} | {'Required Rate':<15} | {'Mk.3 Miners (250%)':<20} | {'Details'}")
+    print("-" * 85)
+    for raw_item, details in sorted(plan["raw_materials"].items()):
+        miner_info = plan["miners"].get(raw_item, {"extractors_needed": 0.0, "details": ""})
+        print(f"{raw_item:<25} | {details:<15.2f} | {miner_info['extractors_needed']:<20.2f} | {miner_info['details']}")
+
+    print("\n--- Production Steps & Buildings Required ---")
+    print(f"{'Output Item':<28} | {'Recipe Used':<28} | {'Machine Type':<15} | {'Machines':<10} | {'Status'}")
+    print("-" * 95)
+    for step in sorted(plan["steps"], key=lambda x: x["item"]):
+        status = "Unlocked"
+        if step["alternate"]:
+            status = "Unlocked (Alt)" if step["unlocked"] else "[LOCKED]"
+        print(f"{step['item']:<28} | {step['recipe_name']:<28} | {step['machine']:<15} | {step['machine_count']:<10.2f} | {status}")
+        
+    print("="*55)
 
 
 if __name__ == "__main__":
