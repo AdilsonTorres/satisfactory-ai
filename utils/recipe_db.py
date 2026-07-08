@@ -887,7 +887,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Dark Matter Residue": 20.0, "SAM": 10.0},
             "outputs": {"Dark Matter Crystal": 20.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_DarkMatterTrap"
+            "schematic": "Schematic_Alternate_DarkMatter_Trap"
         }
     },
     "Diamond": {

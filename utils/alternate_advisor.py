@@ -8,7 +8,7 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
         "tier": "S",
         "desc": "Required to get Turbofuel and Rocket Fuel. Not recommended for basic Coal plants.",
     },
-    "Schematic_Alternate_DarkMatterTrap": {
+    "Schematic_Alternate_DarkMatter_Trap": {
         "name": "Dark Matter Trap",
         "tier": "S",
         "desc": "Effectively halves the SAM needed to make Dark Matter Crystals with no downsides.",
