@@ -352,28 +352,8 @@ ascend_pulse_seconds = 0.3
 
 [[exploration.route]]
 keys = ["w"]
-duration = 2.0
-turn_dx = 0
-
-[[exploration.route]]
-keys = ["w", "d"]
-duration = 1.5
-turn_dx = 0
-
-[[exploration.route]]
-keys = ["w", "space"]
-duration = 2.0
-turn_dx = 0
-
-[[exploration.route]]
-keys = ["a"]
-duration = 1.5
-turn_dx = 0
-
-[[exploration.route]]
-keys = ["s"]
-duration = 2.0
-turn_dx = 0
+duration = 8.5
+turn_dx = -1645
 
 # ---------------------------------------------------------------------------
 # Combat
