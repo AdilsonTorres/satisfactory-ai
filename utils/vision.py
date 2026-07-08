@@ -404,13 +404,24 @@ class Vision:
             "enemy_hatcher",
             "enemy_flying_crab",
         ]
+
+        offset_x, offset_y = 0, 0
         if frame is None:
-            frame = self.capture()
+            # FAST PATH: Grab a 1280x720 center crop of the gameplay area to avoid full 7.5s/2.4s grab
+            sw = int(cfg.get("display.screen_width", 2560))
+            sh = int(cfg.get("display.screen_height", 1440))
+            w, h = 1280, 720
+            x = (sw - w) // 2
+            y = (sh - h) // 2
+            frame = self.grab_region(x, y, w, h)
+            offset_x, offset_y = x, y
 
         for name in enemy_templates:
             try:
                 result = self.find(name, frame=frame)
                 if result.found:
+                    result.x += offset_x
+                    result.y += offset_y
                     return result
             except FileNotFoundError:
                 pass

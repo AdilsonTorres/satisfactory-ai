@@ -1,14 +1,12 @@
 import asyncio
-from collections import Counter
+from typing import Any
 
-import pytest
 from temporalio import activity
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from workflows.combat_patrol import CombatPatrolWorkflow
 from workflows.exploration import ExplorationWorkflow
-
 
 # ==============================================================================
 # 1. Mock Activities Definitions
@@ -35,7 +33,7 @@ async def mock_capture_base_reference() -> None:
 
 
 # A helper list to capture arguments passed to the mock explore_leg
-explore_leg_calls = []
+explore_leg_calls: list[dict[str, Any]] = []
 
 @activity.defn(name="explore_leg")
 async def mock_explore_leg(
@@ -54,10 +52,10 @@ async def mock_explore_leg(
         "turn_dx": turn_dx,
         "leg_idx": leg_idx
     })
-    
+
     # Simulate a gauge abort on leg index 1 if requested by test
     should_abort_gauge = (leg_idx == 1 and duration == 1.5 and keys == ["w", "d"])
-    
+
     return {
         "died": False,
         "health_low": False,
@@ -78,12 +76,12 @@ async def mock_handle_death_respawn() -> None:
 
 
 # Combat activities mock state
-combat_enemy_queue = []
-combat_engagement_results = []
-engage_enemy_calls = []
+combat_enemy_queue: list[dict[str, Any]] = []
+combat_engagement_results: list[str] = []
+engage_enemy_calls: list[dict[str, Any]] = []
 
 @activity.defn(name="scan_for_enemy")
-async def mock_scan_for_enemy() -> dict:
+async def mock_scan_for_enemy() -> dict[str, Any]:
     if combat_enemy_queue:
         return combat_enemy_queue.pop(0)
     return {"found": False, "x": 0, "y": 0, "confidence": 0.0, "type": "", "hazard": False}
@@ -128,7 +126,7 @@ def test_exploration_workflow_success():
     async def run_test():
         env = await WorkflowEnvironment.start_time_skipping()
         try:
-            # Start game activities worker
+            # Start game activities worker and secondary persistence worker concurrently
             async with Worker(
                 env.client,
                 task_queue="test-explore-queue",
@@ -139,26 +137,24 @@ def test_exploration_workflow_success():
                     mock_explore_leg,
                     mock_return_via_reverse_route
                 ]
+            ), Worker(
+                env.client,
+                task_queue="satisfactory-persist",
+                activities=[mock_persist_session_stats, mock_take_debug_screenshot]
             ):
-                # Start secondary persistence worker
-                async with Worker(
-                    env.client,
-                    task_queue="satisfactory-persist",
-                    activities=[mock_persist_session_stats, mock_take_debug_screenshot]
-                ):
-                    result = await env.client.execute_workflow(
-                        ExplorationWorkflow.run,
-                        args=[10.0, False, False],  # max_seconds, ignore_health, no_return
-                        id="test-exploration-wf-success",
-                        task_queue="test-explore-queue"
-                    )
-                    
-                    assert result["status"] == "completed"
-                    assert result["legs_completed"] == 2
-                    assert result["returned"] is True
-                    assert len(explore_leg_calls) == 2
-                    assert explore_leg_calls[0]["keys"] == ["w"]
-                    assert explore_leg_calls[1]["keys"] == ["w", "d"]
+                result = await env.client.execute_workflow(
+                    ExplorationWorkflow.run,
+                    args=[10.0, False, False],  # max_seconds, ignore_health, no_return
+                    id="test-exploration-wf-success",
+                    task_queue="test-explore-queue"
+                )
+
+                assert result["status"] == "completed"
+                assert result["legs_completed"] == 2
+                assert result["returned"] is True
+                assert len(explore_leg_calls) == 2
+                assert explore_leg_calls[0]["keys"] == ["w"]
+                assert explore_leg_calls[1]["keys"] == ["w", "d"]
         finally:
             await env.shutdown()
 
@@ -182,23 +178,22 @@ def test_exploration_workflow_no_return():
                     mock_explore_leg,
                     mock_return_via_reverse_route
                 ]
+            ), Worker(
+                env.client,
+                task_queue="satisfactory-persist",
+                activities=[mock_persist_session_stats, mock_take_debug_screenshot]
             ):
-                async with Worker(
-                    env.client,
-                    task_queue="satisfactory-persist",
-                    activities=[mock_persist_session_stats, mock_take_debug_screenshot]
-                ):
-                    result = await env.client.execute_workflow(
-                        ExplorationWorkflow.run,
-                        # max_seconds=10.0, ignore_health=False, no_return=True
-                        args=[10.0, False, True],
-                        id="test-exploration-wf-no-return",
-                        task_queue="test-explore-queue"
-                    )
-                    
-                    assert result["status"] == "completed"
-                    assert result["legs_completed"] == 2
-                    assert result["returned"] is False  # stayed at target!
+                result = await env.client.execute_workflow(
+                    ExplorationWorkflow.run,
+                    # max_seconds=10.0, ignore_health=False, no_return=True
+                    args=[10.0, False, True],
+                    id="test-exploration-wf-no-return",
+                    task_queue="test-explore-queue"
+                )
+
+                assert result["status"] == "completed"
+                assert result["legs_completed"] == 2
+                assert result["returned"] is False  # stayed at target!
         finally:
             await env.shutdown()
 
@@ -222,25 +217,24 @@ def test_exploration_workflow_gauge_abort():
                     mock_explore_leg,
                     mock_return_via_reverse_route
                 ]
+            ), Worker(
+                env.client,
+                task_queue="satisfactory-persist",
+                activities=[mock_persist_session_stats, mock_take_debug_screenshot]
             ):
-                async with Worker(
-                    env.client,
-                    task_queue="satisfactory-persist",
-                    activities=[mock_persist_session_stats, mock_take_debug_screenshot]
-                ):
-                    result = await env.client.execute_workflow(
-                        ExplorationWorkflow.run,
-                        args=[10.0, False, False],
-                        id="test-exploration-wf-gauge-abort",
-                        task_queue="test-explore-queue"
-                    )
-                    
-                    # In mock_explore_leg, we trigger a gauge abort on leg index 1.
-                    # The workflow should abort the outbound leg loop and trigger return_via_reverse_route.
-                    assert result["status"] == "completed"
-                    assert result["gauge_aborts"] == 1
-                    assert result["legs_completed"] == 2  # both leg 0 and leg 1 ran
-                    assert result["returned"] is True
+                result = await env.client.execute_workflow(
+                    ExplorationWorkflow.run,
+                    args=[10.0, False, False],
+                    id="test-exploration-wf-gauge-abort",
+                    task_queue="test-explore-queue"
+                )
+
+                # In mock_explore_leg, we trigger a gauge abort on leg index 1.
+                # The workflow should abort the outbound leg loop and trigger return_via_reverse_route.
+                assert result["status"] == "completed"
+                assert result["gauge_aborts"] == 1
+                assert result["legs_completed"] == 2  # both leg 0 and leg 1 ran
+                assert result["returned"] is True
         finally:
             await env.shutdown()
 
@@ -250,7 +244,7 @@ def test_exploration_workflow_gauge_abort():
 def test_combat_patrol_workflow():
     global combat_enemy_queue, combat_engagement_results, engage_enemy_calls
     engage_enemy_calls.clear()
-    
+
     # Setup mock sequence of scanned enemies
     combat_enemy_queue = [
         {"found": True, "x": 100, "y": 200, "confidence": 0.95, "type": "enemy_hog", "hazard": False},
@@ -258,7 +252,7 @@ def test_combat_patrol_workflow():
         {"found": True, "x": 300, "y": 400, "confidence": 0.99, "type": "enemy_hog_nuclear", "hazard": True}, # Hazard (retreats)
         {"found": True, "x": 200, "y": 300, "confidence": 0.88, "type": "enemy_stinger", "hazard": False}, # Player dies in this engagement
     ]
-    
+
     # Setup mock engagement results
     # 1. Hog killed, 2. Spitter killed, 3. (Nuclear hog bypassed), 4. Player dies
     combat_engagement_results = ["killed", "killed", "died"]
@@ -276,25 +270,24 @@ def test_combat_patrol_workflow():
                     mock_retreat_from_hazard,
                     mock_handle_death_respawn
                 ]
+            ), Worker(
+                env.client,
+                task_queue="satisfactory-persist",
+                activities=[mock_persist_session_stats, mock_take_debug_screenshot]
             ):
-                async with Worker(
-                    env.client,
-                    task_queue="satisfactory-persist",
-                    activities=[mock_persist_session_stats, mock_take_debug_screenshot]
-                ):
-                    result = await env.client.execute_workflow(
-                        CombatPatrolWorkflow.run,
-                        args=[2, 5], # max_kills=2, screenshot_every_kills=5
-                        id="test-combat-patrol-wf",
-                        task_queue="test-combat-patrol-queue"
-                    )
-                    
-                    assert result["status"] == "stopped"
-                    assert result["kills"] == 2
-                    assert len(engage_enemy_calls) == 2
-                    # Verify correct parameters were passed to engage_enemy (specifically target names for strategy selection)
-                    assert engage_enemy_calls[0]["type"] == "enemy_hog"
-                    assert engage_enemy_calls[1]["type"] == "enemy_spitter"
+                result = await env.client.execute_workflow(
+                    CombatPatrolWorkflow.run,
+                    args=[2, 5], # max_kills=2, screenshot_every_kills=5
+                    id="test-combat-patrol-wf",
+                    task_queue="test-combat-patrol-queue"
+                )
+
+                assert result["status"] == "stopped"
+                assert result["kills"] == 2
+                assert len(engage_enemy_calls) == 2
+                # Verify correct parameters were passed to engage_enemy (specifically target names for strategy selection)
+                assert engage_enemy_calls[0]["type"] == "enemy_hog"
+                assert engage_enemy_calls[1]["type"] == "enemy_spitter"
         finally:
             await env.shutdown()
 
