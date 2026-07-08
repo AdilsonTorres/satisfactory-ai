@@ -37,12 +37,11 @@ class GiftFarmWorkflow(_ControlMixin):
             config.toml). Defaults to a single anonymous doggo.
         ammo_per_craft (int):           Rifle Ammo per craft cycle [50]
         screenshot_every_cycles (int):  Screenshot every N cycles [10]
-        cycle_interval_seconds (float): Sleep between cycles [50.0]. The
+        cycle_interval_seconds (float): Sleep between cycles [60.0]. The
             gift roll only starts once a doggo's one-slot inventory is
             empty and averaged ~15min measured live with one doggo, so
-            short intervals are mostly menu/camera churn. Lowered from
-            60s to 50s on 2026-07-05 as an A/B test to see if it yields
-            more gifts; the per-doggo history in stats/gift_history.db
+            short intervals are mostly menu/camera churn. Reverted from
+            50s to 60s on 2026-07-08 to reduce camera/menu churn.
             (written via record_gift_check) has the data to compare.
 
     Every check — hit or empty — is persisted per doggo with timestamp,
@@ -112,7 +111,7 @@ class GiftFarmWorkflow(_ControlMixin):
         doggos: list[dict] | None = None,
         ammo_per_craft: int = 50,
         screenshot_every_cycles: int = 10,
-        cycle_interval_seconds: float = 50.0,
+        cycle_interval_seconds: float = 60.0,
         _resume_stats: dict | None = None,
     ) -> dict:
         if _resume_stats is not None:
