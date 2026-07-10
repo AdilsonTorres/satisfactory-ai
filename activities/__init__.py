@@ -26,6 +26,8 @@ from activities.exploration import capture_base_reference, explore_leg, get_expl
 from activities.inventory import (
     check_inventory_full,
     collect_doggo_gift,
+    deposit_coal_to_storage,
+    download_coal_from_depot,
     feed_wild_doggo,
     open_storage_and_deposit_loot,
 )
@@ -52,6 +54,8 @@ GAME_ACTIVITIES: Sequence[Callable[..., Any]] = [
     navigate_to_equipment_workshop,
     navigate_to_location,
     open_storage_and_deposit_loot,
+    download_coal_from_depot,
+    deposit_coal_to_storage,
     reset_to_safe_state,
     retreat_from_hazard,
     return_via_reverse_route,

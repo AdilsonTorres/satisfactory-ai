@@ -45,5 +45,7 @@ def send_workflow_signal(target_workflow_id: str, signal_name: str) -> None:
     except Exception as exc:
         logger.info(
             "Could not signal '%s' on workflow '%s' (%s) — probably not running; nothing to do.",
-            signal_name, target_workflow_id, exc,
+            signal_name,
+            target_workflow_id,
+            exc,
         )

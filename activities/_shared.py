@@ -78,7 +78,11 @@ def press_until_open(
         result = find()
         logger.debug(
             "open %s attempt %d/%d: conf=%.2f found=%s",
-            template, n, attempts, result.confidence, result.found,
+            template,
+            n,
+            attempts,
+            result.confidence,
+            result.found,
         )
     return result
 

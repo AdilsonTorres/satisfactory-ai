@@ -95,6 +95,7 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
         "name": "Aluminum Beam",
         "tier": "A",
         "desc": "Makes formerly resource-heavy steel beams extremely cheap to manufacture.",
+        "aliases": ["Schematic_Alternate_SteelBeam_Aluminum", "Recipe_Alternate_SteelBeam_Aluminum"],
     },
     "Schematic_Alternate_AluminumRod": {
         "name": "Aluminum Rod",
@@ -125,6 +126,7 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
         "name": "Heat Exchanger",
         "tier": "A",
         "desc": "Avoids copper sheets by using rubber, simplifying late game heat sink lines.",
+        "aliases": ["Schematic_Alternate_HeatSink1", "Recipe_Alternate_HeatSink_1", "Recipe_Alternate_HeatSink1"],
     },
     "Schematic_Alternate_Cable1": {
         "name": "Insulated Cable",
@@ -140,11 +142,13 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
         "name": "Oil-Based Diamonds",
         "tier": "A",
         "desc": "Surprisingly good. Yields massive amounts of diamonds from pure oil nodes for minimal work.",
+        "aliases": ["Schematic_Alternate_Diamond_OilBased", "Recipe_Alternate_Diamond_OilBased"],
     },
     "Schematic_Alternate_PinkDiamonds": {
         "name": "Pink Diamonds",
         "tier": "A",
         "desc": "Highly efficient diamond recipe. Uses less coal and very little quartz.",
+        "aliases": ["Schematic_Alternate_Diamond_Pink", "Recipe_Alternate_Diamond_Pink"],
     },
     "Schematic_Alternate_OCSupercomputer": {
         "name": "OC Supercomputer",
@@ -209,22 +213,22 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
     # === B-Tier: Broadly Good / Small Upgrades ===
     "Schematic_Alternate_CircuitBoard1": {
         "name": "Caterium Circuit Board",
-        "tier": "B",
+        "tier": "D",
         "desc": "Solid improvement but quickwire-heavy. Electrode Circuit Board is usually preferable.",
     },
     "Schematic_Alternate_Wire2": {
         "name": "Caterium Wire",
-        "tier": "B",
+        "tier": "D",
         "desc": "Good in places without copper supply, but generally a downgrade from Fused Wire.",
     },
     "Schematic_Alternate_Silica": {
         "name": "Cheap Silica",
-        "tier": "B",
+        "tier": "C",
         "desc": "Flexible, efficient, and handy late-game for aluminum lines.",
     },
     "Schematic_Alternate_IngotSteel2": {
         "name": "Compacted Steel Ingot",
-        "tier": "B",
+        "tier": "D",
         "desc": "Saves coal by using compacted coal byproduct from late game fuel chains.",
     },
     "Schematic_Alternate_Silica_Distilled": {
@@ -244,12 +248,12 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
     },
     "Schematic_Alternate_EncasedIndustrialBeam": {
         "name": "Encased Industrial Pipe",
-        "tier": "B",
+        "tier": "D",
         "desc": "Excellent early on, but obsoleted by Aluminum Beams later.",
     },
     "Schematic_Alternate_FineConcrete": {
         "name": "Fine Concrete",
-        "tier": "B",
+        "tier": "D",
         "desc": "Gives massive concrete output early, but Wet Concrete is preferred later.",
     },
     "Schematic_Alternate_UraniumCell1": {
@@ -274,12 +278,12 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
     },
     "Schematic_Alternate_CircuitBoard2": {
         "name": "Silicon Circuit Board",
-        "tier": "B",
+        "tier": "D",
         "desc": "Good when combined with Steamed Copper Sheet, but other alts exceed it.",
     },
     "Schematic_Alternate_SteelCoatedPlate": {
         "name": "Steel Cast Plate",
-        "tier": "B",
+        "tier": "D",
         "desc": "Decent early game steel plate option, though Coated Iron Plate is better.",
     },
     "Schematic_Alternate_Rotor": {
@@ -289,7 +293,7 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
     },
     "Schematic_Alternate_ModularFrame": {
         "name": "Steeled Frame",
-        "tier": "B",
+        "tier": "D",
         "desc": "Decent early/mid-game frame recipe but mediocre once aluminum is unlocked.",
     },
     "Schematic_Alternate_ReinforcedIronPlate1": {
@@ -301,6 +305,24 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
         "name": "Uranium Fuel Unit",
         "tier": "B",
         "desc": "Helps save uranium resources if building mass nuclear layouts.",
+    },
+    # === C-Tier: Situational / Specific Best In Class ===
+    "Schematic_Alternate_FusedQuickwire": {
+        "name": "Fused Quickwire",
+        "tier": "C",
+        "desc": "Saves Caterium by mixing in Copper. Very high output, but requires double input feeds.",
+        "aliases": ["Schematic_Alternate_Quickwire", "Recipe_Alternate_Quickwire"],
+    },
+    "Schematic_Alternate_Stator": {
+        "name": "Quickwire Stator",
+        "tier": "C",
+        "desc": "Allows making Stators using Caterium/Quickwire instead of Steel. Useful for bypassing steel requirements.",
+    },
+    "Schematic_Alternate_SteamedCopperSheet": {
+        "name": "Steamed Copper Sheet",
+        "tier": "C",
+        "desc": "Best in class for maximizing copper sheet yield. Uses Refinery water loops to increase output efficiency.",
+        "aliases": ["Recipe_Alternate_SteamedCopperSheet"],
     },
     # === F-Tier: Noob Traps / Overrated / Dead Weight ===
     "Schematic_Alternate_AlcladCasing": {
@@ -356,33 +378,52 @@ SUNDOWNKID_TIER_LIST: dict[str, dict[str, Any]] = {
 }
 
 
+def clean_id(name: str) -> str:
+    """Normalize schematic or recipe names to their base string, removing separators and prefixes."""
+    name = name.split(".")[-1].removesuffix("_C")
+    for prefix in [
+        "Schematic_Alternate_",
+        "Recipe_Alternate_",
+        "Schematic_",
+        "Recipe_",
+        "Research_Sulfur_",
+        "Research_",
+    ]:
+        if name.startswith(prefix):
+            name = name[len(prefix) :]
+    return name.lower().replace("_", "").replace("-", "")
+
+
+def is_alternate_or_research(u: str) -> bool:
+    """Verify if a schematic/recipe name is an alternate recipe or MAM research tree node to avoid standard recipe false positives."""
+    u_lower = u.lower()
+    return not (("schematic_" in u_lower or "recipe_" in u_lower) and "alternate" not in u_lower)
+
+
 def get_recipe_recommendations(unlocked_schematics: list[str]) -> dict[str, Any]:
-    """Analyzes unlocked alternate schematics and returns categorized list of unlocked,
+    """Analyzes unlocked alternate schematics and recipes and returns categorized list of unlocked,
 
     missing, and advice recommendations based on SundownKid's tier list.
     """
-    unlocked_set = set(unlocked_schematics)
+    unlocked_set = {u for u in unlocked_schematics if is_alternate_or_research(u)}
 
     results: dict[str, Any] = {
-        "unlocked": {"S": [], "A": [], "B": [], "F": []},
-        "missing": {"S": [], "A": [], "B": [], "F": []},
+        "unlocked": {"S": [], "A": [], "B": [], "C": [], "D": [], "F": []},
+        "missing": {"S": [], "A": [], "B": [], "C": [], "D": [], "F": []},
         "total_ranked_unlocked": 0,
         "advice": [],
     }
 
     for schem_id, info in SUNDOWNKID_TIER_LIST.items():
-        # Match schematic name (e.g. Schematic_Alternate_Screw)
-        # The save parser strips "_C" and splits by "."
         aliases = info.get("aliases", [])
         candidates = [schem_id, *aliases]
+        clean_candidates = [clean_id(c) for c in candidates]
+
         is_unlocked = False
-        for cand in candidates:
-            cand_suffix = cand.split(".")[-1]
-            for u in unlocked_set:
-                if u == cand or u.endswith(cand_suffix):
-                    is_unlocked = True
-                    break
-            if is_unlocked:
+        for u in unlocked_set:
+            u_clean = clean_id(u)
+            if u_clean in clean_candidates:
+                is_unlocked = True
                 break
 
         tier = info["tier"]
@@ -394,7 +435,7 @@ def get_recipe_recommendations(unlocked_schematics: list[str]) -> dict[str, Any]
 
         if is_unlocked:
             results["unlocked"][tier].append(recipe_data)
-            if tier in ("S", "A", "B"):
+            if tier in ("S", "A", "B", "C", "D"):
                 results["total_ranked_unlocked"] += 1
         else:
             results["missing"][tier].append(recipe_data)

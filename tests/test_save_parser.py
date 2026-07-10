@@ -439,7 +439,23 @@ def test_find_latest_save_file(tmp_path, monkeypatch):
 
     assert _find_latest_save_file() is None
 
-    save_dir = tmp_path / "local" / "Steam" / "steamapps" / "compatdata" / "526870" / "pfx" / "drive_c" / "users" / "steamuser" / "AppData" / "Local" / "FactoryGame" / "Saved" / "SaveGames"
+    save_dir = (
+        tmp_path
+        / "local"
+        / "Steam"
+        / "steamapps"
+        / "compatdata"
+        / "526870"
+        / "pfx"
+        / "drive_c"
+        / "users"
+        / "steamuser"
+        / "AppData"
+        / "Local"
+        / "FactoryGame"
+        / "Saved"
+        / "SaveGames"
+    )
     save_dir.mkdir(parents=True, exist_ok=True)
 
     assert _find_latest_save_file() is None

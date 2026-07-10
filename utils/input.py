@@ -150,18 +150,18 @@ def _kwin_activate(window_title: str) -> bool:
     try:
         subprocess.run(
             [*base, "org.kde.kwin.Scripting.unloadScript", "sat-activate"],
-            capture_output=True, timeout=3,
+            capture_output=True,
+            timeout=3,
         )
         loaded = subprocess.run(
             [*base, "org.kde.kwin.Scripting.loadScript", path, "sat-activate"],
-            capture_output=True, timeout=3,
+            capture_output=True,
+            timeout=3,
         )
-        subprocess.run(
-            [*base, "org.kde.kwin.Scripting.start"], capture_output=True, timeout=3
-        )
+        subprocess.run([*base, "org.kde.kwin.Scripting.start"], capture_output=True, timeout=3)
         time.sleep(0.3)
         return loaded.returncode == 0
-    except (subprocess.SubprocessError, OSError):
+    except subprocess.SubprocessError, OSError:
         return False
 
 
@@ -172,10 +172,12 @@ def _active_window_name() -> str:
     try:
         r = subprocess.run(
             ["xdotool", "getactivewindow", "getwindowname"],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         return r.stdout.strip()
-    except (subprocess.SubprocessError, OSError):
+    except subprocess.SubprocessError, OSError:
         return ""
 
 
@@ -196,7 +198,8 @@ def focus_game(window_title: str = "Satisfactory", retries: int = 3) -> bool:
         if not _kwin_activate(window_title):
             subprocess.run(
                 ["xdotool", "search", "--name", window_title, "windowactivate", "--sync"],
-                capture_output=True, timeout=3,
+                capture_output=True,
+                timeout=3,
             )
         time.sleep(0.15)
         if window_title in _active_window_name():
@@ -227,15 +230,15 @@ def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
     sw = cfg.get("display.screen_width", 2560)
     sh = cfg.get("display.screen_height", 1440)
     _get_mouse().position = (sw // 2, sh // 2)
-    time.sleep(0.08)
+    time.sleep(0.2)
     ui = _get_uinput_mouse()
     for _ in range(2):
         ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 1)
         ui.syn()
-        time.sleep(0.05)
+        time.sleep(0.1)
         ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 0)
         ui.syn()
-        time.sleep(0.1)
+        time.sleep(0.2)
     return activated
 
 
@@ -282,6 +285,7 @@ def keys_down(keys: list[str]) -> None:
 
 def keys_up(keys: list[str]) -> None:
     import contextlib
+
     ui = _get_uinput_keyboard()
     for k in keys:
         with contextlib.suppress(Exception):

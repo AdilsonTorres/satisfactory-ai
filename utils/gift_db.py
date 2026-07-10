@@ -80,17 +80,13 @@ def gift_intervals(doggo: str, db_path: Path | None = None) -> list[float]:
 def summary(db_path: Path | None = None) -> dict:
     """Totals per doggo and per item — the raw material for reports."""
     with _connect(db_path) as conn:
-        per_doggo = dict(
-            conn.execute("SELECT doggo, SUM(collected) FROM gift_checks GROUP BY doggo").fetchall()
-        )
+        per_doggo = dict(conn.execute("SELECT doggo, SUM(collected) FROM gift_checks GROUP BY doggo").fetchall())
         per_item = dict(
             conn.execute(
                 "SELECT item, COUNT(*) FROM gift_checks WHERE collected = 1 AND item IS NOT NULL GROUP BY item"
             ).fetchall()
         )
-        first_last = conn.execute(
-            "SELECT MIN(ts), MAX(ts), SUM(collected), COUNT(*) FROM gift_checks"
-        ).fetchone()
+        first_last = conn.execute("SELECT MIN(ts), MAX(ts), SUM(collected), COUNT(*) FROM gift_checks").fetchone()
     return {
         "gifts_per_doggo": per_doggo,
         "gifts_per_item": per_item,

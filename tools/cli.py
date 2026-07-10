@@ -66,7 +66,9 @@ def main() -> None:
     exp_parser.add_argument("--id", default="exploration-run", help="Workflow id")
     exp_parser.add_argument("--max-seconds", type=float, default=None, help="Override movement budget")
     exp_parser.add_argument("--ignore-health", action="store_true", help="Skip low-health abort")
-    exp_parser.add_argument("--no-return", action="store_true", help="Skip the return-to-base sequence and stay at destination")
+    exp_parser.add_argument(
+        "--no-return", action="store_true", help="Skip the return-to-base sequence and stay at destination"
+    )
 
     # --- save ---
     save_parser = subparsers.add_parser("save", help="Satisfactory save file diagnostics")
@@ -88,11 +90,16 @@ def main() -> None:
     )
 
     # --- plan-production ---
-    plan_prod_parser = subparsers.add_parser("plan-production", help="Calculate optimal factory building and raw node requirements for item or coupon rate goals")
+    plan_prod_parser = subparsers.add_parser(
+        "plan-production",
+        help="Calculate optimal factory building and raw node requirements for item or coupon rate goals",
+    )
     plan_prod_parser.add_argument("--item", help="Target output item name (e.g. 'Modular Frame')")
     plan_prod_parser.add_argument("--rate", type=float, help="Target production rate of the item per minute")
     plan_prod_parser.add_argument("--coupons", type=float, help="Target coupons per minute to produce")
-    plan_prod_parser.add_argument("filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)")
+    plan_prod_parser.add_argument(
+        "filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)"
+    )
 
     # --- map ---
     subparsers.add_parser("map", help="Build Hover Pack power grid connectivity map and suggested routes")
@@ -204,7 +211,9 @@ async def _trigger_exploration(args: argparse.Namespace) -> None:
     from workflows.exploration import ExplorationWorkflow
 
     client = await Client.connect("localhost:7233")
-    print(f"Connected. Starting ExplorationWorkflow(id={args.id}, max_seconds={args.max_seconds}, no_return={args.no_return})...")
+    print(
+        f"Connected. Starting ExplorationWorkflow(id={args.id}, max_seconds={args.max_seconds}, no_return={args.no_return})..."
+    )
 
     result = await client.execute_workflow(
         ExplorationWorkflow.run,
@@ -351,7 +360,7 @@ def _run_save_info(args: argparse.Namespace) -> None:
     print(f"Recipes Unlocked:       {len(save.recipes)} ({save.alternate_recipes_unlocked} alternates)")
     from utils.alternate_advisor import get_recipe_recommendations
 
-    adv_res = get_recipe_recommendations(save.schematics)
+    adv_res = get_recipe_recommendations(save.schematics + save.recipes)
     print(f"SundownKid Ranked Alternates: {adv_res['total_ranked_unlocked']} unlocked (S/A tier)")
 
     if save.players:
@@ -421,6 +430,10 @@ def _run_save_info(args: argparse.Namespace) -> None:
     a_missing = [r["name"] for r in adv_res["missing"]["A"]]
     b_unlocked = [r["name"] for r in adv_res["unlocked"]["B"]]
     b_missing = [r["name"] for r in adv_res["missing"]["B"]]
+    c_unlocked = [r["name"] for r in adv_res["unlocked"]["C"]]
+    c_missing = [r["name"] for r in adv_res["missing"]["C"]]
+    d_unlocked = [r["name"] for r in adv_res["unlocked"]["D"]]
+    d_missing = [r["name"] for r in adv_res["missing"]["D"]]
     f_unlocked = [r["name"] for r in adv_res["unlocked"]["F"]]
 
     print(f"  - S-Tier Unlocked: {', '.join(s_unlocked) or 'None'}")
@@ -429,6 +442,10 @@ def _run_save_info(args: argparse.Namespace) -> None:
     print(f"  - A-Tier Missing:  {', '.join(a_missing) or 'None'}")
     print(f"  - B-Tier Unlocked: {', '.join(b_unlocked) or 'None'}")
     print(f"  - B-Tier Missing:  {', '.join(b_missing) or 'None'}")
+    print(f"  - C-Tier Unlocked: {', '.join(c_unlocked) or 'None'}")
+    print(f"  - C-Tier Missing:  {', '.join(c_missing) or 'None'}")
+    print(f"  - D-Tier Unlocked: {', '.join(d_unlocked) or 'None'}")
+    print(f"  - D-Tier Missing:  {', '.join(d_missing) or 'None'}")
     if f_unlocked:
         print(f"  - Warning F-Tier Unlocked: {', '.join(f_unlocked)} (Noob trap!)")
 
@@ -450,6 +467,14 @@ def _run_save_info(args: argparse.Namespace) -> None:
         if adv_res["missing"]["B"]:
             print("  B-Tier Missing Details:")
             for r in adv_res["missing"]["B"]:
+                print(f"    * {r['name']}: {r['desc']}")
+        if adv_res["missing"]["C"]:
+            print("  C-Tier Missing Details:")
+            for r in adv_res["missing"]["C"]:
+                print(f"    * {r['name']}: {r['desc']}")
+        if adv_res["missing"]["D"]:
+            print("  D-Tier Missing Details:")
+            for r in adv_res["missing"]["D"]:
                 print(f"    * {r['name']}: {r['desc']}")
 
 
@@ -559,7 +584,9 @@ def _run_map() -> None:
     print(f"Total Active Power Nodes:    {stats['total_active_nodes']}")
     print(f"Total Power Wires Matched:   {stats['total_wires']}")
     print(f"Reachable Nodes from Player: {stats['reachable_nodes_count']}")
-    print(f"Reachable Network Length:    {stats['reachable_network_length_meters']:.1f} meters ({stats['reachable_network_length_meters']/1000.0:.2f} km)")
+    print(
+        f"Reachable Network Length:    {stats['reachable_network_length_meters']:.1f} meters ({stats['reachable_network_length_meters'] / 1000.0:.2f} km)"
+    )
     print(f"Is Player Powered Right Now: {'YES' if stats['is_currently_powered'] else 'NO'}")
 
     print("\n================== Discovered Points of Interest ==================")
@@ -584,12 +611,15 @@ def _run_map() -> None:
                 print(f"      turn_dx = 0  # direction_yaw={leg['direction_yaw']}°")
     else:
         if not stats["is_currently_powered"]:
-            print("\n[Tip] Walk closer to your power poles (within 30m) to get powered, then run this command again to trace your reachable paths!")
+            print(
+                "\n[Tip] Walk closer to your power poles (within 30m) to get powered, then run this command again to trace your reachable paths!"
+            )
 
 
 def _run_plan_production(args: argparse.Namespace) -> None:
     import os
     import sys
+
     from tools.factory_planner import generate_production_plan
 
     filename = args.filename
@@ -606,20 +636,17 @@ def _run_plan_production(args: argparse.Namespace) -> None:
 
     try:
         plan = generate_production_plan(
-            target_item=args.item,
-            target_rate=args.rate,
-            coupons_per_minute=args.coupons,
-            save_file_path=filename
+            target_item=args.item, target_rate=args.rate, coupons_per_minute=args.coupons, save_file_path=filename
         )
     except Exception as e:
         print(f"Error generating production plan: {e}")
         sys.exit(1)
 
     # Print output report
-    print("\n" + "="*55)
+    print("\n" + "=" * 55)
     print("=== FACTORY PRODUCTION PLAN ===")
-    print("="*55)
-    
+    print("=" * 55)
+
     if plan["coupons_per_minute"] is not None:
         print(f"Goal:           {plan['coupons_per_minute']:.2f} Coupons/minute")
         print(f"Current count:  {plan['current_coupons']} coupons earned")
@@ -632,7 +659,7 @@ def _run_plan_production(args: argparse.Namespace) -> None:
         print("\n[WARNINGS]")
         for w in plan["warnings"]:
             print(f"  * {w}")
-            
+
     print("\n--- Raw Resource Node Extraction Requirements ---")
     print(f"{'Raw Item':<25} | {'Required Rate':<15} | {'Mk.3 Miners (250%)':<20} | {'Details'}")
     print("-" * 85)
@@ -647,9 +674,11 @@ def _run_plan_production(args: argparse.Namespace) -> None:
         status = "Unlocked"
         if step["alternate"]:
             status = "Unlocked (Alt)" if step["unlocked"] else "[LOCKED]"
-        print(f"{step['item']:<28} | {step['recipe_name']:<28} | {step['machine']:<15} | {step['machine_count']:<10.2f} | {status}")
-        
-    print("="*55)
+        print(
+            f"{step['item']:<28} | {step['recipe_name']:<28} | {step['machine']:<15} | {step['machine_count']:<10.2f} | {status}"
+        )
+
+    print("=" * 55)
 
 
 if __name__ == "__main__":

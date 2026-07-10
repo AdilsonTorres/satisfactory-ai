@@ -27,4 +27,5 @@ def save(workflow_type: str, stats: dict) -> Path:
 
     return path
 
+
 # Per-gift history moved to SQLite — see utils/gift_db.py (stats/gift_history.db).

@@ -9,6 +9,7 @@ import logging
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -201,6 +202,13 @@ def _micro_sweep_for_prompt(v: Vision, region: tuple[int, int, int, int]) -> tup
     return v.find_in_region("gift_prompt", region), 0
 
 
+def _any_doggo_name_matches(ocr_name: str, expected_names: list[str]) -> str | None:
+    for expected in expected_names:
+        if _doggo_name_matches(ocr_name, expected):
+            return expected
+    return None
+
+
 def _doggo_name_matches(ocr_name: str, expected_name: str) -> bool:
     """
     Tolerant OCR-name compare: startswith rather than exact equality, since
@@ -236,7 +244,7 @@ def _read_loot_window_doggo_name(v: Vision) -> str:
 def _search_for_named_doggo(
     v: Vision,
     region: tuple[int, int, int, int],
-    expected_name: str,
+    expected_names: list[str],
 ) -> tuple[MatchResult | None, str, int, int]:
     """
     Actively hunt for a SPECIFIC doggo by name, used when the loot window
@@ -280,7 +288,7 @@ def _search_for_named_doggo(
                 confirm = _press_until_window_open(v, "doggo_loot_window")
                 if confirm.found:
                     ocr_name = _read_loot_window_doggo_name(v)
-                    if _doggo_name_matches(ocr_name, expected_name):
+                    if _any_doggo_name_matches(ocr_name, expected_names):
                         return confirm, ocr_name, side, 0
                     press_until_closed(v, "doggo_loot_window")
         inp.move_mouse_relative(-side, 0)
@@ -303,7 +311,7 @@ def _search_for_named_doggo(
                 confirm = _press_until_window_open(v, "doggo_loot_window")
                 if confirm.found:
                     ocr_name = _read_loot_window_doggo_name(v)
-                    if _doggo_name_matches(ocr_name, expected_name):
+                    if _any_doggo_name_matches(ocr_name, expected_names):
                         return confirm, ocr_name, net_yaw, net_pitch
                     press_until_closed(v, "doggo_loot_window")
             inp.move_mouse_relative(yaw_step, 0)
@@ -339,7 +347,7 @@ def _load_turn_offset(name: str) -> int | None:
             data = json.load(f)
         val = data.get(name)
         return int(val) if val is not None else None
-    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+    except FileNotFoundError, json.JSONDecodeError, ValueError:
         return None
 
 
@@ -349,7 +357,7 @@ def _save_turn_offset(name: str, net_yaw: int) -> None:
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         pass
     data[name] = net_yaw
     with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
@@ -361,7 +369,7 @@ def _reset_turn_offset(name: str) -> None:
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         return
     if data.pop(name, None) is not None:
         with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
@@ -388,7 +396,7 @@ def _record_miss_or_reset(name: str, max_misses: int) -> bool:
     try:
         with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         pass
     misses = int(data.get(name, 0)) + 1
     reset = misses >= max_misses
@@ -404,7 +412,7 @@ def _clear_miss_count(name: str) -> None:
     try:
         with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         return
     if data.get(name, 0) != 0:
         data[name] = 0
@@ -520,41 +528,28 @@ def _read_item_tooltip(v: Vision, slot_x: int, slot_y: int) -> tuple[str | None,
 
 
 @activity.defn
-def collect_doggo_gift(doggo: dict | None = None) -> dict:
+def collect_doggo_gift(doggo: Any = None) -> dict:
     """
-    Check ONE named doggo for a gift and collect it if present.
-
-    `doggo` comes from config.toml [[taming.doggos]]:
-        name    — used for per-doggo history in stats/gift_history.db
-        turn_dx — INITIAL relative yaw from the PREVIOUSLY checked doggo
-                  (the list wraps: the first entry's turn_dx turns back
-                  from the last doggo to the first). 0 = don't turn
-                  (single-doggo setup). This is only a starting guess: once
-                  a doggo's identity is confirmed via the loot window
-                  title, the ACTUAL yaw used is saved to
-                  stats/doggo_turn_offsets.json and preferred over this
-                  config value from then on — doggos wander independently,
-                  so a fixed turn goes stale (measured live 2026-07-05: an
-                  entire overnight run had turn_dx=110 landing on the wrong
-                  doggo 479/479 times). If the initial turn misses, this
-                  activity actively searches for the NAMED doggo (see
-                  _search_for_named_doggo) rather than silently mislabeling
-                  whatever's in frame.
-
-    Interacting opens the Doggo's ONE-slot loot window. We hover the slot
-    (reading the item-name tooltip for the history log), shift-click to
-    transfer, and verify a REAL transfer via a before/after pixel diff on
-    the slot — most checks find an empty slot, which is expected (the wiki
-    gives ~0.2%/s fill chance; measured live closer to ~15min mean).
-
-    Returns {doggo, prompt_found, collected, item, slot_diff, crop_path,
-    checked_at} for the record_gift_check persistence activity.
+    Check ONE named doggo (or a list of unchecked doggos) for a gift and
+    collect it if present.
     """
-    spec = doggo or {}
-    name = str(spec.get("name", "doggo"))
-    configured_turn_dx = int(spec.get("turn_dx", 0))
-    learned_turn_dx = _load_turn_offset(name)
-    turn_dx = learned_turn_dx if learned_turn_dx is not None else configured_turn_dx
+    if isinstance(doggo, list):
+        expected_names = []
+        for item in doggo:
+            if isinstance(item, dict):
+                expected_names.append(str(item.get("name", "doggo")))
+            else:
+                expected_names.append(str(item))
+        name = expected_names[0] if expected_names else "doggo"
+        turn_dx = 0
+    else:
+        spec = doggo or {}
+        name = str(spec.get("name", "doggo"))
+        expected_names = [name]
+        configured_turn_dx = int(spec.get("turn_dx", 0))
+        learned_turn_dx = _load_turn_offset(name)
+        turn_dx = learned_turn_dx if learned_turn_dx is not None else configured_turn_dx
+
     result: dict = {
         "doggo": name,
         "prompt_found": False,
@@ -567,9 +562,7 @@ def collect_doggo_gift(doggo: dict | None = None) -> dict:
     with screenshot_on_error("collect_doggo_gift"):
         v = get_vision()
         disp = cfg.get("display", {})
-        region = _gift_prompt_region(
-            disp.get("screen_width", 1920), disp.get("screen_height", 1080)
-        )
+        region = _gift_prompt_region(disp.get("screen_width", 1920), disp.get("screen_height", 1080))
         net_yaw = 0
 
         if turn_dx:
@@ -612,19 +605,26 @@ def collect_doggo_gift(doggo: dict | None = None) -> dict:
                     logger.warning(
                         "[%s] missed %d cycles in a row on learned offset %d — "
                         "reverting to configured turn_dx (%d) for the next attempt.",
-                        name, max_misses, turn_dx, configured_turn_dx,
+                        name,
+                        max_misses,
+                        turn_dx,
+                        configured_turn_dx,
                     )
             logger.info(
                 "[%s] no gift prompt visible after focus+sweep (conf=%.2f) — "
                 "likely lost input focus or player not at the pen.",
-                name, gp.confidence,
+                name,
+                gp.confidence,
             )
             return result
         result["prompt_found"] = True
 
         logger.info(
             "[%s] gift prompt at (%d,%d) conf=%.2f — pressing E.",
-            name, gp.x, gp.y, gp.confidence,
+            name,
+            gp.x,
+            gp.y,
+            gp.confidence,
         )
         # Pressing E only registers when the UE5 viewport holds mouse
         # capture, which a single recapture click restores intermittently,
@@ -632,9 +632,10 @@ def collect_doggo_gift(doggo: dict | None = None) -> dict:
         confirm = _press_until_window_open(v, "doggo_loot_window")
         if not confirm.found:
             logger.warning(
-                "[%s] Doggo loot window did not open after %d recapture+E "
-                "attempts (conf=%.2f). Skipping this cycle.",
-                name, _OPEN_WINDOW_ATTEMPTS, confirm.confidence,
+                "[%s] Doggo loot window did not open after %d recapture+E attempts (conf=%.2f). Skipping this cycle.",
+                name,
+                _OPEN_WINDOW_ATTEMPTS,
+                confirm.confidence,
             )
             return result
 
@@ -642,41 +643,34 @@ def collect_doggo_gift(doggo: dict | None = None) -> dict:
         # to know which doggo we actually opened (no in-world nameplate
         # before interacting).
         ocr_name = _read_loot_window_doggo_name(v)
-
-        if ocr_name and not _doggo_name_matches(ocr_name, name):
-            # Wrong doggo. Do NOT silently relabel and move on — that's
-            # exactly what turned every 'check dogginha' into a second,
-            # mislabeled 'check dogginho' overnight. Applies even for an
-            # anchor (turn_dx == 0): 'gift_prompt' is a fixed-position HUD
-            # band that can trivially trigger for whichever doggo is
-            # nearer/more centred regardless of camera angle (measured live
-            # 2026-07-06: with both doggos simultaneously visible, checking
-            # dogginho immediately after dogginha kept silently re-opening
-            # dogginha's window instead, starving dogginho every cycle).
-            # Actively hunt for the actual target instead.
+        matched_name = _any_doggo_name_matches(ocr_name, expected_names)
+        if ocr_name and not matched_name:
+            # Wrong doggo. Hunt for one of them.
             logger.info("[%s] found '%s' instead — searching.", name, ocr_name)
             press_until_closed(v, "doggo_loot_window")
-            search_confirm, ocr_name, search_yaw, _search_pitch = _search_for_named_doggo(v, region, name)
+            search_confirm, ocr_name, search_yaw, _search_pitch = _search_for_named_doggo(v, region, expected_names)
             net_yaw += search_yaw
-            if search_confirm is None or not _doggo_name_matches(ocr_name, name):
+            matched_name = _any_doggo_name_matches(ocr_name, expected_names)
+            if search_confirm is None or not matched_name:
                 logger.warning(
-                    "[%s] could not be located after searching (last seen: %s) "
-                    "— skipping this doggo this cycle.",
-                    name, ocr_name or "nothing",
+                    "[%s] could not be located after searching (last seen: %s) — skipping this cycle.",
+                    name,
+                    ocr_name or "nothing",
                 )
                 return result
             confirm = search_confirm
 
-        if turn_dx != 0 and _doggo_name_matches(ocr_name, name):
-            _save_turn_offset(name, net_yaw)
-            _clear_miss_count(name)
+        if turn_dx != 0 and matched_name:
+            _save_turn_offset(matched_name, net_yaw)
+            _clear_miss_count(matched_name)
             if net_yaw != turn_dx:
-                logger.info("[%s] learned turn offset updated: %d -> %d.", name, turn_dx, net_yaw)
+                logger.info("[%s] learned turn offset updated: %d -> %d.", matched_name, turn_dx, net_yaw)
 
-        if ocr_name and not _doggo_name_matches(ocr_name, name):
+        if ocr_name and not matched_name:
             logger.warning(
                 "[%s] loot window title reads '%s' — attributing this check to the OCR name.",
-                name, ocr_name,
+                name,
+                ocr_name,
             )
         if ocr_name:
             result["doggo"] = ocr_name
@@ -703,7 +697,8 @@ def collect_doggo_gift(doggo: dict | None = None) -> dict:
                 window_closed = press_until_closed(v, "doggo_loot_window")
                 logger.info(
                     "[%s] slot empty (ref diff=%.1f) — skipped collection walk%s.",
-                    result["doggo"], empty_diff,
+                    result["doggo"],
+                    empty_diff,
                     "" if window_closed else " (window may still be open)",
                 )
                 result["slot_diff"] = round(empty_diff, 2)
@@ -732,8 +727,11 @@ def collect_doggo_gift(doggo: dict | None = None) -> dict:
         window_closed = press_until_closed(v, "doggo_loot_window")
         logger.info(
             "[%s] loot window %s (slot diff=%.1f, transferred=%s, item=%s).",
-            name, "closed" if window_closed else "may still be open",
-            diff, transferred, item_name,
+            name,
+            "closed" if window_closed else "may still be open",
+            diff,
+            transferred,
+            item_name,
         )
         if transferred:
             # Archive the slot icon crop: OCR ground truth for later labeling
@@ -771,15 +769,15 @@ def check_inventory_full() -> bool:
     """
     v = get_vision()
     grid = cfg.get("inventory_grid", {})
-    origin_x  = int(grid.get("origin_x", 100))
-    origin_y  = int(grid.get("origin_y", 100))
-    slot_w    = int(grid.get("slot_w", 90))
-    slot_h    = int(grid.get("slot_h", 90))
-    columns   = int(grid.get("columns", 10))
-    rows      = int(grid.get("rows", 4))
+    origin_x = int(grid.get("origin_x", 100))
+    origin_y = int(grid.get("origin_y", 100))
+    slot_w = int(grid.get("slot_w", 90))
+    slot_h = int(grid.get("slot_h", 90))
+    columns = int(grid.get("columns", 10))
+    rows = int(grid.get("rows", 4))
     threshold = int(cfg.get("inventory.empty_slot_brightness", 35))
-    patch     = 20  # half-width of the pixel patch; larger = more robust vs. item badges
-    low_guard = 50   # below this is panel chrome (border/bg), not an empty slot
+    patch = 20  # half-width of the pixel patch; larger = more robust vs. item badges
+    low_guard = 50  # below this is panel chrome (border/bg), not an empty slot
 
     def _count_empty(frame: np.ndarray) -> int:
         empty = 0
@@ -800,7 +798,6 @@ def check_inventory_full() -> bool:
                     empty += 1
         return empty
 
-
     # Tab is swallowed unless the viewport holds mouse capture; retry
     # recapture+Tab until the inventory panel is confirmed open, otherwise
     # we'd scan the game world and mis-report "full".
@@ -809,7 +806,8 @@ def check_inventory_full() -> bool:
         logger.warning(
             "Inventory did not open after %d recapture+Tab attempts "
             "(conf=%.2f). Reporting not-full to avoid a false craft.",
-            _OPEN_WINDOW_ATTEMPTS, opened.confidence,
+            _OPEN_WINDOW_ATTEMPTS,
+            opened.confidence,
         )
         return False
     time.sleep(0.3)  # let the panel finish rendering before sampling
@@ -835,9 +833,7 @@ def check_inventory_full() -> bool:
         empty_count = _count_empty(frame)
         logger.debug("Post-sort scan: %d empty slot(s).", empty_count)
     else:
-        logger.debug(
-            "inventory_sort_button not configured in config.toml — skipping sort step."
-        )
+        logger.debug("inventory_sort_button not configured in config.toml — skipping sort step.")
 
     press_until_closed(v, "inventory_open")
     is_full = empty_count == 0
@@ -924,3 +920,93 @@ def feed_wild_doggo() -> bool:
 
         logger.info("Paleberry offered to the wild Doggo (conf=%.2f).", wild.confidence)
         return True
+
+
+@activity.defn
+def download_coal_from_depot(stacks: int = 5) -> int:
+    """
+    Open player inventory, search for 'coal' in the Dimensional Depot panel,
+    and download the specified number of stacks to the player's inventory.
+    """
+    with screenshot_on_error("download_coal_from_depot"):
+        inp.open_inventory()
+        time.sleep(0.5)
+
+        # Click search box
+        inp.click(700, 242)
+        time.sleep(0.1)
+
+        # Clear search box
+        for _ in range(20):
+            inp.press("backspace")
+            time.sleep(0.01)
+
+        # Type "coal"
+        for char in "coal":
+            inp.press(char)
+            time.sleep(0.05)
+        time.sleep(0.3)
+
+        # Shift-click the first Depot item (Coal)
+        for _ in range(stacks):
+            inp.shift_click(522, 320)
+            time.sleep(0.15)
+
+        time.sleep(0.2)
+        inp.close_menu()
+        logger.info("Downloaded %d stacks of Coal from Dimensional Depot.", stacks)
+        return stacks
+
+
+@activity.defn
+def deposit_coal_to_storage() -> int:
+    """
+    Open the storage container in front of the player, locate all Coal stacks
+    in the player's inventory grid using template matching, shift-click each
+    to deposit them, and close the storage container.
+    """
+    with screenshot_on_error("deposit_coal_to_storage"):
+        v = get_vision()
+
+        # Open storage container
+        inp.interact()
+        time.sleep(1.0)
+
+        # Grab screen to find matches
+        frame = v.capture()
+
+        # Find all Coal slots in the player inventory region
+        x, y, w, h = 1450, 200, 580, 500
+        sub = frame[y : y + h, x : x + w]
+
+        template = v._load_template("coal_icon")
+        th, tw = template.shape[:2]
+
+        res = cv2.matchTemplate(sub, template, cv2.TM_CCOEFF_NORMED)
+        threshold = float(cfg.get("vision.thresholds.coal_icon", 0.82))
+        loc = np.where(res >= threshold)
+
+        matches: list[tuple[int, int]] = []
+        for pt in zip(*loc[::-1], strict=False):
+            cx = x + pt[0] + tw // 2
+            cy = y + pt[1] + th // 2
+
+            too_close = False
+            for mx, my in matches:
+                if abs(mx - cx) < 30 and abs(my - cy) < 30:
+                    too_close = True
+                    break
+            if not too_close:
+                matches.append((cx, cy))
+
+        # Shift-click all found Coal slots
+        deposited = 0
+        for cx, cy in matches:
+            inp.shift_click(cx, cy)
+            deposited += 1
+            time.sleep(0.15)
+
+        time.sleep(0.3)
+        inp.close_menu()
+        logger.info("Deposited %d Coal stacks into storage.", deposited)
+        return deposited

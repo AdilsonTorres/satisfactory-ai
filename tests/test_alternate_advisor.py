@@ -7,11 +7,15 @@ def test_get_recipe_recommendations_all_missing():
     assert len(res["unlocked"]["S"]) == 0
     assert len(res["unlocked"]["A"]) == 0
     assert len(res["unlocked"]["B"]) == 0
+    assert len(res["unlocked"]["C"]) == 0
+    assert len(res["unlocked"]["D"]) == 0
     assert len(res["unlocked"]["F"]) == 0
 
     assert len(res["missing"]["S"]) > 0
     assert len(res["missing"]["A"]) > 0
     assert len(res["missing"]["B"]) > 0
+    assert len(res["missing"]["C"]) > 0
+    assert len(res["missing"]["D"]) > 0
     assert len(res["missing"]["F"]) > 0
 
     assert any("Target hard drives to unlock missing S-Tier" in a for a in res["advice"])

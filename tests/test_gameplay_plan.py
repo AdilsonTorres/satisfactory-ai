@@ -49,7 +49,7 @@ def test_build_milestone_summary():
 
 def test_build_recipe_recommendations_delegates():
     save = _base_save()
-    assert build_recipe_recommendations(save) == get_recipe_recommendations(save.schematics)
+    assert build_recipe_recommendations(save) == get_recipe_recommendations(save.schematics + save.recipes)
 
 
 def test_build_resource_status_with_sink():

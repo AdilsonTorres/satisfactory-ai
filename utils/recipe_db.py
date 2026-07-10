@@ -16,7 +16,6 @@ RECIPES: dict[str, dict[str, dict]] = {
     # --- Raw Ores & Basic Inputs ---
     # These represent base raw extractors/miners.
     # To keep recursion clean, if a node requires raw ore/liquid, it stops there.
-    
     # --- Ingots ---
     "Iron Ingot": {
         "default": {
@@ -25,7 +24,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Ore": 30.0},
             "outputs": {"Iron Ingot": 30.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Pure Iron Ingot",
@@ -33,8 +32,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Ore": 35.0, "Water": 20.0},
             "outputs": {"Iron Ingot": 65.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_PureIronIngot"
-        }
+            "schematic": "Schematic_Alternate_PureIronIngot",
+        },
     },
     "Copper Ingot": {
         "default": {
@@ -43,7 +42,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Ore": 30.0},
             "outputs": {"Copper Ingot": 30.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Pure Copper Ingot",
@@ -51,8 +50,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Ore": 15.0, "Water": 10.0},
             "outputs": {"Copper Ingot": 37.5},
             "alternate": True,
-            "schematic": "Schematic_Alternate_PureCopperIngot"
-        }
+            "schematic": "Schematic_Alternate_PureCopperIngot",
+        },
     },
     "Caterium Ingot": {
         "default": {
@@ -61,7 +60,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Caterium Ore": 45.0},
             "outputs": {"Caterium Ingot": 15.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Pure Caterium Ingot",
@@ -69,8 +68,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Caterium Ore": 24.0, "Water": 24.0},
             "outputs": {"Caterium Ingot": 12.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_PureCateriumIngot"
-        }
+            "schematic": "Schematic_Alternate_PureCateriumIngot",
+        },
     },
     "Steel Ingot": {
         "default": {
@@ -79,7 +78,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Ore": 45.0, "Coal": 45.0},
             "outputs": {"Steel Ingot": 45.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Solid Steel Ingot",
@@ -87,8 +86,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Ingot": 40.0, "Coal": 40.0},
             "outputs": {"Steel Ingot": 60.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_IngotSteel1"
-        }
+            "schematic": "Schematic_Alternate_IngotSteel1",
+        },
     },
     "Aluminum Ingot": {
         "default": {
@@ -97,7 +96,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Scrap": 90.0, "Silica": 30.0},
             "outputs": {"Aluminum Ingot": 60.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Aluminum Ingot",
@@ -105,10 +104,9 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Scrap": 90.0, "Silica": 30.0},
             "outputs": {"Aluminum Ingot": 60.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
-    
     # --- Basic Components ---
     "Compacted Coal": {
         "default": {
@@ -117,7 +115,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Coal": 25.0, "Sulfur": 25.0},
             "outputs": {"Compacted Coal": 25.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_EnrichedCoal"
+            "schematic": "Schematic_Alternate_EnrichedCoal",
         },
         "best": {
             "name": "Compacted Coal",
@@ -125,8 +123,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Coal": 25.0, "Sulfur": 25.0},
             "outputs": {"Compacted Coal": 25.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_EnrichedCoal"
-        }
+            "schematic": "Schematic_Alternate_EnrichedCoal",
+        },
     },
     "Concrete": {
         "default": {
@@ -135,7 +133,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Limestone": 45.0},
             "outputs": {"Concrete": 15.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Wet Concrete",
@@ -143,8 +141,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Limestone": 120.0, "Water": 100.0},
             "outputs": {"Concrete": 80.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_WetConcrete"
-        }
+            "schematic": "Schematic_Alternate_WetConcrete",
+        },
     },
     "Silica": {
         "default": {
@@ -153,7 +151,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Raw Quartz": 15.0},
             "outputs": {"Silica": 37.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Cheap Silica",
@@ -161,8 +159,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Raw Quartz": 15.0, "Limestone": 25.0},
             "outputs": {"Silica": 26.25},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Silica"
-        }
+            "schematic": "Schematic_Alternate_Silica",
+        },
     },
     "Quartz Crystal": {
         "default": {
@@ -171,7 +169,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Raw Quartz": 37.5},
             "outputs": {"Quartz Crystal": 22.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Pure Quartz Crystal",
@@ -179,8 +177,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Raw Quartz": 67.5, "Water": 37.5},
             "outputs": {"Quartz Crystal": 52.5},
             "alternate": True,
-            "schematic": "Schematic_Alternate_PureQuartzCrystal"
-        }
+            "schematic": "Schematic_Alternate_PureQuartzCrystal",
+        },
     },
     "Wire": {
         "default": {
@@ -189,7 +187,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Ingot": 15.0},
             "outputs": {"Wire": 30.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Fused Wire",
@@ -197,8 +195,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Ingot": 12.0, "Caterium Ingot": 3.0},
             "outputs": {"Wire": 90.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_FusedWire"
-        }
+            "schematic": "Schematic_Alternate_FusedWire",
+        },
     },
     "Quickwire": {
         "default": {
@@ -207,7 +205,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Caterium Ingot": 12.0},
             "outputs": {"Quickwire": 60.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Fused Quickwire",
@@ -215,8 +213,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Caterium Ingot": 7.5, "Copper Ingot": 37.5},
             "outputs": {"Quickwire": 90.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_FusedQuickwire"
-        }
+            "schematic": "Schematic_Alternate_FusedQuickwire",
+        },
     },
     "Cable": {
         "default": {
@@ -225,7 +223,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Wire": 60.0},
             "outputs": {"Cable": 30.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Insulated Cable",
@@ -233,8 +231,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Wire": 45.0, "Rubber": 30.0},
             "outputs": {"Cable": 100.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Cable1"
-        }
+            "schematic": "Schematic_Alternate_Cable1",
+        },
     },
     "Steel Pipe": {
         "default": {
@@ -243,7 +241,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Ingot": 30.0},
             "outputs": {"Steel Pipe": 20.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Molded Steel Pipe",
@@ -251,8 +249,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Ingot": 30.0, "Concrete": 10.0},
             "outputs": {"Steel Pipe": 20.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_SteelPipe_Molded"
-        }
+            "schematic": "Schematic_Alternate_SteelPipe_Molded",
+        },
     },
     "Steel Beam": {
         "default": {
@@ -261,7 +259,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Ingot": 60.0},
             "outputs": {"Steel Beam": 15.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Aluminum Beam",
@@ -269,8 +267,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Alclad Aluminum Sheet": 100.0, "Concrete": 125.0},
             "outputs": {"Steel Beam": 60.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_AluminumBeam"
-        }
+            "schematic": "Schematic_Alternate_AluminumBeam",
+        },
     },
     "Iron Rod": {
         "default": {
@@ -279,7 +277,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Ingot": 15.0},
             "outputs": {"Iron Rod": 15.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Aluminum Rod",
@@ -287,8 +285,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Ingot": 30.0},
             "outputs": {"Iron Rod": 225.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_AluminumRod"
-        }
+            "schematic": "Schematic_Alternate_AluminumRod",
+        },
     },
     "Screw": {
         "default": {
@@ -297,7 +295,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Rod": 10.0},
             "outputs": {"Screw": 40.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Steel Screw",
@@ -305,8 +303,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Beam": 5.0},
             "outputs": {"Screw": 260.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Screw2"
-        }
+            "schematic": "Schematic_Alternate_Screw2",
+        },
     },
     "Copper Sheet": {
         "default": {
@@ -315,7 +313,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Ingot": 20.0},
             "outputs": {"Copper Sheet": 10.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Steamed Copper Sheet",
@@ -323,8 +321,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Ingot": 22.5, "Water": 22.5},
             "outputs": {"Copper Sheet": 22.5},
             "alternate": True,
-            "schematic": "Schematic_Alternate_SteamedCopperSheet"
-        }
+            "schematic": "Schematic_Alternate_SteamedCopperSheet",
+        },
     },
     "Iron Plate": {
         "default": {
@@ -333,7 +331,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Ingot": 30.0},
             "outputs": {"Iron Plate": 20.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Coated Iron Plate",
@@ -341,8 +339,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Ingot": 37.5, "Plastic": 7.5},
             "outputs": {"Iron Plate": 75.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_CoatedIronPlate"
-        }
+            "schematic": "Schematic_Alternate_CoatedIronPlate",
+        },
     },
     "Fabric": {
         "default": {
@@ -351,7 +349,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Mycelia": 15.0},
             "outputs": {"Fabric": 15.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Polyester Fabric",
@@ -359,10 +357,9 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Polymer Resin": 30.0, "Water": 30.0},
             "outputs": {"Fabric": 30.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_PolyesterFabric"
-        }
+            "schematic": "Schematic_Alternate_PolyesterFabric",
+        },
     },
-    
     # --- Advanced Components ---
     "Reinforced Iron Plate": {
         "default": {
@@ -371,7 +368,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Plate": 30.0, "Screw": 60.0},
             "outputs": {"Reinforced Iron Plate": 5.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Stitched Iron Plate",
@@ -379,8 +376,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Plate": 18.75, "Wire": 37.5},
             "outputs": {"Reinforced Iron Plate": 5.625},
             "alternate": True,
-            "schematic": "Schematic_Alternate_ReinforcedIronPlate1"
-        }
+            "schematic": "Schematic_Alternate_ReinforcedIronPlate1",
+        },
     },
     "Modular Frame": {
         "default": {
@@ -389,7 +386,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Reinforced Iron Plate": 3.0, "Iron Rod": 12.0},
             "outputs": {"Modular Frame": 2.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Bolted Frame",
@@ -397,8 +394,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Reinforced Iron Plate": 7.5, "Screw": 140.0},
             "outputs": {"Modular Frame": 5.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_BoltedFrame"
-        }
+            "schematic": "Schematic_Alternate_BoltedFrame",
+        },
     },
     "Heavy Modular Frame": {
         "default": {
@@ -407,7 +404,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Modular Frame": 10.0, "Steel Pipe": 30.0, "Encased Industrial Beam": 10.0, "Screw": 200.0},
             "outputs": {"Heavy Modular Frame": 2.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Heavy Encased Frame",
@@ -415,8 +412,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Modular Frame": 7.5, "Encased Industrial Beam": 9.375, "Steel Pipe": 33.75, "Concrete": 20.625},
             "outputs": {"Heavy Modular Frame": 2.8125},
             "alternate": True,
-            "schematic": "Schematic_Alternate_HeavyModularFrame"
-        }
+            "schematic": "Schematic_Alternate_HeavyModularFrame",
+        },
     },
     "Encased Industrial Beam": {
         "default": {
@@ -425,7 +422,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Beam": 24.0, "Concrete": 30.0},
             "outputs": {"Encased Industrial Beam": 6.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Encased Industrial Pipe",
@@ -433,8 +430,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Pipe": 28.0, "Concrete": 20.0},
             "outputs": {"Encased Industrial Beam": 4.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_EncasedIndustrialBeam"
-        }
+            "schematic": "Schematic_Alternate_EncasedIndustrialBeam",
+        },
     },
     "Rotor": {
         "default": {
@@ -443,7 +440,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Iron Rod": 20.0, "Screw": 100.0},
             "outputs": {"Rotor": 4.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Steel Rotor",
@@ -451,8 +448,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Pipe": 10.0, "Wire": 30.0},
             "outputs": {"Rotor": 5.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Rotor"
-        }
+            "schematic": "Schematic_Alternate_Rotor",
+        },
     },
     "Stator": {
         "default": {
@@ -461,7 +458,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Pipe": 15.0, "Wire": 40.0},
             "outputs": {"Stator": 5.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Quickwire Stator",
@@ -469,8 +466,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Steel Pipe": 15.0, "Quickwire": 60.0},
             "outputs": {"Stator": 8.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Stator"
-        }
+            "schematic": "Schematic_Alternate_Stator",
+        },
     },
     "Motor": {
         "default": {
@@ -479,7 +476,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Rotor": 10.0, "Stator": 10.0},
             "outputs": {"Motor": 5.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Rigor Motor",
@@ -487,8 +484,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Rotor": 3.75, "Stator": 3.75, "Crystal Oscillator": 1.25},
             "outputs": {"Motor": 7.5},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Motor1"
-        }
+            "schematic": "Schematic_Alternate_Motor1",
+        },
     },
     "Circuit Board": {
         "default": {
@@ -497,7 +494,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Sheet": 15.0, "Plastic": 30.0},
             "outputs": {"Circuit Board": 7.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Electrode Circuit Board",
@@ -505,8 +502,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Petroleum Coke": 20.0, "Heavy Oil Residue": 20.0},
             "outputs": {"Circuit Board": 15.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_ElectrodeCircuitBoard"
-        }
+            "schematic": "Schematic_Alternate_ElectrodeCircuitBoard",
+        },
     },
     "Computer": {
         "default": {
@@ -515,7 +512,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Circuit Board": 10.0, "Cable": 9.0, "Plastic": 18.0, "Screw": 52.0},
             "outputs": {"Computer": 2.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Crystal Computer",
@@ -523,8 +520,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Circuit Board": 7.5, "Crystal Oscillator": 2.5},
             "outputs": {"Computer": 2.8125},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Computer2"
-        }
+            "schematic": "Schematic_Alternate_Computer2",
+        },
     },
     "Supercomputer": {
         "default": {
@@ -533,16 +530,21 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Computer": 3.75, "AI Limiter": 3.75, "High-Speed Connector": 7.5, "Plastic": 56.25},
             "outputs": {"Supercomputer": 1.875},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "OC Supercomputer",
             "machine": "Manufacturer",
-            "inputs": {"Computer": 3.0, "Electromagnetic Control Rod": 2.4, "Radio Control Unit": 4.8, "Quickwire": 36.0},
+            "inputs": {
+                "Computer": 3.0,
+                "Electromagnetic Control Rod": 2.4,
+                "Radio Control Unit": 4.8,
+                "Quickwire": 36.0,
+            },
             "outputs": {"Supercomputer": 3.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_OCSupercomputer"
-        }
+            "schematic": "Schematic_Alternate_OCSupercomputer",
+        },
     },
     "Radio Control Unit": {
         "default": {
@@ -551,7 +553,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Casing": 32.5, "Crystal Oscillator": 1.25, "Computer": 1.25},
             "outputs": {"Radio Control Unit": 2.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Radio Control System",
@@ -559,8 +561,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Casing": 15.0, "Crystal Oscillator": 0.75},
             "outputs": {"Radio Control Unit": 1.5},
             "alternate": True,
-            "schematic": "Schematic_Alternate_RadioControlSystem"
-        }
+            "schematic": "Schematic_Alternate_RadioControlSystem",
+        },
     },
     "Crystal Oscillator": {
         "default": {
@@ -569,7 +571,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Quartz Crystal": 18.0, "Cable": 14.0, "Reinforced Iron Plate": 2.5},
             "outputs": {"Crystal Oscillator": 1.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Insulated Crystal Oscillator",
@@ -577,8 +579,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Quartz Crystal": 18.75, "Rubber": 18.75, "AI Limiter": 7.5},
             "outputs": {"Crystal Oscillator": 1.875},
             "alternate": True,
-            "schematic": "Schematic_Alternate_CrystalOscillator"
-        }
+            "schematic": "Schematic_Alternate_CrystalOscillator",
+        },
     },
     "Heat Sink": {
         "default": {
@@ -587,7 +589,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Alclad Aluminum Sheet": 37.5, "Copper Sheet": 37.5},
             "outputs": {"Heat Sink": 7.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Heat Exchanger",
@@ -595,8 +597,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Casing": 30.0, "Rubber": 30.0},
             "outputs": {"Heat Sink": 10.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_HeatExchanger"
-        }
+            "schematic": "Schematic_Alternate_HeatExchanger",
+        },
     },
     "AI Limiter": {
         "default": {
@@ -605,7 +607,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Sheet": 25.0, "Quickwire": 100.0},
             "outputs": {"AI Limiter": 5.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Plastic AI Limiter",
@@ -613,8 +615,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Copper Sheet": 22.5, "Quickwire": 90.0, "Plastic": 4.5},
             "outputs": {"AI Limiter": 5.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_AILimiter_Plastic"
-        }
+            "schematic": "Schematic_Alternate_AILimiter_Plastic",
+        },
     },
     "Electromagnetic Control Rod": {
         "default": {
@@ -623,7 +625,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Stator": 3.0, "AI Limiter": 4.0},
             "outputs": {"Electromagnetic Control Rod": 4.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Electromagnetic Control Rod",
@@ -631,10 +633,9 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Stator": 3.0, "AI Limiter": 4.0},
             "outputs": {"Electromagnetic Control Rod": 4.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
-    
     # --- Aluminum Line ---
     "Aluminum Scrap": {
         "default": {
@@ -643,7 +644,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Alumina Solution": 240.0, "Coal": 120.0},
             "outputs": {"Aluminum Scrap": 360.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Electrode Aluminum Scrap",
@@ -651,8 +652,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Alumina Solution": 180.0, "Petroleum Coke": 60.0},
             "outputs": {"Aluminum Scrap": 300.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_ElectroAluminumScrap"
-        }
+            "schematic": "Schematic_Alternate_ElectroAluminumScrap",
+        },
     },
     "Alumina Solution": {
         "default": {
@@ -661,7 +662,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Bauxite": 120.0, "Water": 180.0},
             "outputs": {"Alumina Solution": 120.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Sloppy Alumina",
@@ -669,8 +670,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Bauxite": 120.0, "Water": 180.0},
             "outputs": {"Alumina Solution": 240.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_SloppyAlumina"
-        }
+            "schematic": "Schematic_Alternate_SloppyAlumina",
+        },
     },
     "Alclad Aluminum Sheet": {
         "default": {
@@ -679,7 +680,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Ingot": 30.0, "Copper Ingot": 10.0},
             "outputs": {"Alclad Aluminum Sheet": 30.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Alclad Aluminum Sheet",
@@ -687,8 +688,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Ingot": 30.0, "Copper Ingot": 10.0},
             "outputs": {"Alclad Aluminum Sheet": 30.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Aluminum Casing": {
         "default": {
@@ -697,7 +698,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Ingot": 90.0},
             "outputs": {"Aluminum Casing": 60.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Aluminum Casing",
@@ -705,10 +706,9 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Ingot": 90.0},
             "outputs": {"Aluminum Casing": 60.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
-    
     # --- Space Elevator & Late-game ---
     "Thermal Propulsion Rocket": {
         "default": {
@@ -717,7 +717,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Modular Engine": 2.5, "Turbo Motor": 1.0, "Cooling System": 1.25, "Fused Modular Frame": 1.25},
             "outputs": {"Thermal Propulsion Rocket": 1.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Thermal Propulsion Rocket",
@@ -725,8 +725,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Modular Engine": 2.5, "Turbo Motor": 1.0, "Cooling System": 1.25, "Fused Modular Frame": 1.25},
             "outputs": {"Thermal Propulsion Rocket": 1.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Modular Engine": {
         "default": {
@@ -735,7 +735,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Motor": 2.0, "Rubber": 15.0, "Smart Plating": 2.0},
             "outputs": {"Modular Engine": 1.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Modular Engine",
@@ -743,8 +743,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Motor": 2.0, "Rubber": 15.0, "Smart Plating": 2.0},
             "outputs": {"Modular Engine": 1.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Smart Plating": {
         "default": {
@@ -753,7 +753,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Reinforced Iron Plate": 2.0, "Rotor": 2.0},
             "outputs": {"Smart Plating": 2.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Plastic Smart Plating",
@@ -761,8 +761,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Reinforced Iron Plate": 1.5, "Rotor": 1.5, "Plastic": 3.0},
             "outputs": {"Smart Plating": 2.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_PlasticSmartPlating"
-        }
+            "schematic": "Schematic_Alternate_PlasticSmartPlating",
+        },
     },
     "Cooling System": {
         "default": {
@@ -771,7 +771,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Heat Sink": 15.0, "Rubber": 10.0, "Water": 10.0},
             "outputs": {"Cooling System": 7.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Cooling System",
@@ -779,8 +779,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Heat Sink": 15.0, "Rubber": 10.0, "Water": 10.0},
             "outputs": {"Cooling System": 7.5},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Fused Modular Frame": {
         "default": {
@@ -789,7 +789,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Heavy Modular Frame": 1.0, "Aluminum Casing": 50.0, "Nitrogen Gas": 25.0},
             "outputs": {"Fused Modular Frame": 1.5},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Fused Modular Frame",
@@ -797,8 +797,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Heavy Modular Frame": 1.0, "Aluminum Casing": 50.0, "Nitrogen Gas": 25.0},
             "outputs": {"Fused Modular Frame": 1.5},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Turbo Motor": {
         "default": {
@@ -807,7 +807,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Motor": 4.0, "Radio Control Unit": 2.0, "Cooling System": 4.0, "Rubber": 25.0},
             "outputs": {"Turbo Motor": 1.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Turbo Pressure Motor",
@@ -815,8 +815,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Motor": 7.5, "Pressure Conversion Cube": 1.875, "Packaged Nitrogen Gas": 45.0, "Stator": 15.0},
             "outputs": {"Turbo Motor": 3.75},
             "alternate": True,
-            "schematic": "Schematic_Alternate_TurboPressureMotor"
-        }
+            "schematic": "Schematic_Alternate_TurboPressureMotor",
+        },
     },
     "Packaged Nitrogen Gas": {
         "default": {
@@ -825,7 +825,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Nitrogen Gas": 60.0, "Empty Canister": 60.0},
             "outputs": {"Packaged Nitrogen Gas": 60.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Packaged Nitrogen Gas",
@@ -833,8 +833,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Nitrogen Gas": 60.0, "Empty Canister": 60.0},
             "outputs": {"Packaged Nitrogen Gas": 60.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Empty Canister": {
         "default": {
@@ -843,7 +843,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Plastic": 30.0},
             "outputs": {"Empty Canister": 60.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Empty Canister",
@@ -851,8 +851,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Plastic": 30.0},
             "outputs": {"Empty Canister": 60.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Pressure Conversion Cube": {
         "default": {
@@ -861,7 +861,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Fused Modular Frame": 1.0, "Radio Control Unit": 2.0},
             "outputs": {"Pressure Conversion Cube": 1.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Pressure Conversion Cube",
@@ -869,8 +869,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Fused Modular Frame": 1.0, "Radio Control Unit": 2.0},
             "outputs": {"Pressure Conversion Cube": 1.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Dark Matter Crystal": {
         "default": {
@@ -879,7 +879,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Dark Matter Residue": 20.0, "SAM": 20.0},
             "outputs": {"Dark Matter Crystal": 10.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Dark Matter Trap",
@@ -887,8 +887,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Dark Matter Residue": 20.0, "SAM": 10.0},
             "outputs": {"Dark Matter Crystal": 20.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_DarkMatter_Trap"
-        }
+            "schematic": "Schematic_Alternate_DarkMatter_Trap",
+        },
     },
     "Diamond": {
         "default": {
@@ -897,7 +897,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Coal": 240.0},
             "outputs": {"Diamond": 30.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Oil-Based Diamonds",
@@ -905,10 +905,9 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 120.0, "Coal": 120.0},
             "outputs": {"Diamond": 30.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Diamond_OilBased"
-        }
+            "schematic": "Schematic_Alternate_Diamond_OilBased",
+        },
     },
-    
     # --- Nuclear ---
     "Encased Uranium Cell": {
         "default": {
@@ -917,7 +916,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Uranium": 50.0, "Concrete": 15.0, "Sulfuric Acid": 40.0},
             "outputs": {"Encased Uranium Cell": 25.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Infused Uranium Cell",
@@ -925,8 +924,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Uranium": 25.0, "Silica": 15.0, "Sulfur": 20.0, "Quickwire": 75.0},
             "outputs": {"Encased Uranium Cell": 20.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_UraniumCell1"
-        }
+            "schematic": "Schematic_Alternate_UraniumCell1",
+        },
     },
     "Uranium Fuel Rod": {
         "default": {
@@ -935,18 +934,22 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Encased Uranium Cell": 40.0, "Electromagnetic Control Rod": 2.0, "Crystal Oscillator": 1.0},
             "outputs": {"Uranium Fuel Rod": 0.4},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Uranium Fuel Unit",
             "machine": "Manufacturer",
-            "inputs": {"Encased Uranium Cell": 20.0, "Electromagnetic Control Rod": 1.2, "Crystal Oscillator": 0.6, "Quickwire": 40.0},
+            "inputs": {
+                "Encased Uranium Cell": 20.0,
+                "Electromagnetic Control Rod": 1.2,
+                "Crystal Oscillator": 0.6,
+                "Quickwire": 40.0,
+            },
             "outputs": {"Uranium Fuel Rod": 0.6},
             "alternate": True,
-            "schematic": "Schematic_Alternate_NuclearFuelRod1"
-        }
+            "schematic": "Schematic_Alternate_NuclearFuelRod1",
+        },
     },
-    
     # --- Petrochemical Loops ---
     "Plastic": {
         "default": {
@@ -955,7 +958,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 30.0},
             "outputs": {"Plastic": 20.0, "Heavy Oil Residue": 10.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Recycled Plastic Loop",
@@ -963,8 +966,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 30.0, "Water": 80.0},
             "outputs": {"Plastic": 80.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_Plastic1"
-        }
+            "schematic": "Schematic_Alternate_Plastic1",
+        },
     },
     "Rubber": {
         "default": {
@@ -973,7 +976,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 30.0},
             "outputs": {"Rubber": 20.0, "Heavy Oil Residue": 10.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Recycled Rubber Loop",
@@ -981,8 +984,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 30.0, "Water": 80.0},
             "outputs": {"Rubber": 80.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_RecycledRubber"
-        }
+            "schematic": "Schematic_Alternate_RecycledRubber",
+        },
     },
     "Fuel": {
         "default": {
@@ -991,7 +994,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 60.0},
             "outputs": {"Fuel": 40.0, "Polymer Resin": 30.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Diluted Fuel",
@@ -999,8 +1002,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Heavy Oil Residue": 50.0, "Water": 100.0},
             "outputs": {"Fuel": 100.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_DilutedFuel"
-        }
+            "schematic": "Schematic_Alternate_DilutedFuel",
+        },
     },
     "Heavy Oil Residue": {
         "default": {
@@ -1009,7 +1012,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 30.0},
             "outputs": {"Heavy Oil Residue": 10.0, "Plastic": 20.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Heavy Oil Residue",
@@ -1017,8 +1020,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 30.0},
             "outputs": {"Heavy Oil Residue": 40.0, "Polymer Resin": 20.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_HeavyOilResidue"
-        }
+            "schematic": "Schematic_Alternate_HeavyOilResidue",
+        },
     },
     "Petroleum Coke": {
         "default": {
@@ -1027,7 +1030,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Heavy Oil Residue": 40.0},
             "outputs": {"Petroleum Coke": 120.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Petroleum Coke",
@@ -1035,8 +1038,8 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Heavy Oil Residue": 40.0},
             "outputs": {"Petroleum Coke": 120.0},
             "alternate": False,
-            "schematic": None
-        }
+            "schematic": None,
+        },
     },
     "Polymer Resin": {
         "default": {
@@ -1045,7 +1048,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 60.0},
             "outputs": {"Polymer Resin": 130.0, "Heavy Oil Residue": 20.0},
             "alternate": False,
-            "schematic": None
+            "schematic": None,
         },
         "best": {
             "name": "Polymer Resin",
@@ -1053,9 +1056,9 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Crude Oil": 60.0},
             "outputs": {"Polymer Resin": 130.0, "Heavy Oil Residue": 20.0},
             "alternate": False,
-            "schematic": None
-        }
-    }
+            "schematic": None,
+        },
+    },
 }
 
 # Item AWESOME Sink Point values

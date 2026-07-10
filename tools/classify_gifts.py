@@ -31,9 +31,7 @@ def classify_gifts():
     cursor = conn.cursor()
 
     # Get all collected gifts
-    rows = cursor.execute(
-        "SELECT id, ts, doggo, item, crop_path FROM gift_checks WHERE collected = 1"
-    ).fetchall()
+    rows = cursor.execute("SELECT id, ts, doggo, item, crop_path FROM gift_checks WHERE collected = 1").fetchall()
 
     print(f"Found {len(rows)} collected gifts in database.")
 
@@ -56,13 +54,15 @@ def classify_gifts():
         if img is None:
             continue
 
-        records.append({
-            "id": row_id,
-            "ts": ts,
-            "doggo": doggo,
-            "item": item if (item and item.lower() != "none") else None,
-            "crop_path": crop_path
-        })
+        records.append(
+            {
+                "id": row_id,
+                "ts": ts,
+                "doggo": doggo,
+                "item": item if (item and item.lower() != "none") else None,
+                "crop_path": crop_path,
+            }
+        )
         loaded_images.append(img)
 
     print(f"Successfully loaded {len(loaded_images)} slot icon images for clustering.")
@@ -88,10 +88,7 @@ def classify_gifts():
         if matched_cluster is not None:
             clusters[matched_cluster]["records"].append(rec)
         else:
-            clusters.append({
-                "rep": img,
-                "records": [rec]
-            })
+            clusters.append({"rep": img, "records": [rec]})
 
     print(f"Grouped images into {len(clusters)} unique item clusters.")
 
@@ -117,7 +114,9 @@ def classify_gifts():
         nones_in_cluster = sum(1 for r in recs if r["item"] is None)
 
         if nones_in_cluster > 0:
-            print(f"  Cluster {c_idx}: Resolving {nones_in_cluster} 'None' entries to '{most_common}' (based on {len(names)} OCR hits)")
+            print(
+                f"  Cluster {c_idx}: Resolving {nones_in_cluster} 'None' entries to '{most_common}' (based on {len(names)} OCR hits)"
+            )
             for r in recs:
                 if r["item"] is None:
                     updates.append((most_common, r["id"]))
@@ -126,10 +125,7 @@ def classify_gifts():
     # Execute database updates
     if updates:
         print(f"\nApplying {len(updates)} database updates...")
-        cursor.executemany(
-            "UPDATE gift_checks SET item = ? WHERE id = ?",
-            updates
-        )
+        cursor.executemany("UPDATE gift_checks SET item = ? WHERE id = ?", updates)
         conn.commit()
         print("Database updates successfully committed.")
     else:

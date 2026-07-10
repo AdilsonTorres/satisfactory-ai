@@ -28,15 +28,16 @@ class MockVision:
 
 @pytest.fixture(autouse=True)
 def mock_temporal_activity():
-    with patch("temporalio.activity.heartbeat") as mock_hb, \
-         patch("temporalio.activity.info") as mock_info:
+    with patch("temporalio.activity.heartbeat") as mock_hb, patch("temporalio.activity.info") as mock_info:
         yield mock_hb, mock_info
 
 
 @pytest.fixture
 def mock_input():
-    with patch("activities.exploration.inp") as mock_inp, \
-         patch("activities.exploration.save_debug_screenshot") as mock_screenshot:
+    with (
+        patch("activities.exploration.inp") as mock_inp,
+        patch("activities.exploration.save_debug_screenshot") as mock_screenshot,
+    ):
         mock_screenshot.return_value = "/tmp/mock_screenshot.png"
         yield mock_inp, mock_screenshot
 
@@ -48,12 +49,7 @@ def test_explore_leg_normal_flight(mock_input):
     vision = MockVision(gauge_frac=0.90)
     shared._vision = vision
 
-    res = explore_leg(
-        keys=["w"],
-        duration=2.0,
-        check_interval=1.0,
-        gauge_low_abort=0.25
-    )
+    res = explore_leg(keys=["w"], duration=2.0, check_interval=1.0, gauge_low_abort=0.25)
 
     assert res["gauge_low"] is False
     assert res["duration"] == 2.0
@@ -68,12 +64,7 @@ def test_explore_leg_low_charge_abort(mock_input):
     vision = MockVision(gauge_frac=0.15)
     shared._vision = vision
 
-    res = explore_leg(
-        keys=["w"],
-        duration=2.0,
-        check_interval=1.0,
-        gauge_low_abort=0.25
-    )
+    res = explore_leg(keys=["w"], duration=2.0, check_interval=1.0, gauge_low_abort=0.25)
 
     assert res["gauge_low"] is True
     # Aborts after the first sleep (chunk 0 checks status, detects low charge, and breaks)
@@ -89,12 +80,7 @@ def test_explore_leg_grounded_no_abort(mock_input):
     vision = MockVision(gauge_frac=None)
     shared._vision = vision
 
-    res = explore_leg(
-        keys=["w"],
-        duration=2.0,
-        check_interval=1.0,
-        gauge_low_abort=0.25
-    )
+    res = explore_leg(keys=["w"], duration=2.0, check_interval=1.0, gauge_low_abort=0.25)
 
     assert res["gauge_low"] is False
     assert res["duration"] == 2.0

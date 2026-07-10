@@ -167,7 +167,9 @@ class ExplorationWorkflow(_ControlMixin):
 
             if result.get("gauge_low", False):
                 self._stats["gauge_aborts"] += 1
-                workflow.logger.warning("Low Hover Pack gauge mid-exploration — aborting outbound route early to prevent falling.")
+                workflow.logger.warning(
+                    "Low Hover Pack gauge mid-exploration — aborting outbound route early to prevent falling."
+                )
                 break
 
         if died_mid_route:

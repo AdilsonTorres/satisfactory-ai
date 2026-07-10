@@ -1,6 +1,7 @@
 from unittest.mock import patch
-from utils.save_parser import SatisfactorySave
-from tools.factory_planner import get_coupon_point_cost, generate_production_plan
+
+from tools.factory_planner import generate_production_plan, get_coupon_point_cost
+
 
 def test_get_coupon_point_cost():
     # Test coupon costs for different milestones
@@ -8,7 +9,8 @@ def test_get_coupon_point_cost():
     assert get_coupon_point_cost(1) == 1000  # Second
     assert get_coupon_point_cost(2) == 1000  # Third
     assert get_coupon_point_cost(3) == 1500  # Fourth (ceil(4/3)-1 = 1 => 500*1 + 1000 = 1500)
-    assert get_coupon_point_cost(10) == 5500 # Eleventh (ceil(11/3)-1 = 3 => 500*9 + 1000 = 5500)
+    assert get_coupon_point_cost(10) == 5500  # Eleventh (ceil(11/3)-1 = 3 => 500*9 + 1000 = 5500)
+
 
 @patch("tools.factory_planner.SatisfactorySave")
 def test_generate_production_plan_item(mock_save_class):
@@ -19,15 +21,12 @@ def test_generate_production_plan_item(mock_save_class):
 
     # Generate a simple plan for 65 Iron Ingots/min
     plan = generate_production_plan(
-        target_item="Iron Ingot",
-        target_rate=65.0,
-        coupons_per_minute=None,
-        save_file_path="mock_save.sav"
+        target_item="Iron Ingot", target_rate=65.0, coupons_per_minute=None, save_file_path="mock_save.sav"
     )
 
     assert plan["target_item"] == "Iron Ingot"
     assert plan["target_rate"] == 65.0
-    
+
     # Pure Iron Ingot needs: 35 Iron Ore + 20 Water per 65 Ingot/min
     assert "Iron Ore" in plan["raw_materials"]
     assert plan["raw_materials"]["Iron Ore"] == 35.0
@@ -40,6 +39,7 @@ def test_generate_production_plan_item(mock_save_class):
     assert ingot_steps[0]["recipe_name"] == "Pure Iron Ingot"
     assert ingot_steps[0]["unlocked"] is True
     assert ingot_steps[0]["machine_count"] == 1.0  # 65/65
+
 
 @patch("tools.factory_planner.SatisfactorySave")
 def test_generate_production_plan_coupons(mock_save_class):
@@ -54,10 +54,7 @@ def test_generate_production_plan_coupons(mock_save_class):
     # TPR points = 732,956
     # Rate of TPR = 262813.5 / 732956 = 0.358567 TPR/min
     plan = generate_production_plan(
-        target_item=None,
-        target_rate=None,
-        coupons_per_minute=0.001,
-        save_file_path="mock_save.sav"
+        target_item=None, target_rate=None, coupons_per_minute=0.001, save_file_path="mock_save.sav"
     )
 
     assert plan["target_item"] == "Thermal Propulsion Rocket"

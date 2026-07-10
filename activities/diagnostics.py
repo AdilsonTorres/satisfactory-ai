@@ -58,9 +58,7 @@ def capture_template_screen(screen_name: str, key_to_open: str = "", key_to_clos
 
 
 @activity.defn
-def extract_templates_from_screen(
-    screenshot_path: str, target: str = "hud", resolution: str = "2560x1440"
-) -> dict:
+def extract_templates_from_screen(screenshot_path: str, target: str = "hud", resolution: str = "2560x1440") -> dict:
     """Extracts regions of interest from the capture and saves them as new PNG templates."""
     from pathlib import Path
 

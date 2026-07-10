@@ -23,13 +23,13 @@ from utils.save_parser import SatisfactorySave  # noqa: E402
 
 
 def dist_3d(p1, p2):
-    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
+    return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2)
 
 
 def get_node_range(type_path):
     if "PowerTower" in type_path:
         return 15000.0  # 150m for Power Towers
-    return 3000.0       # 30m standard Hover Pack range
+    return 3000.0  # 30m standard Hover Pack range
 
 
 def generate_power_map():
@@ -47,7 +47,9 @@ def generate_power_map():
 
     player = save.players[0]
     player_pos = player["position"]
-    print(f"Player: '{player['username']}' at coordinates: X={player_pos[0]:.1f}, Y={player_pos[1]:.1f}, Z={player_pos[2]:.1f}")
+    print(
+        f"Player: '{player['username']}' at coordinates: X={player_pos[0]:.1f}, Y={player_pos[1]:.1f}, Z={player_pos[2]:.1f}"
+    )
 
     # Extract all Build_ objects as potential power nodes
     nodes = {}
@@ -57,7 +59,7 @@ def generate_power_map():
         "enemy_nests": [],
         "enemy_remains": [],
         "resource_nodes": [],
-        "geysers": []
+        "geysers": [],
     }
 
     for name, obj in save.levels_objects.items():
@@ -68,49 +70,25 @@ def generate_power_map():
 
         # 1. Power grid nodes
         if "/Build_" in t_path and "Build_PowerLine" not in t_path:
-            nodes[name] = {
-                "id": name,
-                "type": class_name,
-                "pos": pos,
-                "range": get_node_range(t_path)
-            }
+            nodes[name] = {"id": name, "type": class_name, "pos": pos, "range": get_node_range(t_path)}
 
         # 2. Points of interest / hazards
         elif class_name == "Char_SpaceRabbit":
-            pois["lizard_doggos"].append({
-                "id": name,
-                "pos": pos,
-                "properties": props
-            })
+            pois["lizard_doggos"].append({"id": name, "pos": pos, "properties": props})
         elif class_name == "BP_DropPod":
-            pois["drop_pods"].append({
-                "id": name,
-                "pos": pos,
-                "properties": props
-            })
+            pois["drop_pods"].append({"id": name, "pos": pos, "properties": props})
         elif class_name in ("Char_CrabHatcher", "Char_BigCrabHatcher"):
-            pois["enemy_nests"].append({
-                "id": name,
-                "type": class_name.replace("Char_", ""),
-                "pos": pos
-            })
-        elif "parts" in class_name.lower() and ("hog" in class_name.lower() or "spitter" in class_name.lower() or "stinger" in class_name.lower()):
-            pois["enemy_remains"].append({
-                "id": name,
-                "type": class_name.replace("BP_", "").replace("Parts", ""),
-                "pos": pos
-            })
+            pois["enemy_nests"].append({"id": name, "type": class_name.replace("Char_", ""), "pos": pos})
+        elif "parts" in class_name.lower() and (
+            "hog" in class_name.lower() or "spitter" in class_name.lower() or "stinger" in class_name.lower()
+        ):
+            pois["enemy_remains"].append(
+                {"id": name, "type": class_name.replace("BP_", "").replace("Parts", ""), "pos": pos}
+            )
         elif class_name == "BP_ResourceNode" and "Geyser" not in t_path:
-            pois["resource_nodes"].append({
-                "id": name,
-                "purity": props.get("mPurityOverride", "RP_Normal"),
-                "pos": pos
-            })
+            pois["resource_nodes"].append({"id": name, "purity": props.get("mPurityOverride", "RP_Normal"), "pos": pos})
         elif class_name == "BP_ResourceNodeGeyser":
-            pois["geysers"].append({
-                "id": name,
-                "pos": pos
-            })
+            pois["geysers"].append({"id": name, "pos": pos})
 
     print(f"Extracted {len(nodes)} candidate power structures.")
 
@@ -118,11 +96,9 @@ def generate_power_map():
     lines = []
     for name, obj in save.levels_objects.items():
         if "Build_PowerLine" in obj.get("type_path", ""):
-            lines.append({
-                "id": name,
-                "midpoint": obj["position"],
-                "length": obj["properties"].get("mCachedLength", 0.0)
-            })
+            lines.append(
+                {"id": name, "midpoint": obj["position"], "length": obj["properties"].get("mCachedLength", 0.0)}
+            )
 
     print(f"Extracted {len(lines)} power wires. Reconstructing connectivity...")
 
@@ -154,13 +130,15 @@ def generate_power_map():
             connections[node_a["id"]].append(node_b["id"])
             connections[node_b["id"]].append(node_a["id"])
 
-            matched_lines.append({
-                "id": line["id"],
-                "node_a": node_a["id"],
-                "node_b": node_b["id"],
-                "length": L,
-                "midpoint": line["midpoint"]
-            })
+            matched_lines.append(
+                {
+                    "id": line["id"],
+                    "node_a": node_a["id"],
+                    "node_b": node_b["id"],
+                    "length": L,
+                    "midpoint": line["midpoint"],
+                }
+            )
 
     print(f"Reconstructed {len(matched_lines)} wires geometrically.")
 
@@ -181,7 +159,9 @@ def generate_power_map():
     if nearest_node:
         is_powered = min_dist_to_player <= nearest_node["range"]
 
-    print(f"Nearest active power source: {nearest_node['type'] if nearest_node else 'None'} ({min_dist_to_player/100.0:.1f}m away)")
+    print(
+        f"Nearest active power source: {nearest_node['type'] if nearest_node else 'None'} ({min_dist_to_player / 100.0:.1f}m away)"
+    )
     print(f"Player is currently powered by Hover Pack: {'YES' if is_powered else 'NO'}")
 
     # BFS from nearest node to map the connected component (Reachable Grid)
@@ -219,7 +199,7 @@ def generate_power_map():
         "total_wires": len(matched_lines),
         "reachable_nodes_count": len(reachable_nodes),
         "reachable_wires_count": len(reachable_wires),
-        "reachable_network_length_meters": total_wire_length
+        "reachable_network_length_meters": total_wire_length,
     }
 
     # Generate exploration route suggestions along straight paths (chains)
@@ -235,27 +215,21 @@ def generate_power_map():
         "stats": stats,
         "reachable_nodes": list(reachable_nodes.values()),
         "reachable_wires": reachable_wires,
-        "suggested_routes": suggested_routes
+        "suggested_routes": suggested_routes,
     }
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(map_data, f, indent=2, ensure_ascii=False)
 
     # Save detailed world POIs and hazards
     poi_file = stats_dir / "spatial_data.json"
-    poi_data = {
-        "stats": stats,
-        "points_of_interest": pois
-    }
+    poi_data = {"stats": stats, "points_of_interest": pois}
     with open(poi_file, "w", encoding="utf-8") as f:
         json.dump(poi_data, f, indent=2, ensure_ascii=False)
 
     print(f"Map data saved to {out_file.absolute()}")
     print(f"Spatial POIs & hazards data saved to {poi_file.absolute()}")
 
-    return {
-        "map": map_data,
-        "pois": pois
-    }
+    return {"map": map_data, "pois": pois}
 
 
 def generate_route_suggestions(reachable_nodes, connections, player_pos):
@@ -299,21 +273,25 @@ def generate_route_suggestions(reachable_nodes, connections, player_pos):
                 angle_rad = math.atan2(dy, dx)
                 angle_deg = math.degrees(angle_rad)
 
-                legs.append({
-                    "target_pole_type": target["type"],
-                    "distance_meters": round(distance / 100.0, 1),
-                    "keys": ["w", "space"] if i > 0 else ["w"],
-                    "duration": duration,
-                    "direction_yaw": round(angle_deg, 1)
-                })
+                legs.append(
+                    {
+                        "target_pole_type": target["type"],
+                        "distance_meters": round(distance / 100.0, 1),
+                        "keys": ["w", "space"] if i > 0 else ["w"],
+                        "duration": duration,
+                        "direction_yaw": round(angle_deg, 1),
+                    }
+                )
                 curr_pos = target["pos"]
 
-            routes.append({
-                "name": f"Chain from nearest {start_node['type']}",
-                "total_legs": len(legs),
-                "total_distance_meters": round(sum(leg["distance_meters"] for leg in legs), 1),
-                "legs": legs
-            })
+            routes.append(
+                {
+                    "name": f"Chain from nearest {start_node['type']}",
+                    "total_legs": len(legs),
+                    "total_distance_meters": round(sum(leg["distance_meters"] for leg in legs), 1),
+                    "legs": legs,
+                }
+            )
 
     return routes
 

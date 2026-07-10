@@ -34,7 +34,7 @@ def build_milestone_summary(save: Any) -> dict[str, Any]:
 
 
 def build_recipe_recommendations(save: Any) -> dict[str, Any]:
-    result: dict[str, Any] = get_recipe_recommendations(save.schematics)
+    result: dict[str, Any] = get_recipe_recommendations(save.schematics + save.recipes)
     return result
 
 

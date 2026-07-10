@@ -71,7 +71,7 @@ def calibrate_and_travel():
     # Nearest main power pole target coordinate
     target_pos = np.array([-16450.0, -116350.0, 10000.0])
     dist = np.linalg.norm(target_pos - pos)
-    print(f"Nearest main power pole is {dist/100.0:.2f} meters away.")
+    print(f"Nearest main power pole is {dist / 100.0:.2f} meters away.")
 
     if dist <= 2800.0:
         print("Already in range of the main power grid (distance <= 28 meters).")
@@ -115,7 +115,9 @@ def calibrate_and_travel():
 
     # Calculate remaining pixels to turn to face target exactly
     final_turn_pixels = int(turn_angle * pixels_per_degree)
-    print(f"Target Yaw: {target_yaw:.2f}°. Remaining turn angle: {turn_angle:.2f}°. Turning {final_turn_pixels} pixels...")
+    print(
+        f"Target Yaw: {target_yaw:.2f}°. Remaining turn angle: {turn_angle:.2f}°. Turning {final_turn_pixels} pixels..."
+    )
     move_mouse_relative(final_turn_pixels, 0)
     time.sleep(1.0)
 
@@ -134,7 +136,7 @@ def calibrate_and_travel():
     final_pos, final_yaw, final_save_file = get_player_state()
     final_dist = np.linalg.norm(target_pos - final_pos)
     print(f"Final State: Pos={final_pos}, Yaw={final_yaw:.2f}°, Save={Path(final_save_file).name}")
-    print(f"Final distance to main power pole: {final_dist/100.0:.1f} meters.")
+    print(f"Final distance to main power pole: {final_dist / 100.0:.1f} meters.")
 
     if final_dist <= 3000.0:
         print("Success! You are now powered by the main grid!")

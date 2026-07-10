@@ -30,7 +30,8 @@ COPY pyproject.toml uv.lock ./
 
 # Create virtual environment and sync dependencies
 # (uv will download its optimized CPython 3.14 automatically)
-RUN uv sync --frozen --no-install-project --no-dev --python 3.14
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev --python 3.14
 
 # Copy application source
 COPY . .
@@ -38,7 +39,8 @@ COPY . .
 # Final sync and permissions adjustment:
 # - Create log/stats dirs and set permissions
 # - Make the Python installation globally readable so user 1000:1000 can access it
-RUN uv sync --frozen --no-dev --python 3.14 \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --python 3.14 \
     && mkdir -p logs stats \
     && chmod 777 logs stats \
     && chmod -R 755 /opt/uv

@@ -63,11 +63,11 @@ class GiftFarmWorkflow(_ControlMixin):
             "status": "running",
         }
 
-    async def _check_one_doggo(self, doggo: dict) -> bool:
+    async def _check_any_doggo(self, unchecked_doggos: list[dict]) -> dict:
         try:
             result = await workflow.execute_activity(
                 collect_doggo_gift,
-                args=[doggo],
+                args=[unchecked_doggos],
                 schedule_to_close_timeout=timedelta(seconds=90),
                 retry_policy=GAME_RETRY,
             )
@@ -77,15 +77,15 @@ class GiftFarmWorkflow(_ControlMixin):
             # live 2026-07-05: with it down, this activity exhausts its
             # retry budget and an UNCAUGHT failure took the whole workflow
             # down with it, losing an unattended run and its stats. Skip
-            # this doggo for the cycle instead; the next cycle just retries.
+            # this cycle instead; the next cycle just retries.
             workflow.logger.warning(
-                "[%s] collect_doggo_gift failed (host game worker offline?): %s",
-                doggo.get("name", "doggo"), exc,
+                "collect_doggo_gift failed (host game worker offline?): %s",
+                exc,
             )
-            return False
+            return {}
         collected = bool(result.get("collected"))
+        name = result.get("doggo") or "unknown"
         if collected:
-            name = result["doggo"]
             self._stats["gifts"] += 1
             self._stats["gifts_by_doggo"][name] = self._stats["gifts_by_doggo"].get(name, 0) + 1
             item = result.get("item") or "unknown"
@@ -103,7 +103,7 @@ class GiftFarmWorkflow(_ControlMixin):
             )
         except Exception as exc:
             workflow.logger.warning("record_gift_check failed (continuing): %s", exc)
-        return collected
+        return result
 
     @workflow.run
     async def run(
@@ -117,9 +117,7 @@ class GiftFarmWorkflow(_ControlMixin):
         if _resume_stats is not None:
             self._stats = _resume_stats
         roster = doggos or [{"name": "doggo", "turn_dx": 0}]
-        workflow.logger.info(
-            "GiftFarmWorkflow started. Roster: %s", ", ".join(d["name"] for d in roster)
-        )
+        workflow.logger.info("GiftFarmWorkflow started. Roster: %s", ", ".join(d["name"] for d in roster))
 
         try:
             while not self._stop_requested:
@@ -150,10 +148,29 @@ class GiftFarmWorkflow(_ControlMixin):
                     await _screenshot(f"gift_cycle_{cycle}")
 
                 collected_any = False
-                for doggo in roster:
-                    if self._stop_requested:
+                unchecked = list(roster)
+                while unchecked and not self._stop_requested:
+                    result = await self._check_any_doggo(unchecked)
+                    processed_name = result.get("doggo")
+                    if processed_name:
+                        # Remove the processed doggo from unchecked list
+                        matching = [d for d in unchecked if d["name"] == processed_name]
+                        if matching:
+                            unchecked.remove(matching[0])
+                        else:
+                            # Fuzzy matching fallback
+                            matching_fuzzy = [
+                                d
+                                for d in unchecked
+                                if processed_name.strip().lower().startswith(d["name"].strip().lower())
+                            ]
+                            if matching_fuzzy:
+                                unchecked.remove(matching_fuzzy[0])
+                            else:
+                                unchecked.pop(0)
+                        collected_any = collected_any or bool(result.get("collected"))
+                    else:
                         break
-                    collected_any = await self._check_one_doggo(doggo) or collected_any
 
                 # The player inventory only fills through collected gifts, so
                 # the (menu-churny) fullness check is pointless on empty

@@ -104,7 +104,9 @@ async def create(args: argparse.Namespace) -> None:
                 id=WORKFLOW_ID,
                 task_queue=task_queue,
             ),
-            spec=ScheduleSpec(calendars=[_hhmm_to_calendar(args.start, f"gift farm '{args.name}' start")], time_zone_name=tz),
+            spec=ScheduleSpec(
+                calendars=[_hhmm_to_calendar(args.start, f"gift farm '{args.name}' start")], time_zone_name=tz
+            ),
             # SKIP: if the farm is already running (started by hand earlier,
             # or another window's start/stop hasn't landed yet), don't pile
             # on another start attempt — just wait for the next tick.
@@ -120,7 +122,9 @@ async def create(args: argparse.Namespace) -> None:
                 id=stop_action_workflow_id,
                 task_queue=task_queue,
             ),
-            spec=ScheduleSpec(calendars=[_hhmm_to_calendar(args.stop, f"gift farm '{args.name}' stop")], time_zone_name=tz),
+            spec=ScheduleSpec(
+                calendars=[_hhmm_to_calendar(args.stop, f"gift farm '{args.name}' stop")], time_zone_name=tz
+            ),
             policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
         ),
     )
@@ -183,7 +187,8 @@ def main() -> None:
     p_create.add_argument("--start", default=cfg.get("taming.schedule.start_time", "08:00"), help="Window start HH:MM")
     p_create.add_argument("--stop", default=cfg.get("taming.schedule.stop_time", "23:00"), help="Window stop HH:MM")
     p_create.add_argument(
-        "--timezone", default=None,
+        "--timezone",
+        default=None,
         help="IANA tz name (e.g. America/Sao_Paulo); overrides config.toml [taming.schedule].timezone",
     )
     p_create.add_argument("--ammo-per-craft", type=int, default=50)

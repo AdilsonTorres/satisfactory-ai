@@ -33,5 +33,7 @@ def record_gift_check(result: dict) -> None:
     )
     logger.info(
         "Recorded gift check: doggo=%s collected=%s item=%s",
-        result["doggo"], result.get("collected"), result.get("item"),
+        result["doggo"],
+        result.get("collected"),
+        result.get("item"),
     )

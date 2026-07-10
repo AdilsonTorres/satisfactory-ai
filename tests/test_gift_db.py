@@ -5,10 +5,16 @@ from utils import gift_db
 
 def test_record_and_summary(tmp_path):
     db = tmp_path / "gift_history.db"
-    gift_db.record_check("rex", collected=True, item="Power Slug", slot_diff=95.3, ts="2026-07-04T10:00:00+00:00", db_path=db)
+    gift_db.record_check(
+        "rex", collected=True, item="Power Slug", slot_diff=95.3, ts="2026-07-04T10:00:00+00:00", db_path=db
+    )
     gift_db.record_check("rex", collected=False, ts="2026-07-04T10:01:00+00:00", db_path=db)
-    gift_db.record_check("luna", collected=True, item="Leaves", slot_diff=80.0, ts="2026-07-04T10:02:00+00:00", db_path=db)
-    gift_db.record_check("rex", collected=True, item="Power Slug", slot_diff=101.0, ts="2026-07-04T10:15:00+00:00", db_path=db)
+    gift_db.record_check(
+        "luna", collected=True, item="Leaves", slot_diff=80.0, ts="2026-07-04T10:02:00+00:00", db_path=db
+    )
+    gift_db.record_check(
+        "rex", collected=True, item="Power Slug", slot_diff=101.0, ts="2026-07-04T10:15:00+00:00", db_path=db
+    )
 
     s = gift_db.summary(db_path=db)
     assert s["total_checks"] == 4

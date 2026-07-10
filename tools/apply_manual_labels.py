@@ -36,7 +36,7 @@ CLUSTER_MAP = {
     39: "Concrete",
     41: "Steel Pipe",
     42: "Silica",
-    45: "Motor"
+    45: "Motor",
 }
 
 
@@ -51,9 +51,7 @@ def apply_labels():
     cursor = conn.cursor()
 
     # Get all collected gifts
-    rows = cursor.execute(
-        "SELECT id, ts, doggo, item, crop_path FROM gift_checks WHERE collected = 1"
-    ).fetchall()
+    rows = cursor.execute("SELECT id, ts, doggo, item, crop_path FROM gift_checks WHERE collected = 1").fetchall()
 
     records = []
     loaded_images = []
@@ -72,13 +70,15 @@ def apply_labels():
         if img is None:
             continue
 
-        records.append({
-            "id": row_id,
-            "ts": ts,
-            "doggo": doggo,
-            "item": item if (item and item.lower() != "none") else None,
-            "crop_path": crop_path
-        })
+        records.append(
+            {
+                "id": row_id,
+                "ts": ts,
+                "doggo": doggo,
+                "item": item if (item and item.lower() != "none") else None,
+                "crop_path": crop_path,
+            }
+        )
         loaded_images.append(img)
 
     # Reconstruct the clusters
@@ -101,10 +101,7 @@ def apply_labels():
         if matched_cluster is not None:
             clusters[matched_cluster]["records"].append(rec)
         else:
-            clusters.append({
-                "rep": img,
-                "records": [rec]
-            })
+            clusters.append({"rep": img, "records": [rec]})
 
     # Prepare batch updates
     updates = []
@@ -125,10 +122,7 @@ def apply_labels():
 
     if updates:
         print(f"Applying {len(updates)} visual label updates to SQLite...")
-        cursor.executemany(
-            "UPDATE gift_checks SET item = ? WHERE id = ?",
-            updates
-        )
+        cursor.executemany("UPDATE gift_checks SET item = ? WHERE id = ?", updates)
         conn.commit()
         print(f"Successfully resolved and updated {resolved_count} database entries!")
     else:
