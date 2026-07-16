@@ -1059,27 +1059,335 @@ RECIPES: dict[str, dict[str, dict]] = {
             "schematic": None,
         },
     },
+    # --- Phase 4 Intermediates (missing from original) ---
+    "Versatile Framework": {
+        "default": {
+            "name": "Versatile Framework",
+            "machine": "Assembler",
+            "inputs": {"Modular Frame": 2.5, "Steel Beam": 12.0},
+            "outputs": {"Versatile Framework": 5.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Flexible Framework",
+            "machine": "Assembler",
+            "inputs": {"Modular Frame": 3.75, "Steel Beam": 7.5, "Rubber": 15.0},
+            "outputs": {"Versatile Framework": 7.5},
+            "alternate": True,
+            "schematic": "Schematic_Alternate_FlexibleFramework",
+        },
+    },
+    "Magnetic Field Generator": {
+        "default": {
+            "name": "Magnetic Field Generator",
+            "machine": "Assembler",
+            "inputs": {"Versatile Framework": 2.5, "Electromagnetic Control Rod": 1.0},
+            "outputs": {"Magnetic Field Generator": 0.5},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Magnetic Field Generator",
+            "machine": "Assembler",
+            "inputs": {"Versatile Framework": 2.5, "Electromagnetic Control Rod": 1.0},
+            "outputs": {"Magnetic Field Generator": 0.5},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Adaptive Control Unit": {
+        "default": {
+            "name": "Adaptive Control Unit",
+            "machine": "Manufacturer",
+            "inputs": {
+                "Automated Wiring": 5.0,
+                "Circuit Board": 5.0,
+                "Heavy Modular Frame": 1.0,
+                "Computer": 2.0,
+            },
+            "outputs": {"Adaptive Control Unit": 1.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Adaptive Control Unit",
+            "machine": "Manufacturer",
+            "inputs": {
+                "Automated Wiring": 5.0,
+                "Circuit Board": 5.0,
+                "Heavy Modular Frame": 1.0,
+                "Computer": 2.0,
+            },
+            "outputs": {"Adaptive Control Unit": 1.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Assembly Director System": {
+        "default": {
+            "name": "Assembly Director System",
+            "machine": "Assembler",
+            "inputs": {"Adaptive Control Unit": 1.5, "Supercomputer": 0.75},
+            "outputs": {"Assembly Director System": 0.75},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Assembly Director System",
+            "machine": "Assembler",
+            "inputs": {"Adaptive Control Unit": 1.5, "Supercomputer": 0.75},
+            "outputs": {"Assembly Director System": 0.75},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    # --- Phase 5 / 1.2 Quantum Chain ---
+    # Raw quantum materials (Converter-produced — treated as raw for recursion)
+    # Excited Photonic Matter: no physical inputs (power only) — treated as raw
+    # Time Crystal: Converter, 2 Diamond → 1 Time Crystal (6/min)
+    # Ficsite Trigon: Constructor, Ficsite Ingot → 30/min
+    # These three are terminal raw nodes in the planner (no RECIPES entry needed
+    # unless we want to recurse further into Diamonds/SAM).
+    "Copper Powder": {
+        "default": {
+            "name": "Copper Powder",
+            "machine": "Constructor",
+            "inputs": {"Copper Ingot": 30.0},
+            "outputs": {"Copper Powder": 5.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Copper Powder",
+            "machine": "Constructor",
+            "inputs": {"Copper Ingot": 30.0},
+            "outputs": {"Copper Powder": 5.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Nuclear Pasta": {
+        "default": {
+            "name": "Nuclear Pasta",
+            "machine": "Particle Accelerator",
+            "inputs": {"Copper Powder": 100.0, "Pressure Conversion Cube": 0.5},
+            "outputs": {"Nuclear Pasta": 0.5},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Nuclear Pasta",
+            "machine": "Particle Accelerator",
+            "inputs": {"Copper Powder": 100.0, "Pressure Conversion Cube": 0.5},
+            "outputs": {"Nuclear Pasta": 0.5},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Singularity Cell": {
+        "default": {
+            "name": "Singularity Cell",
+            "machine": "Manufacturer",
+            "inputs": {
+                "Nuclear Pasta": 1.0,
+                "Dark Matter Crystal": 20.0,
+                "Iron Plate": 100.0,
+                "Concrete": 200.0,
+            },
+            "outputs": {"Singularity Cell": 10.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Singularity Cell",
+            "machine": "Manufacturer",
+            "inputs": {
+                "Nuclear Pasta": 1.0,
+                "Dark Matter Crystal": 20.0,
+                "Iron Plate": 100.0,
+                "Concrete": 200.0,
+            },
+            "outputs": {"Singularity Cell": 10.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Superposition Oscillator": {
+        "default": {
+            # Quantum Encoder, 12s cycle → 5 units (25/min)
+            "name": "Superposition Oscillator",
+            "machine": "Quantum Encoder",
+            "inputs": {
+                "Dark Matter Crystal": 30.0,
+                "Crystal Oscillator": 5.0,
+                "Alclad Aluminum Sheet": 45.0,
+                "Excited Photonic Matter": 125.0,
+            },
+            "outputs": {"Superposition Oscillator": 25.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Superposition Oscillator",
+            "machine": "Quantum Encoder",
+            "inputs": {
+                "Dark Matter Crystal": 30.0,
+                "Crystal Oscillator": 5.0,
+                "Alclad Aluminum Sheet": 45.0,
+                "Excited Photonic Matter": 125.0,
+            },
+            "outputs": {"Superposition Oscillator": 25.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Neural-Quantum Processor": {
+        "default": {
+            # Quantum Encoder, 20s cycle → 3 units (9/min)
+            "name": "Neural-Quantum Processor",
+            "machine": "Quantum Encoder",
+            "inputs": {
+                "Supercomputer": 15.0,
+                "Ficsite Trigon": 3.0,
+                "Time Crystal": 45.0,
+                "Excited Photonic Matter": 75.0,
+            },
+            "outputs": {"Neural-Quantum Processor": 9.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Neural-Quantum Processor",
+            "machine": "Quantum Encoder",
+            "inputs": {
+                "Supercomputer": 15.0,
+                "Ficsite Trigon": 3.0,
+                "Time Crystal": 45.0,
+                "Excited Photonic Matter": 75.0,
+            },
+            "outputs": {"Neural-Quantum Processor": 9.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "AI Expansion Server": {
+        "default": {
+            # Quantum Encoder, 15s cycle → 4 units (16/min)
+            "name": "AI Expansion Server",
+            "machine": "Quantum Encoder",
+            "inputs": {
+                "Magnetic Field Generator": 4.0,
+                "Neural-Quantum Processor": 4.0,
+                "Superposition Oscillator": 4.0,
+                "Excited Photonic Matter": 100.0,
+            },
+            "outputs": {"AI Expansion Server": 16.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "AI Expansion Server",
+            "machine": "Quantum Encoder",
+            "inputs": {
+                "Magnetic Field Generator": 4.0,
+                "Neural-Quantum Processor": 4.0,
+                "Superposition Oscillator": 4.0,
+                "Excited Photonic Matter": 100.0,
+            },
+            "outputs": {"AI Expansion Server": 16.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Biochemical Sculptor": {
+        "default": {
+            # Blender, 120s cycle → 4 units (2/min)
+            "name": "Biochemical Sculptor",
+            "machine": "Blender",
+            "inputs": {
+                "Assembly Director System": 0.5,
+                "Ficsite Trigon": 40.0,
+                "Water": 10.0,
+            },
+            "outputs": {"Biochemical Sculptor": 2.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Biochemical Sculptor",
+            "machine": "Blender",
+            "inputs": {
+                "Assembly Director System": 0.5,
+                "Ficsite Trigon": 40.0,
+                "Water": 10.0,
+            },
+            "outputs": {"Biochemical Sculptor": 2.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
+    "Ballistic Warp Drive": {
+        "default": {
+            # Manufacturer, 60s cycle → 1 unit (1/min)
+            "name": "Ballistic Warp Drive",
+            "machine": "Manufacturer",
+            "inputs": {
+                "Thermal Propulsion Rocket": 1.0,
+                "Singularity Cell": 5.0,
+                "Superposition Oscillator": 2.0,
+                "Dark Matter Crystal": 40.0,
+            },
+            "outputs": {"Ballistic Warp Drive": 1.0},
+            "alternate": False,
+            "schematic": None,
+        },
+        "best": {
+            "name": "Ballistic Warp Drive",
+            "machine": "Manufacturer",
+            "inputs": {
+                "Thermal Propulsion Rocket": 1.0,
+                "Singularity Cell": 5.0,
+                "Superposition Oscillator": 2.0,
+                "Dark Matter Crystal": 40.0,
+            },
+            "outputs": {"Ballistic Warp Drive": 1.0},
+            "alternate": False,
+            "schematic": None,
+        },
+    },
 }
 
 # Item AWESOME Sink Point values
 SINK_POINTS: dict[str, int] = {
-    "Thermal Propulsion Rocket": 732956,
+    # --- Phase 5 / 1.2 end-game (highest value) ---
+    "Ballistic Warp Drive": 2895334,
+    "AI Expansion Server": 597652,
     "Assembly Director System": 543632,
-    "Nuclear Pasta": 538976,
+    "Nuclear Pasta": 543424,
+    "Biochemical Sculptor": 301778,
+    # --- Phase 4 high-value ---
+    "Thermal Propulsion Rocket": 732956,
     "Turbo Motor": 240496,
     "Supercomputer": 99576,
-    "Modular Frame": 408,
-    "Rotor": 140,
-    "Iron Plate": 6,
-    "Reinforced Iron Plate": 120,
-    "Steel Beam": 64,
-    "Steel Pipe": 24,
-    "Stator": 148,
-    "Motor": 1520,
-    "Circuit Board": 696,
-    "Computer": 17200,
+    "Uranium Fuel Rod": 44092,
     "Radio Control Unit": 19600,
+    "Magnetic Field Generator": 15650,
+    "Adaptive Control Unit": 76368,
+    "Computer": 17200,
     "Crystal Oscillator": 6120,
     "AI Limiter": 920,
-    "Uranium Fuel Rod": 44092,
+    "Motor": 1520,
+    "Circuit Board": 696,
+    "Stator": 148,
+    "Modular Frame": 408,
+    "Reinforced Iron Plate": 120,
+    "Rotor": 140,
+    "Steel Beam": 64,
+    "Steel Pipe": 24,
+    "Iron Plate": 6,
+    # --- Phase 5 intermediates ---
+    "Singularity Cell": 163248,
+    "Superposition Oscillator": 188196,
+    "Neural-Quantum Processor": 199900,
 }
