@@ -173,32 +173,89 @@ def _face_doggo_and_recheck(v: Vision) -> MatchResult:
 
 def _micro_sweep_for_prompt(v: Vision, region: tuple[int, int, int, int]) -> tuple[MatchResult, int]:
     """
-    Small yaw sweep around the CURRENT facing to re-acquire 'gift_prompt' —
-    right side first, recenter, then left side. Used after turning to a
-    doggo whose configured/learned turn_dx is a little off (doggos wander
-    a few steps between checks). Unlike _face_doggo_and_recheck this stays
-    near the expected facing so it can't (on its own) lock onto the WRONG
-    doggo of the pair — identity is still verified by the caller via the
-    loot window title. Leaves the camera where the prompt was found.
+    Small yaw and pitch sweep around the CURRENT facing to re-acquire 'gift_prompt' —
+    alternating right/left. If not found, pitches down slightly and sweeps again.
+    Used after turning to a doggo whose configured/learned turn_dx is a little off
+    (doggos wander a few steps between checks). Leaves the camera where the prompt
+    was found.
 
-    Returns (result, net_yaw_applied) — net_yaw is 0 on a miss (the sweep
-    undoes each direction before trying the next, so a total miss leaves
-    the camera exactly where it started) and the caller folds a hit's net
-    yaw into the total offset tracked for _save_turn_offset.
+    Returns (result, net_yaw_applied).
     """
-    step = int(cfg.get("taming.micro_yaw_step", 60))
-    count = int(cfg.get("taming.micro_yaw_count", 3))
-    for direction in (1, -1):
-        net = 0
-        for _ in range(count):
-            inp.move_mouse_relative(direction * step, 0)
-            net += direction * step
-            time.sleep(0.12)
+    step = int(cfg.get("taming.micro_yaw_step", 40))
+    count = int(cfg.get("taming.micro_yaw_count", 4))
+    pitch_step = int(cfg.get("taming.micro_pitch_step", 80))
+
+    # 1. Check current facing first
+    gp = v.find_in_region("gift_prompt", region)
+    if gp.found:
+        return gp, 0
+
+    net_yaw = 0
+    net_pitch = 0
+
+    try:
+        # Alternating yaw offsets: +1, -1, +2, -2, ... +count, -count
+        offsets = []
+        for i in range(1, count + 1):
+            offsets.append(i)
+            offsets.append(-i)
+
+        # Row 1: Current pitch (0)
+        for offset in offsets:
+            target_yaw = offset * step
+            delta = target_yaw - net_yaw
+            inp.move_mouse_relative(delta, 0)
+            net_yaw = target_yaw
+            time.sleep(0.1)
+
             gp = v.find_in_region("gift_prompt", region)
             if gp.found:
-                return gp, net
-        inp.move_mouse_relative(-net, 0)
+                return gp, net_yaw
+
+        # Recenter yaw
+        if net_yaw != 0:
+            inp.move_mouse_relative(-net_yaw, 0)
+            net_yaw = 0
+            time.sleep(0.1)
+
+        # Row 2: Look down slightly
+        inp.move_mouse_relative(0, pitch_step)
+        net_pitch += pitch_step
         time.sleep(0.12)
+
+        # Check center at lower pitch
+        gp = v.find_in_region("gift_prompt", region)
+        if gp.found:
+            return gp, 0
+
+        # Alternating yaw sweep at lower pitch (smaller count is sufficient)
+        lower_count = min(3, count)
+        for offset in offsets[: 2 * lower_count]:
+            target_yaw = offset * step
+            delta = target_yaw - net_yaw
+            inp.move_mouse_relative(delta, 0)
+            net_yaw = target_yaw
+            time.sleep(0.1)
+
+            gp = v.find_in_region("gift_prompt", region)
+            if gp.found:
+                return gp, net_yaw
+
+        # Recenter yaw for Row 2
+        if net_yaw != 0:
+            inp.move_mouse_relative(-net_yaw, 0)
+            net_yaw = 0
+            time.sleep(0.1)
+
+    finally:
+        # If we didn't find the doggo, restore the pitch/yaw so we don't leave the camera displaced
+        if not gp.found:
+            if net_yaw != 0:
+                inp.move_mouse_relative(-net_yaw, 0)
+            if net_pitch != 0:
+                inp.move_mouse_relative(0, -net_pitch)
+            time.sleep(0.1)
+
     return v.find_in_region("gift_prompt", region), 0
 
 
@@ -277,21 +334,41 @@ def _search_for_named_doggo(
 
     fine_step = int(cfg.get("taming.identify_fine_yaw_step", 20))
     fine_count = int(cfg.get("taming.identify_fine_yaw_count", 10))
-    for direction in (1, -1):
-        side = 0
-        for _ in range(fine_count):
-            inp.move_mouse_relative(direction * fine_step, 0)
-            side += direction * fine_step
-            time.sleep(0.1)
-            gp = v.find_in_region("gift_prompt", region)
-            if gp.found:
-                confirm = _press_until_window_open(v, "doggo_loot_window")
-                if confirm.found:
-                    ocr_name = _read_loot_window_doggo_name(v)
-                    if _any_doggo_name_matches(ocr_name, expected_names):
-                        return confirm, ocr_name, side, 0
-                    press_until_closed(v, "doggo_loot_window")
-        inp.move_mouse_relative(-side, 0)
+
+    # Check center first
+    gp = v.find_in_region("gift_prompt", region)
+    if gp.found:
+        confirm = _press_until_window_open(v, "doggo_loot_window")
+        if confirm.found:
+            ocr_name = _read_loot_window_doggo_name(v)
+            if _any_doggo_name_matches(ocr_name, expected_names):
+                return confirm, ocr_name, 0, 0
+            press_until_closed(v, "doggo_loot_window")
+
+    net_yaw = 0
+    offsets = []
+    for i in range(1, fine_count + 1):
+        offsets.append(i)
+        offsets.append(-i)
+
+    for offset in offsets:
+        target_yaw = offset * fine_step
+        delta = target_yaw - net_yaw
+        inp.move_mouse_relative(delta, 0)
+        net_yaw = target_yaw
+        time.sleep(0.1)
+
+        gp = v.find_in_region("gift_prompt", region)
+        if gp.found:
+            confirm = _press_until_window_open(v, "doggo_loot_window")
+            if confirm.found:
+                ocr_name = _read_loot_window_doggo_name(v)
+                if _any_doggo_name_matches(ocr_name, expected_names):
+                    return confirm, ocr_name, net_yaw, 0
+                press_until_closed(v, "doggo_loot_window")
+
+    if net_yaw != 0:
+        inp.move_mouse_relative(-net_yaw, 0)
         time.sleep(0.1)
 
     yaw_step = int(cfg.get("taming.search_yaw_step", 180))
