@@ -53,6 +53,10 @@ class TameDoggoWorkflow(_ControlMixin):
                 if self._stop_requested:
                     break
 
+                if workflow.info().is_continue_as_new_suggested():
+                    workflow.logger.info("History getting long — continuing as a new workflow.")
+                    workflow.continue_as_new(args=[max_attempts, seconds_between_attempts])
+
                 self._stats["attempts"] += 1
                 attempt = self._stats["attempts"]
 
