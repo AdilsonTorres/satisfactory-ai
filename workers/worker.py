@@ -25,6 +25,7 @@ Runtime workflow control:
 
 import asyncio
 import logging
+import os
 import socket
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -39,6 +40,74 @@ from utils import logger as log
 _logger = logging.getLogger(__name__)
 
 
+def _is_fail_safe_key(key, configured_key_str: str) -> bool:
+    try:
+        from pynput import keyboard
+    except ImportError:
+        return False
+    key_str = configured_key_str.lower().strip()
+
+    if key_str.startswith("key."):
+        key_name = key_str.split(".")[1]
+        return getattr(keyboard.Key, key_name, None) == key
+
+    special_map = {
+        "f12": keyboard.Key.f12,
+        "f11": keyboard.Key.f11,
+        "f10": keyboard.Key.f10,
+        "f9": keyboard.Key.f9,
+        "esc": keyboard.Key.esc,
+        "escape": keyboard.Key.esc,
+        "pause": keyboard.Key.pause,
+        "scroll_lock": keyboard.Key.scroll_lock,
+    }
+    if key_str in special_map:
+        return special_map[key_str] == key
+
+    char = getattr(key, "char", None)
+    if char is not None:
+        return char.lower() == key_str
+
+    return False
+
+
+async def emergency_stop(client: Client) -> None:
+    _logger.warning("[FAIL-SAFE] Fail-safe key pressed! Signaling running workflows to stop...")
+    try:
+        async for workflow_desc in client.list_workflows("ExecutionStatus = 'Running'"):
+            try:
+                handle = client.get_workflow_handle(workflow_desc.id)
+                await handle.signal("stop")
+                _logger.info("[FAIL-SAFE] Sent stop signal to workflow: %s", workflow_desc.id)
+            except Exception as e:
+                _logger.error("[FAIL-SAFE] Error signaling workflow %s: %s", workflow_desc.id, e)
+    except Exception as exc:
+        _logger.warning("[FAIL-SAFE] Could not list and signal workflows: %s", exc)
+
+    _logger.warning("[FAIL-SAFE] Terminating host worker process now.")
+    os._exit(1)
+
+
+def start_fail_safe_listener(client: Client, loop: asyncio.AbstractEventLoop) -> None:
+    try:
+        from pynput import keyboard
+    except ImportError:
+        _logger.warning("pynput not installed. Global fail-safe keyboard listener disabled.")
+        return
+
+    fail_safe_key_str = cfg.get("input.fail_safe_key", "F12")
+
+    def on_press(key) -> None:
+        if _is_fail_safe_key(key, fail_safe_key_str):
+            _logger.warning("!!! [FAIL-SAFE] Fail-safe hotkey detected!")
+            asyncio.run_coroutine_threadsafe(emergency_stop(client), loop)
+
+    listener = keyboard.Listener(on_press=on_press)
+    listener.daemon = True
+    listener.start()
+    _logger.info("Fail-safe global key listener active. Press [%s] at any time to emergency stop.", fail_safe_key_str)
+
+
 async def main() -> None:
     log.setup(cfg.get("logging.level", "INFO"))
 
@@ -48,6 +117,9 @@ async def main() -> None:
     _logger.info("Connecting to Temporal at %s ...", address)
     client = await Client.connect(address)
     _logger.info("Connected. Game-activity queue: '%s'", task_queue)
+
+    loop = asyncio.get_running_loop()
+    start_fail_safe_listener(client, loop)
 
     # Activities are sync (they drive the game with blocking sleeps/IO), so
     # they run on this executor instead of blocking the asyncio event loop —
