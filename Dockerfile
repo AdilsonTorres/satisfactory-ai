@@ -46,6 +46,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && chmod -R 755 /opt/uv
 
 ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONOPTIMIZE=1 \
+    PYTHON_JIT=1 \
     # belt & braces: pynput is only imported lazily on the host paths, but
     # if anything ever pulls it in here, the dummy backend keeps it headless-safe
     PYNPUT_BACKEND=dummy
