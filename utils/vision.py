@@ -14,6 +14,7 @@ import cv2
 import mss
 import mss.exception
 import numpy as np
+import pytesseract
 
 from utils import config as cfg
 
@@ -242,6 +243,9 @@ class Vision:
         cx, cy = _GAUGE_CENTER[0] - gx, _GAUGE_CENTER[1] - gy
         h_max, w_max = hsv.shape[:2]
 
+        # Precompute 3x3 patch averages to vectorize ring sampling
+        hsv_mean = cv2.boxFilter(hsv, cv2.CV_64F, (3, 3), normalize=True, borderType=cv2.BORDER_CONSTANT)
+
         # Precompute 72 sample angles
         _N = 72
         angles = np.linspace(0, 2 * np.pi, _N, endpoint=False)
@@ -252,18 +256,8 @@ class Vision:
             """Returns (V_means, S_means, H_means) arrays of shape (_N,) for ring at given radius."""
             xs = np.clip(np.round(cx + radius * cos_a).astype(int), 1, w_max - 2)
             ys = np.clip(np.round(cy + radius * sin_a).astype(int), 1, h_max - 2)
-            v_vals = np.empty(_N)
-            s_vals = np.empty(_N)
-            h_vals = np.empty(_N)
-            for k in range(_N):
-                patch = hsv[max(ys[k] - 1, 0) : ys[k] + 2, max(xs[k] - 1, 0) : xs[k] + 2]
-                if patch.size:
-                    h_vals[k] = patch[:, :, 0].mean()
-                    s_vals[k] = patch[:, :, 1].mean()
-                    v_vals[k] = patch[:, :, 2].mean()
-                else:
-                    h_vals[k] = s_vals[k] = v_vals[k] = 0.0
-            return v_vals, s_vals, h_vals
+            means = hsv_mean[ys, xs]  # shape (_N, 3)
+            return means[:, 2], means[:, 1], means[:, 0]
 
         # GATE: the charge ring is shared by two icons that render here -- the
         # spinning Hover Pack fan (flying) and the objective-complete checkmark
@@ -445,8 +439,6 @@ class Vision:
 
     def read_text_region(self, x: int, y: int, w: int, h: int) -> str:
         try:
-            import pytesseract
-
             region = self.grab_region(x, y, w, h)
             gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
             _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
@@ -466,8 +458,6 @@ def ocr_text(img: np.ndarray) -> str:
     Returns '' when nothing legible is found (never raises).
     """
     try:
-        import pytesseract
-
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
         _, binary = cv2.threshold(gray, 190, 255, cv2.THRESH_BINARY)
