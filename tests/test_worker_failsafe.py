@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+
 from workers.worker import _is_fail_safe_key
 
 
