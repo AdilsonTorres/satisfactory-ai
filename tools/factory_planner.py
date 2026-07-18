@@ -22,25 +22,26 @@ def plan_factory_step(
         raw_materials[item] = raw_materials.get(item, 0.0) + rate
         return
 
-    # Determine which recipe to use (we always target "best" for optimization)
+    # Determine which recipe to use; fall back to default silently if best is locked
     recipe_dict = RECIPES[item]
-    recipe = recipe_dict.get("best", recipe_dict["default"])
+    best = recipe_dict.get("best")
+    default = recipe_dict["default"]
 
-    # Check unlock status
-    is_unlocked = True
-    if recipe.get("alternate") and recipe.get("schematic"):
-        schem_name = recipe["schematic"]
+    if best and best.get("alternate") and best.get("schematic"):
+        schem_name = best["schematic"]
         # Extra robustness for 1.0 diamond/aluminum renames
-        is_unlocked = schem_name in unlocked_schematics
+        unlocked = schem_name in unlocked_schematics
         if schem_name == "Schematic_Alternate_AluminumBeam":
-            is_unlocked = is_unlocked or "Schematic_Alternate_SteelBeam_Aluminum" in unlocked_schematics
+            unlocked = unlocked or "Schematic_Alternate_SteelBeam_Aluminum" in unlocked_schematics
         elif schem_name == "Schematic_Alternate_Diamond_OilBased":
-            is_unlocked = is_unlocked or "Schematic_Alternate_Diamond_Petroleum" in unlocked_schematics
+            unlocked = unlocked or "Schematic_Alternate_Diamond_Petroleum" in unlocked_schematics
         elif schem_name == "Schematic_Alternate_Diamond_Pink":
-            is_unlocked = is_unlocked or "Schematic_Alternate_Diamond_Cloudy" in unlocked_schematics
+            unlocked = unlocked or "Schematic_Alternate_Diamond_Cloudy" in unlocked_schematics
+        recipe = best if unlocked else default
+    else:
+        recipe = best or default
 
-    # Calculate machines needed
-    # Output rate of recipe is for 1 machine
+    is_unlocked = True  # selected recipe is always usable
     output_rate = recipe["outputs"][item]
     machine_count = rate / output_rate
 

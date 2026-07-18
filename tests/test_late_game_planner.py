@@ -286,6 +286,7 @@ def test_generate_late_game_plan_ballistic_warp_drive(mock_save_class):
     """Test full Ballistic Warp Drive planning, verifying Superposition Oscillator rates and Dark Matter Crystal machine type."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_DarkMatter_Trap"]
+    mock_save.recipes = []
     mock_save.dimensional_depot = []
 
     plan = generate_late_game_plan(
@@ -317,11 +318,12 @@ def test_generate_late_game_plan_ballistic_warp_drive(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_generate_late_game_plan_locked_recipe_warning(mock_save_class):
-    """Locked recipe warning should be added if the save file does not have the alternate recipe unlocked."""
+def test_generate_late_game_plan_locked_recipe_fallback(mock_save_class):
+    """When the best alternate is locked, the planner falls back to the default recipe silently (no warning)."""
     mock_save = mock_save_class.return_value
-    # No alternate schematics unlocked
+    # No alternate schematics or recipes unlocked
     mock_save.schematics = []
+    mock_save.recipes = []
     mock_save.dimensional_depot = []
 
     plan = generate_late_game_plan(
@@ -333,8 +335,13 @@ def test_generate_late_game_plan_locked_recipe_warning(mock_save_class):
         recipe_multiplier=0.75,
     )
 
-    # Alternate recipe "Dark Matter Trap" is used, but locked, so we should have a warning
-    assert any("Recipe 'Dark Matter Trap' is locked" in w for w in plan["warnings"])
+    # No warnings expected — locked alternates are silently replaced by defaults
+    assert plan["warnings"] == []
+
+    # Dark Matter Crystal should fall back to the default recipe (Converter), not Dark Matter Trap
+    dmc_steps = [s for s in plan["steps"] if s["item"] == "Dark Matter Crystal"]
+    assert len(dmc_steps) == 1
+    assert dmc_steps[0]["recipe_name"] != "Dark Matter Trap"  # best was locked; default used
 
 
 def test_generate_mermaid_flowchart_late_game():

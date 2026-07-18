@@ -1,7 +1,7 @@
 import difflib
 import math
 import re
-from typing import Any
+from typing import Any, cast
 
 from utils.recipe_db import RECIPES
 from utils.save_parser import SatisfactorySave
@@ -199,8 +199,20 @@ def plan_step(
         return
 
     recipe_dict = ALL_RECIPES[item]
-    # Always select the best recipe for each item
-    recipe = recipe_dict.get("best") or recipe_dict["default"]
+    best = recipe_dict.get("best")
+    default = recipe_dict.get("default")
+
+    # Use best recipe only if it is unlocked; fall back to default silently.
+    # Some late-game items (Ficsite Trigon, etc.) have no default — always use best.
+    if best and best.get("alternate") and best.get("schematic") and default:
+        recipe: dict[str, Any] = best if best["schematic"] in unlocked_schematics else default
+    elif best is not None:
+        recipe = best
+    else:
+        recipe = cast(dict[str, Any], default)
+    assert recipe is not None  # every item in ALL_RECIPES has at least a best or default
+
+    is_unlocked = True  # recipe selected is always usable
 
     base_output = recipe["outputs"][item]
     machine_name = recipe["machine"]
@@ -227,10 +239,6 @@ def plan_step(
 
     shards_used = 3 if overclock else 0
     sloops_used = sloop_slots
-
-    is_unlocked = True
-    if recipe.get("alternate") and recipe.get("schematic"):
-        is_unlocked = recipe["schematic"] in unlocked_schematics
 
     steps.append(
         {
