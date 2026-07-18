@@ -336,3 +336,42 @@ def test_cli_start_command():
         mock_popen.assert_called_once()
         mock_start_server.assert_called_once_with(8080)
         mock_proc.terminate.assert_called_once()
+
+
+def test_dashboard_audit_log():
+    """Verify that _get_temporal_audit_log safely returns items when Temporal handles list_workflows."""
+    from datetime import datetime
+
+    from tools.dashboard import DashboardHandler
+
+    handler = MagicMock(spec=DashboardHandler)
+    handler._get_temporal_audit_log = DashboardHandler._get_temporal_audit_log
+
+    with patch("temporalio.client.Client.connect") as mock_connect:
+        mock_client = MagicMock()
+        mock_connect.return_value = mock_client
+
+        # Mock async iterator list_workflows
+        async def mock_list_workflows(*args, **kwargs):
+            mock_handle = MagicMock()
+
+            async def mock_describe():
+                desc = MagicMock()
+                desc.id = "test-id"
+                desc.workflow_type = "test-type"
+                desc.status.name = "RUNNING"
+                desc.start_time = datetime(2026, 7, 18, 12, 0, 0)
+                desc.close_time = None
+                desc.raw_info.execution_info.identity = "test-principal"
+                return desc
+
+            mock_handle.describe = mock_describe
+            yield mock_handle
+
+        mock_client.list_workflows = mock_list_workflows
+
+        logs = handler._get_temporal_audit_log(handler)
+        assert len(logs) == 1
+        assert logs[0]["id"] == "test-id"
+        assert logs[0]["principal"] == "test-principal"
+

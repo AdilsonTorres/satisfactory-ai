@@ -205,7 +205,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
             config.reload()
             data = {
-                "vision": {
+                "version": {
                     "default_threshold": config.get("vision.default_threshold", 0.8),
                 },
                 "taming": {
@@ -298,6 +298,15 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             data = self._get_stats_data()
+            self.wfile.write(json.dumps(data).encode("utf-8"))
+            return
+
+        # Serve API: Live Temporal Audit Log
+        if self.path == "/api/audit":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            data = self._get_temporal_audit_log()
             self.wfile.write(json.dumps(data).encode("utf-8"))
             return
 
@@ -438,6 +447,46 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             "gift_summary": gift_summary,
             "recent_runs": recent_runs,
         }
+
+    def _get_temporal_audit_log(self) -> list[dict]:
+        import asyncio
+
+        from temporalio.client import Client
+
+        async def run():
+            items = []
+            try:
+                client = await Client.connect("localhost:7233")
+                async for handle in client.list_workflows(limit=15):
+                    try:
+                        desc = await handle.describe()
+                        status_str = desc.status.name if hasattr(desc.status, "name") else str(desc.status)
+                        start_str = desc.start_time.strftime("%Y-%m-%d %H:%M:%S") if desc.start_time else ""
+                        close_str = desc.close_time.strftime("%Y-%m-%d %H:%M:%S") if desc.close_time else "Active"
+
+                        identity = "Unknown Principal"
+                        if hasattr(desc, "raw_info") and hasattr(desc.raw_info, "execution_info"):
+                            raw_identity = getattr(desc.raw_info.execution_info, "identity", None)
+                            if raw_identity:
+                                identity = raw_identity
+
+                        items.append(
+                            {
+                                "id": desc.id,
+                                "type": desc.workflow_type,
+                                "status": status_str,
+                                "start_time": start_str,
+                                "close_time": close_str,
+                                "principal": identity,
+                            }
+                        )
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"[Dashboard Audit Log Error] {e}", file=sys.stderr)
+            return items
+
+        return asyncio.run(run())
 
     def _get_screenshots_list(self) -> list[dict]:
         screenshot_dir = Path("debug_screenshots")
@@ -668,6 +717,12 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       margin-bottom: 15px;
       align-items: center;
     }
+    .form-row {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 15px;
+      align-items: center;
+    }
     .form-group {
       display: flex;
       flex-direction: column;
@@ -761,6 +816,25 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           </thead>
           <tbody>
             <tr><td colspan="3" style="text-align: center; color: #90a4ae;">No recent runs.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Live Temporal Audit Logs & Principal Initiators</h2>
+        <table id="audit-table">
+          <thead>
+            <tr>
+              <th>Workflow ID</th>
+              <th>Workflow Type</th>
+              <th>Status</th>
+              <th>Started At</th>
+              <th>Closed At</th>
+              <th>Initiator (Principal)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="6" style="text-align: center; color: #90a4ae;">No audits logged. Ensure Temporal is running.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1004,8 +1078,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         const res = await fetch('/api/config/get');
         const data = await res.json();
 
-        document.getElementById('threshold-slider').value = data.vision.default_threshold;
-        document.getElementById('threshold-val').textContent = data.vision.default_threshold;
+        document.getElementById('threshold-slider').value = data.version.default_threshold;
+        document.getElementById('threshold-val').textContent = data.version.default_threshold;
 
         document.getElementById('feed-slider').value = data.taming.feed_wait_seconds;
         document.getElementById('feed-val').textContent = data.taming.feed_wait_seconds;
@@ -1190,8 +1264,43 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             rBody.appendChild(row);
           });
         }
+
+        loadAuditLogs();
       } catch (err) {
         console.error('Failed loading stats:', err);
+      }
+    }
+
+    async function loadAuditLogs() {
+      try {
+        const res = await fetch('/api/audit');
+        const items = await res.json();
+
+        const body = document.querySelector('#audit-table tbody');
+        body.innerHTML = '';
+        if (items.length === 0) {
+          body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #90a4ae;">No audits logged. Ensure Temporal is running.</td></tr>';
+        } else {
+          items.forEach(item => {
+            const row = document.createElement('tr');
+            let color = '#cfd8dc';
+            if (item.status === 'RUNNING') color = '#00e5ff';
+            if (item.status === 'COMPLETED') color = '#00e676';
+            if (item.status === 'FAILED' || item.status === 'TERMINATED') color = '#ff1744';
+
+            row.innerHTML = `
+              <td><code>${item.id}</code></td>
+              <td><b>${item.type}</b></td>
+              <td><span style="color: ${color}; font-weight: bold;">${item.status}</span></td>
+              <td>${item.start_time}</td>
+              <td>${item.close_time}</td>
+              <td><span style="color: #ffd600;">${item.principal}</span></td>
+            `;
+            body.appendChild(row);
+          });
+        }
+      } catch (err) {
+        console.error('Failed loading audit logs:', err);
       }
     }
 
@@ -1232,6 +1341,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           currentVersion = data.version;
           loadTelemetry();
           loadGallery();
+          loadAuditLogs();
           const iframe = document.getElementById('map-iframe');
           if (iframe && iframe.src) {
             iframe.src = '/api/map';
