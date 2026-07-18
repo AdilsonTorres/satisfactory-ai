@@ -186,6 +186,12 @@ Spin up a local web server to monitor live telemetry, taming rates, screenshots,
 sbot dashboard --port 8080
 ```
 
+#### Unified Automation Stack Boot (`sbot start`)
+Boot up the entire stack—Docker Compose containers (PostgreSQL database & Temporal server), the local host worker daemon subprocess, and the gameplay dashboard server—in a single terminal command:
+```bash
+sbot start --port 8080
+```
+
 ### 3. Trigger workflows
 
 ```bash

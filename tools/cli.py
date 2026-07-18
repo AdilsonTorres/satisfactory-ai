@@ -155,6 +155,12 @@ def create_parser() -> argparse.ArgumentParser:
     )
     dash_parser.add_argument("--port", type=int, default=8080, help="Local server port [8080]")
 
+    # --- start ---
+    start_parser = subparsers.add_parser(
+        "start", help="Boot the entire stack (Docker Compose, Host Worker, and Dashboard)"
+    )
+    start_parser.add_argument("--port", type=int, default=8080, help="Local server port [8080]")
+
     # --- schedules ---
     sched_parser = subparsers.add_parser("schedules", help="Manage Temporal gift-farming schedules")
     sched_sub = sched_parser.add_subparsers(dest="action", required=True)
@@ -219,6 +225,8 @@ def main() -> None:
         asyncio.run(_run_status())
     elif args.command == "dashboard":
         _run_dashboard(args)
+    elif args.command == "start":
+        _run_start(args)
     elif args.command == "schedules":
         import asyncio
 
@@ -1089,6 +1097,51 @@ def _run_dashboard(args: argparse.Namespace) -> None:
     from tools.dashboard import start_server
 
     start_server(args.port)
+
+
+def _run_start(args: argparse.Namespace) -> None:
+    import subprocess
+    import sys
+
+    from tools.dashboard import start_server
+
+    print("\n==================================================")
+    print("  Booting Satisfactory Bot Unified Stack...")
+    print("==================================================")
+
+    # 1. Start Docker compose
+    print("\n[1/3] Launching Docker stack (Temporal, PostgreSQL)...")
+    try:
+        subprocess.run(["docker", "compose", "up", "-d"], check=True)
+        print("Docker stack launched successfully.")
+    except Exception as exc:
+        print(f"Error starting docker-compose: {exc}", file=sys.stderr)
+        print("Make sure Docker daemon is running.", file=sys.stderr)
+        sys.exit(1)
+
+    # 2. Launch Host Worker
+    print("\n[2/3] Spawning Host GUI Worker process...")
+    worker_proc = None
+    try:
+        worker_proc = subprocess.Popen([sys.executable, "workers/worker.py"])
+        print(f"Host GUI Worker process spawned (PID: {worker_proc.pid}).")
+    except Exception as exc:
+        print(f"Error starting host worker: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    # 3. Start Dashboard Server
+    print("\n[3/3] Starting Gameplay Dashboard Server...")
+    try:
+        start_server(args.port)
+    finally:
+        if worker_proc and worker_proc.poll() is None:
+            print("\nShutting down Host GUI Worker process...")
+            worker_proc.terminate()
+            try:
+                worker_proc.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                worker_proc.kill()
+            print("Host GUI Worker shutdown finished.")
 
 
 def _get_acronym_mapping(valid_items: set[str]) -> dict[str, str]:

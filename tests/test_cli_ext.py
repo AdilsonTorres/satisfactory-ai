@@ -309,6 +309,30 @@ def test_async_workflow_and_schedule_triggers():
 def test_dashboard_imports():
     """Verify that dashboard module contains start_server and handler."""
     from tools import dashboard
+
     assert hasattr(dashboard, "start_server")
     assert hasattr(dashboard, "DashboardHandler")
 
+
+def test_cli_start_command():
+    """Verify that sbot start executes the boot sequence for compose, worker, and dashboard."""
+    import argparse
+
+    from tools.cli import _run_start
+
+    args = argparse.Namespace(port=8080)
+    with (
+        patch("subprocess.run") as mock_run,
+        patch("subprocess.Popen") as mock_popen,
+        patch("tools.dashboard.start_server") as mock_start_server,
+    ):
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None
+        mock_popen.return_value = mock_proc
+
+        _run_start(args)
+
+        mock_run.assert_called_once_with(["docker", "compose", "up", "-d"], check=True)
+        mock_popen.assert_called_once()
+        mock_start_server.assert_called_once_with(8080)
+        mock_proc.terminate.assert_called_once()
