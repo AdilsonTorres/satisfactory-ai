@@ -255,3 +255,51 @@ def test_dashboard_watcher_thread():
     assert hasattr(db, "global_save_version")
     assert hasattr(db, "global_last_modified")
     assert hasattr(db, "global_watcher_active")
+
+
+def test_update_config_value():
+    """Verify that update_config_value correctly updates properties inside config.toml."""
+    from tools.dashboard import update_config_value
+    temp_config = Path("config.toml")
+    backup = None
+    if temp_config.exists():
+        backup = temp_config.read_text(encoding="utf-8")
+
+    try:
+        temp_config.write_text("[vision]\ndefault_threshold = 0.8\n# some comment\n", encoding="utf-8")
+        success = update_config_value("vision", "default_threshold", 0.95)
+        assert success is True
+        content = temp_config.read_text(encoding="utf-8")
+        assert "default_threshold = 0.95" in content
+        assert "# some comment" in content
+    finally:
+        if backup is not None:
+            temp_config.write_text(backup, encoding="utf-8")
+        else:
+            temp_config.unlink()
+
+
+def test_dist_3d_calculation():
+    """Verify 3D distance calculations in map_power."""
+    from tools.map_power import dist_3d
+    assert dist_3d([0, 0, 0], [300, 400, 0]) == 500.0
+
+
+def test_async_workflow_and_schedule_triggers():
+    """Verify that _trigger_workflow_async and _run_schedule_action_async map parameters correctly."""
+    from tools.dashboard import DashboardHandler
+
+    handler = MagicMock(spec=DashboardHandler)
+    handler._trigger_workflow_async = DashboardHandler._trigger_workflow_async
+    handler._run_schedule_action_async = DashboardHandler._run_schedule_action_async
+
+    with (
+        patch("temporalio.client.Client.connect") as mock_connect,
+        patch("schedule_gift_farm.pause") as mock_pause,
+    ):
+        handler._trigger_workflow_async(handler, "calibration", {"target": "hud"})
+        mock_connect.assert_called_once()
+
+        handler._run_schedule_action_async(handler, "pause", "daily")
+        mock_pause.assert_called_once()
+
