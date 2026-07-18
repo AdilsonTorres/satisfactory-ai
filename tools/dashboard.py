@@ -115,6 +115,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        with contextlib.suppress(ConnectionError):
+            self._handle_get()
+
+    def _handle_get(self):
         # Serve API: Watcher status (long-polling)
         if self.path.startswith("/api/watch"):
             query = self.path.split("?")[-1] if "?" in self.path else ""
