@@ -20,6 +20,8 @@ from ._base import (
 )
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel
+
     from activities.exploration import (
         capture_base_reference,
         explore_leg,
@@ -27,6 +29,12 @@ with workflow.unsafe.imports_passed_through():
         return_via_reverse_route,
     )
     from activities.lifecycle import handle_death_respawn
+
+
+class ExplorationParams(BaseModel):
+    max_total_duration_seconds: float | None = None
+    ignore_health_check: bool = False
+    no_return: bool = False
 
 
 @workflow.defn
@@ -65,9 +73,18 @@ class ExplorationWorkflow(_ControlMixin):
         ignore_health_check: bool = False,
         no_return: bool = False,
     ) -> dict:
+        params = ExplorationParams(
+            max_total_duration_seconds=max_total_duration_seconds,
+            ignore_health_check=ignore_health_check,
+            no_return=no_return,
+        )
         workflow.logger.info("ExplorationWorkflow started.")
         try:
-            return await self._run_exploration(max_total_duration_seconds, ignore_health_check, no_return)
+            return await self._run_exploration(
+                params.max_total_duration_seconds,
+                params.ignore_health_check,
+                params.no_return,
+            )
         except asyncio.CancelledError:
             workflow.logger.warning("ExplorationWorkflow cancelled — cleaning up game state.")
             await asyncio.shield(_cleanup_on_cancel("ExplorationWorkflow"))

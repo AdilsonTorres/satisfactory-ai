@@ -18,7 +18,15 @@ from ._base import (
 )
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel
+
     from activities.crafting import harvest_resource_node
+
+
+class ResourceHarvestParams(BaseModel):
+    swings_per_cycle: int = 20
+    cycles: int = 0
+    screenshot_every_cycles: int = 10
 
 
 @workflow.defn
@@ -49,6 +57,15 @@ class ResourceHarvestWorkflow(_ControlMixin):
         screenshot_every_cycles: int = 10,
         _resume_stats: dict | None = None,
     ) -> dict:
+        params = ResourceHarvestParams(
+            swings_per_cycle=swings_per_cycle,
+            cycles=cycles,
+            screenshot_every_cycles=screenshot_every_cycles,
+        )
+        swings_per_cycle = params.swings_per_cycle
+        cycles = params.cycles
+        screenshot_every_cycles = params.screenshot_every_cycles
+
         if _resume_stats is not None:
             self._stats = _resume_stats
         workflow.logger.info("ResourceHarvestWorkflow started. swings_per_cycle=%d", swings_per_cycle)

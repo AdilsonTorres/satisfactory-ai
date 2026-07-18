@@ -97,6 +97,8 @@ def main() -> None:
     plan_prod_parser.add_argument("--item", help="Target output item name (e.g. 'Modular Frame')")
     plan_prod_parser.add_argument("--rate", type=float, help="Target production rate of the item per minute")
     plan_prod_parser.add_argument("--coupons", type=float, help="Target coupons per minute to produce")
+    plan_prod_parser.add_argument("--draw", action="store_true", help="Draw Mermaid flowchart of the factory layout")
+    plan_prod_parser.add_argument("--draw-html", action="store_true", help="Draw flowchart and open in browser")
     plan_prod_parser.add_argument(
         "filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)"
     )
@@ -128,12 +130,44 @@ def main() -> None:
         ),
     )
     plan_lg_parser.add_argument("--recipe-multiplier", type=float, default=1.0, help="Recipe cost multiplier (e.g. 0.75)")
+    plan_lg_parser.add_argument("--draw", action="store_true", help="Draw Mermaid flowchart of the factory layout")
+    plan_lg_parser.add_argument("--draw-html", action="store_true", help="Draw flowchart and open in browser")
     plan_lg_parser.add_argument(
         "filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)"
     )
 
     # --- map ---
     subparsers.add_parser("map", help="Build Hover Pack power grid connectivity map and suggested routes")
+
+    # --- status ---
+    subparsers.add_parser("status", help="Show active Temporal workflow status and telemetry")
+
+    # --- schedules ---
+    sched_parser = subparsers.add_parser("schedules", help="Manage Temporal gift-farming schedules")
+    sched_sub = sched_parser.add_subparsers(dest="action", required=True)
+    sched_sub.add_parser("list", help="List all active gift-farming schedules")
+
+    st_p = sched_sub.add_parser("status", help="Show status of schedules")
+    st_p.add_argument("--name", default=None, help="Schedule name")
+
+    p_p = sched_sub.add_parser("pause", help="Pause a schedule")
+    p_p.add_argument("--name", default=None, help="Schedule name")
+
+    up_p = sched_sub.add_parser("unpause", help="Unpause a schedule")
+    up_p.add_argument("--name", default=None, help="Schedule name")
+
+    d_p = sched_sub.add_parser("delete", help="Delete a schedule")
+    d_p.add_argument("--name", default=None, help="Schedule name")
+
+    c_p = sched_sub.add_parser("create", help="Create/replace a named start+stop window")
+    c_p.add_argument("--name", default="daily", help="Window name [daily]")
+    c_p.add_argument("--start", default="08:00", help="Window start HH:MM")
+    c_p.add_argument("--stop", default="23:00", help="Window stop HH:MM")
+    c_p.add_argument("--no-stop", action="store_true", help="Run 24/7 with no stop schedule (always-on mode)")
+    c_p.add_argument("--timezone", default=None, help="IANA timezone name")
+    c_p.add_argument("--ammo-per-craft", type=int, default=50)
+    c_p.add_argument("--screenshot-every-cycles", type=int, default=10)
+    c_p.add_argument("--interval", type=float, default=50.0)
 
     args = parser.parse_args()
 
@@ -161,6 +195,12 @@ def main() -> None:
         _run_plan_late_game(args)
     elif args.command == "map":
         _run_map()
+    elif args.command == "status":
+        import asyncio
+        asyncio.run(_run_status())
+    elif args.command == "schedules":
+        import asyncio
+        asyncio.run(_run_schedules(args))
     else:
         parser.print_help()
 
@@ -651,7 +691,7 @@ def _run_map() -> None:
 
 def _get_acronym_mapping(valid_items: set[str]) -> dict[str, str]:
     """Generate a mapping from uppercase acronyms of multi-word items to full names."""
-    mapping = {}
+    mapping: dict[str, str | None] = {}
     for item in valid_items:
         words = [w for w in item.split() if w]
         if len(words) >= 2:
@@ -719,6 +759,79 @@ def _resolve_item_interactive(item: str, valid_items: set[str], label: str = "It
 
     print("Invalid choice. Aborted.")
     sys.exit(1)
+
+
+def _save_flowchart_html(markup: str, target_name: str) -> str:
+    import os
+    import webbrowser
+    from pathlib import Path
+
+    stats_dir = Path("stats")
+    stats_dir.mkdir(exist_ok=True)
+
+    clean_target = target_name.lower().replace(" ", "_")
+    html_file = stats_dir / f"factory_plan_{clean_target}.html"
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Satisfactory Factory Planner - {target_name}</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});
+  </script>
+  <style>
+    body {{
+      background-color: #121212;
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }}
+    h1 {{
+      color: #ff9800;
+      font-size: 28px;
+      margin-bottom: 5px;
+    }}
+    p {{
+      color: #b0bec5;
+      font-size: 14px;
+      margin-top: 0;
+      margin-bottom: 30px;
+    }}
+    .mermaid {{
+      background: #1e1e1e;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+      width: 100%;
+      max-width: 1200px;
+      box-sizing: border-box;
+    }}
+  </style>
+</head>
+<body>
+  <h1>Factory Layout Flowchart</h1>
+  <p>Visual plan for producing {target_name}</p>
+  <div class="mermaid">
+{markup}
+  </div>
+</body>
+</html>
+"""
+    with open(html_file, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    import contextlib
+
+    abs_path = os.path.abspath(html_file)
+    with contextlib.suppress(Exception):
+        webbrowser.open(f"file://{abs_path}")
+    return str(html_file)
 
 
 def _run_plan_production(args: argparse.Namespace) -> None:
@@ -790,6 +903,19 @@ def _run_plan_production(args: argparse.Namespace) -> None:
         )
 
     print("=" * 55)
+
+    if args.draw or args.draw_html:
+        from tools.factory_planner import generate_mermaid_flowchart
+        chart = generate_mermaid_flowchart(plan["target_item"], plan["target_rate"])
+        if args.draw:
+            print("\n--- Factory Layout Flowchart (Mermaid) ---")
+            print("Copy-paste the block below into a markdown file or view at https://mermaid.live")
+            print("```mermaid")
+            print(chart)
+            print("```")
+        if args.draw_html:
+            path = _save_flowchart_html(chart, plan["target_item"])
+            print(f"\nFlowchart HTML exported to: {path}")
 
 
 def _run_plan_late_game(args: argparse.Namespace) -> None:
@@ -932,6 +1058,102 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
             print(f"  • {il['item']} → only feeds {il['consumer']}")
 
     print("=" * 80 + "\n")
+
+    if args.draw or args.draw_html:
+        from tools.late_game_planner import generate_mermaid_flowchart
+        chart = generate_mermaid_flowchart(
+            plan["target_item"],
+            plan["target_rate"],
+            set(),  # schematics check is internal to plan
+            plan["sloop_items"],
+            plan["overclock"],
+            args.recipe_multiplier,
+        )
+        if args.draw:
+            print("\n--- Factory Layout Flowchart (Mermaid) ---")
+            print("Copy-paste the block below into a markdown file or view at https://mermaid.live")
+            print("```mermaid")
+            print(chart)
+            print("```")
+        if args.draw_html:
+            path = _save_flowchart_html(chart, plan["target_item"])
+            print(f"\nFlowchart HTML exported to: {path}")
+
+
+async def _run_status() -> None:
+    from temporalio.client import Client
+
+    from utils import config as cfg
+
+    address = cfg.get("temporal.address", "localhost:7233")
+    try:
+        client = await Client.connect(address)
+    except Exception as exc:
+        print(f"Error: Could not connect to Temporal at {address}: {exc}")
+        sys.exit(1)
+
+    print(f"Connected to Temporal at {address}")
+    print("-" * 60)
+
+    try:
+        workflows = []
+        async for workflow_desc in client.list_workflows("ExecutionStatus = 'Running'"):
+            workflows.append(workflow_desc)
+    except Exception as exc:
+        print(f"Error listing workflows: {exc}")
+        sys.exit(1)
+
+    if not workflows:
+        print("No workflows are currently running.")
+        return
+
+    print(f"{'Workflow ID':<35} | {'Type':<25} | {'Start Time':<20}")
+    print("-" * 85)
+    for wf in workflows:
+        start_time_str = wf.start_time.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"{wf.id:<35} | {wf.workflow_type:<25} | {start_time_str:<20}")
+
+        # Try to query stats
+        try:
+            handle = client.get_workflow_handle(wf.id)
+            stats = await handle.query("get_stats")
+            print("    * Live Stats:")
+            for k, v in stats.items():
+                print(f"      - {k}: {v}")
+        except Exception:
+            pass
+    print("-" * 85)
+
+
+async def _run_schedules(args: argparse.Namespace) -> None:
+    import argparse as ap
+
+    import schedule_gift_farm
+
+    # Prepare a namespace that matches what schedule_gift_farm expects
+    ns = ap.Namespace()
+    ns.name = getattr(args, "name", None)
+    ns.start = getattr(args, "start", "08:00")
+    ns.stop = getattr(args, "stop", "23:00")
+    ns.no_stop = getattr(args, "no_stop", False)
+    ns.timezone = getattr(args, "timezone", None)
+    ns.ammo_per_craft = getattr(args, "ammo_per_craft", 50)
+    ns.screenshot_every_cycles = getattr(args, "screenshot_every_cycles", 10)
+    ns.interval = getattr(args, "interval", 50.0)
+
+    if args.action == "list":
+        ns.name = None
+        await schedule_gift_farm.status(ns)
+    elif args.action == "status":
+        await schedule_gift_farm.status(ns)
+    elif args.action == "create":
+        await schedule_gift_farm.create(ns)
+    elif args.action == "pause":
+        await schedule_gift_farm.pause(ns)
+    elif args.action == "unpause":
+        await schedule_gift_farm.unpause(ns)
+    elif args.action == "delete":
+        await schedule_gift_farm.delete(ns)
 
 
 if __name__ == "__main__":

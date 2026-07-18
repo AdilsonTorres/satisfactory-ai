@@ -10,11 +10,18 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel
+
     from activities.diagnostics import (
         capture_template_screen,
         extract_templates_from_screen,
         verify_matching_templates,
     )
+
+
+class TemplateOrchestrationParams(BaseModel):
+    target: str = "hud"
+    resolution: str = "2560x1440"
 
 
 @workflow.defn
@@ -29,6 +36,10 @@ class TemplateOrchestrationWorkflow:
 
     @workflow.run
     async def run(self, target: str = "hud", resolution: str = "2560x1440") -> dict:
+        params = TemplateOrchestrationParams(target=target, resolution=resolution)
+        target = params.target
+        resolution = params.resolution
+
         workflow.logger.info("TemplateOrchestrationWorkflow started for target: %s", target)
 
         if target == "hud":

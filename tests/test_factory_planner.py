@@ -59,3 +59,11 @@ def test_generate_production_plan_coupons(mock_save_class):
 
     assert plan["target_item"] == "Thermal Propulsion Rocket"
     assert abs(plan["target_rate"] - (0.001 * 262813500 / 732956)) < 1e-4
+
+
+def test_generate_mermaid_flowchart():
+    from tools.factory_planner import generate_mermaid_flowchart
+    chart = generate_mermaid_flowchart("Iron Ingot", 65.0)
+    assert "flowchart TD" in chart
+    assert "Iron Ore" in chart
+    assert "Smelter" in chart or "Refinery" in chart

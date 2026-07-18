@@ -3,6 +3,18 @@ import struct
 import zlib
 from typing import Any
 
+from pydantic import BaseModel
+
+
+class DimensionalDepotItem(BaseModel):
+    item_id: str
+    name: str
+    quantity: int
+
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
+
+
 # Constants
 TICKS_IN_SECOND = 10 * 1000 * 1000
 EPOCH_1_TO_1970 = 719162 * 24 * 60 * 60
@@ -145,7 +157,7 @@ class SatisfactorySave:
         self.schematics: list[str] = []
         self._decompressed_data: bytes = b""
         self.collected_objects: list[str] = []
-        self.dimensional_depot: list[dict[str, Any]] = []
+        self.dimensional_depot: list[DimensionalDepotItem] = []
         self.game_phase: str = "Unknown"
         self.hard_drives_unlocked: int = 0
         self.recipes: list[str] = []
@@ -845,7 +857,9 @@ class SatisfactorySave:
                     if item_class and item_class.get("path"):
                         item_id = item_class["path"]
                         clean_name = item_id.split(".")[-1].removesuffix("_C")
-                        self.dimensional_depot.append({"item_id": item_id, "name": clean_name, "quantity": amount})
+                        self.dimensional_depot.append(
+                            DimensionalDepotItem(item_id=item_id, name=clean_name, quantity=amount)
+                        )
                 break
 
     def _extract_game_phase(self, objects: dict[str, dict[str, Any]]):

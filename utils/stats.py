@@ -1,14 +1,22 @@
 """
 utils/stats.py
 Persists session stats to stats/{timestamp}_{workflow}.json
-for later analysis.
+using Pydantic for validation and fast serialization.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict
+
 STATS_DIR = Path("stats")
+
+
+class SessionStats(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    workflow_type: str
+    saved_at: datetime
 
 
 def save(workflow_type: str, stats: dict) -> Path:
@@ -16,16 +24,15 @@ def save(workflow_type: str, stats: dict) -> Path:
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     path = STATS_DIR / f"{ts}_{workflow_type}.json"
 
-    payload = {
-        "workflow_type": workflow_type,
-        "saved_at": datetime.now().isoformat(),
-        **stats,
-    }
+    # Validate using Pydantic
+    model = SessionStats(
+        workflow_type=workflow_type,
+        saved_at=datetime.now(),
+        **stats
+    )
 
+    # Write using Pydantic's optimized JSON serialization
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+        f.write(model.model_dump_json(indent=2))
 
     return path
-
-
-# Per-gift history moved to SQLite — see utils/gift_db.py (stats/gift_history.db).

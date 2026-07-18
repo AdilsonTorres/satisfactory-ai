@@ -21,10 +21,22 @@ from ._base import (
 )
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel
+
     from activities.combat import check_ammo_count, engage_enemy, retreat_from_hazard, scan_for_enemy
     from activities.inventory import open_storage_and_deposit_loot
     from activities.lifecycle import handle_death_respawn
     from activities.navigation import navigate_to_location
+
+
+class CombatExpeditionParams(BaseModel):
+    location: str
+    max_kills: int = 10
+    min_ammo_to_depart: int = 20
+    ammo_per_craft: int = 50
+    screenshot_every_kills: int = 5
+    base_location: str = "base"
+    nav_timeout_seconds: int = 45
 
 
 @workflow.defn
@@ -77,6 +89,23 @@ class CombatExpeditionWorkflow(_ControlMixin):
         nav_timeout_seconds: int = 45,
         _resume_stats: dict | None = None,
     ) -> dict:
+        params = CombatExpeditionParams(
+            location=location,
+            max_kills=max_kills,
+            min_ammo_to_depart=min_ammo_to_depart,
+            ammo_per_craft=ammo_per_craft,
+            screenshot_every_kills=screenshot_every_kills,
+            base_location=base_location,
+            nav_timeout_seconds=nav_timeout_seconds,
+        )
+        location = params.location
+        max_kills = params.max_kills
+        min_ammo_to_depart = params.min_ammo_to_depart
+        ammo_per_craft = params.ammo_per_craft
+        screenshot_every_kills = params.screenshot_every_kills
+        base_location = params.base_location
+        nav_timeout_seconds = params.nav_timeout_seconds
+
         if _resume_stats is not None:
             self._stats = _resume_stats
         workflow.logger.info("CombatExpeditionWorkflow started. location=%s max_kills=%d", location, max_kills)

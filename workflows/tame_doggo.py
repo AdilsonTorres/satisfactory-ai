@@ -18,7 +18,14 @@ from ._base import (
 )
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel
+
     from activities.inventory import feed_wild_doggo
+
+
+class TameDoggoParams(BaseModel):
+    max_attempts: int = 5
+    seconds_between_attempts: int = 15
 
 
 @workflow.defn
@@ -46,6 +53,13 @@ class TameDoggoWorkflow(_ControlMixin):
 
     @workflow.run
     async def run(self, max_attempts: int = 5, seconds_between_attempts: int = 15) -> dict:
+        params = TameDoggoParams(
+            max_attempts=max_attempts,
+            seconds_between_attempts=seconds_between_attempts,
+        )
+        max_attempts = params.max_attempts
+        seconds_between_attempts = params.seconds_between_attempts
+
         workflow.logger.info("TameDoggoWorkflow started. max_attempts=%d", max_attempts)
         try:
             while self._stats["attempts"] < max_attempts and not self._stop_requested:

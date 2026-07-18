@@ -17,7 +17,18 @@ from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
 
+from pydantic import BaseModel
+
 DB_PATH = Path("stats") / "gift_history.db"
+
+
+class GiftCheckRecord(BaseModel):
+    ts: str
+    doggo: str
+    collected: bool
+    item: str | None = None
+    slot_diff: float | None = None
+    crop_path: str | None = None
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS gift_checks (
@@ -51,17 +62,24 @@ def record_check(
     ts: str | None = None,
     db_path: Path | None = None,
 ) -> None:
-    """Append one gift-check observation (found or empty)."""
+    record = GiftCheckRecord(
+        ts=ts or datetime.now(UTC).isoformat(timespec="seconds"),
+        doggo=doggo,
+        collected=collected,
+        item=item,
+        slot_diff=slot_diff,
+        crop_path=crop_path,
+    )
     with _connect(db_path) as conn:
         conn.execute(
             "INSERT INTO gift_checks (ts, doggo, collected, item, slot_diff, crop_path) VALUES (?, ?, ?, ?, ?, ?)",
             (
-                ts or datetime.now(UTC).isoformat(timespec="seconds"),
-                doggo,
-                int(collected),
-                item,
-                round(slot_diff, 2) if slot_diff is not None else None,
-                crop_path,
+                record.ts,
+                record.doggo,
+                int(record.collected),
+                record.item,
+                round(record.slot_diff, 2) if record.slot_diff is not None else None,
+                record.crop_path,
             ),
         )
 

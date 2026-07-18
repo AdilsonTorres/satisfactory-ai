@@ -342,4 +342,19 @@ def test_generate_late_game_plan_locked_recipe_warning(mock_save_class):
     assert any("Recipe 'Dark Matter Trap' is locked" in w for w in plan["warnings"])
 
 
+def test_generate_mermaid_flowchart_late_game():
+    from tools.late_game_planner import generate_mermaid_flowchart
+    chart = generate_mermaid_flowchart(
+        target_item="Iron Ingot",
+        target_rate=65.0,
+        unlocked_schematics=set(),
+        sloop_items={"Iron Ingot"},
+        overclock=True,
+        recipe_multiplier=0.75,
+    )
+    assert "flowchart TD" in chart
+    assert "Iron Ore" in chart
+    assert "Sloop 2x" in chart
+
+
 

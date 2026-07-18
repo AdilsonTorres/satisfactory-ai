@@ -6,6 +6,7 @@ AFK Gift Farm workflow — multi-doggo.
 
 import asyncio
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -21,8 +22,22 @@ from ._base import (
 )
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel, Field
+
     from activities.inventory import check_inventory_full, collect_doggo_gift
     from activities.records import record_gift_check
+
+
+class DoggoParam(BaseModel):
+    name: str
+    turn_dx: int = 0
+
+
+class GiftFarmParams(BaseModel):
+    doggos: list[DoggoParam] = Field(default_factory=list)
+    ammo_per_craft: int = 50
+    screenshot_every_cycles: int = 10
+    cycle_interval_seconds: float = 75.0
 
 
 @workflow.defn
@@ -114,9 +129,20 @@ class GiftFarmWorkflow(_ControlMixin):
         cycle_interval_seconds: float = 75.0,
         _resume_stats: dict | None = None,
     ) -> dict:
+        roster_raw: list[Any] = doggos if doggos is not None else [{"name": "doggo", "turn_dx": 0}]
+        params = GiftFarmParams(
+            doggos=roster_raw,
+            ammo_per_craft=ammo_per_craft,
+            screenshot_every_cycles=screenshot_every_cycles,
+            cycle_interval_seconds=cycle_interval_seconds,
+        )
+        ammo_per_craft = params.ammo_per_craft
+        screenshot_every_cycles = params.screenshot_every_cycles
+        cycle_interval_seconds = params.cycle_interval_seconds
+
         if _resume_stats is not None:
             self._stats = _resume_stats
-        roster = doggos or [{"name": "doggo", "turn_dx": 0}]
+        roster = [d.model_dump() for d in params.doggos]
         workflow.logger.info("GiftFarmWorkflow started. Roster: %s", ", ".join(d["name"] for d in roster))
 
         try:

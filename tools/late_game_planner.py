@@ -481,3 +481,65 @@ def _compute_build_guide(
         "dedicated_items": dedicated_items,
         "co_location_groups": co_location_groups,
     }
+
+
+def generate_mermaid_flowchart(
+    target_item: str,
+    target_rate: float,
+    unlocked_schematics: set[str],
+    sloop_items: set[str],
+    overclock: bool,
+    recipe_multiplier: float = 1.0,
+) -> str:
+    """Generates a Mermaid TD flowchart of the late-game factory production tree."""
+    lines = ["flowchart TD"]
+    node_id_map = {}
+    node_counter = 0
+    edges = []
+
+    def get_node_id(item_name: str, recipe_name: str) -> str:
+        nonlocal node_counter
+        key = (item_name, recipe_name)
+        if key not in node_id_map:
+            node_counter += 1
+            node_id_map[key] = f"node{node_counter}"
+        return node_id_map[key]
+
+    def trace(item: str, rate: float, parent_node_id: str | None = None):
+        if item not in ALL_RECIPES:
+            node_id = get_node_id(item, "Raw Extractor")
+            label = f'"{item}\\n(Raw Resource)"'
+            lines.append(f"    {node_id}[{label}]")
+            if parent_node_id:
+                edges.append(f'    {node_id} -- "{rate:.2f}/min" --> {parent_node_id}')
+            return
+
+        recipe_dict = ALL_RECIPES[item]
+        recipe = recipe_dict.get("best") or recipe_dict["default"]
+        recipe_name = recipe["name"]
+        machine = recipe["machine"]
+        base_output = recipe["outputs"][item]
+
+        is_slopped = item in sloop_items
+        sloop_mult = 2.0 if is_slopped else 1.0
+        speed_mult = 2.5 if overclock else 1.0
+
+        output_per_machine = base_output * sloop_mult * speed_mult
+        machine_count = rate / output_per_machine
+
+        node_id = get_node_id(item, recipe_name)
+        sloop_suffix = " (Sloop 2x)" if is_slopped else ""
+        overclock_suffix = " (250% Overclock)" if overclock else ""
+        label = f'"{machine} x{machine_count:.2f}\\n{recipe_name}{sloop_suffix}{overclock_suffix}\\n({rate:.2f}/min)"'
+        lines.append(f"    {node_id}[{label}]")
+
+        if parent_node_id:
+            edges.append(f'    {node_id} -- "{rate:.2f}/min" --> {parent_node_id}')
+
+        for input_item, input_rate_per_machine in recipe["inputs"].items():
+            required_input_rate = input_rate_per_machine * recipe_multiplier * (rate / (base_output * sloop_mult))
+            trace(input_item, required_input_rate, node_id)
+
+    trace(target_item, target_rate)
+    lines.extend(edges)
+    return "\n".join(lines)

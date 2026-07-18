@@ -139,6 +139,37 @@ Plan late-game production lines (Phase 5 parts) with power shards, Somersloops, 
 sbot plan-late-game --item BWD --rate 10 --recipe-multiplier 0.75 --sloops SO DMC
 ```
 
+#### Layout Visualizer Flowcharts (`--draw`, `--draw-html`)
+Both `plan-production` and `plan-late-game` support:
+*   `--draw` to generate a copy-pasteable Mermaid flowchart text representing the plan:
+    ```bash
+    sbot plan-production --item "Modular Frame" --rate 10 --draw
+    ```
+*   `--draw-html` to generate and open an interactive, rich dark-mode flowchart directly in your web browser:
+    ```bash
+    sbot plan-production --item "Modular Frame" --rate 10 --draw-html
+    ```
+
+#### Workflow Status & Telemetry (`sbot status`)
+Inspect currently executing Temporal workflows and their live telemetry:
+```bash
+sbot status
+```
+
+#### Schedule Management (`sbot schedules`)
+Manage Temporal gift-farming start/stop schedules:
+```bash
+# List all schedules
+sbot schedules list
+
+# Create a new schedule window
+sbot schedules create --name daily --start 08:00 --stop 23:00
+
+# Pause or resume schedules
+sbot schedules pause --name daily
+sbot schedules unpause --name daily
+```
+
 ### 3. Trigger workflows
 
 ```bash

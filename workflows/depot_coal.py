@@ -17,7 +17,15 @@ from ._base import (
 )
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel
+
     from activities import deposit_coal_to_storage, download_coal_from_depot
+
+
+class DepotCoalParams(BaseModel):
+    interval_seconds: float = 15.0
+    max_cycles: int | None = None
+    stacks_per_cycle: int = 5
 
 
 @workflow.defn
@@ -48,6 +56,15 @@ class DepotCoalToStorageWorkflow(_ControlMixin):
         stacks_per_cycle: int = 5,
         _resume_stats: dict | None = None,
     ) -> dict:
+        params = DepotCoalParams(
+            interval_seconds=interval_seconds,
+            max_cycles=max_cycles,
+            stacks_per_cycle=stacks_per_cycle,
+        )
+        interval_seconds = params.interval_seconds
+        max_cycles = params.max_cycles
+        stacks_per_cycle = params.stacks_per_cycle
+
         if _resume_stats is not None:
             self._stats = _resume_stats
         workflow.logger.info("DepotCoalToStorageWorkflow started.")

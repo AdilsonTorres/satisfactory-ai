@@ -20,8 +20,15 @@ from ._base import (
 )
 
 with workflow.unsafe.imports_passed_through():
+    from pydantic import BaseModel
+
     from activities.combat import engage_enemy, retreat_from_hazard, scan_for_enemy
     from activities.lifecycle import handle_death_respawn
+
+
+class CombatPatrolParams(BaseModel):
+    max_kills: int = 20
+    screenshot_every_kills: int = 5
 
 
 @workflow.defn
@@ -48,6 +55,13 @@ class CombatPatrolWorkflow(_ControlMixin):
         screenshot_every_kills: int = 5,
         _resume_stats: dict | None = None,
     ) -> dict:
+        params = CombatPatrolParams(
+            max_kills=max_kills,
+            screenshot_every_kills=screenshot_every_kills,
+        )
+        max_kills = params.max_kills
+        screenshot_every_kills = params.screenshot_every_kills
+
         if _resume_stats is not None:
             self._stats = _resume_stats
         workflow.logger.info("CombatPatrolWorkflow started. max_kills=%d", max_kills)
