@@ -379,6 +379,7 @@ def test_dashboard_audit_log():
 def test_dashboard_map_generation_and_planner_resolution():
     """Verify that _get_map_html generates the file and the planner handles acronyms."""
     from tools.dashboard import DashboardHandler
+
     handler = MagicMock(spec=DashboardHandler)
     handler._get_map_html = DashboardHandler._get_map_html
 
@@ -458,6 +459,3 @@ def test_dashboard_planner_sloop_acronym_resolution():
         mock_plan_lg.assert_called_once_with(
             "Modular Frame", 10.0, True, {"Ballistic Warp Drive"}, "mock_save.sav", 0.75
         )
-
-
-

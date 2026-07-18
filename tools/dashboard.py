@@ -212,6 +212,9 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     plan = generate_production_plan(item, rate, None, save_path)
                     flowchart = gen_flowchart_std(plan["steps"], plan["raw_materials"])
 
+                if "sloop_items" in plan and isinstance(plan["sloop_items"], set):
+                    plan["sloop_items"] = sorted(list(plan["sloop_items"]))
+
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -219,6 +222,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response).encode("utf-8"))
             except Exception as e:
                 import traceback
+
                 print(f"[Dashboard Planner Exception] {e}", file=sys.stderr)
                 traceback.print_exc(file=sys.stderr)
                 self.send_response(500)
@@ -539,6 +543,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 return "<h3>Error: Power map generation returned no data. Ensure a save file exists.</h3>"
 
             from tools.cli import _save_map_html
+
             _save_map_html(result["map"], result["pois"], open_browser=False)
 
             html_path = Path("stats") / "reachable_power_map.html"
