@@ -125,6 +125,20 @@ sbot save
 sbot save --advisor
 ```
 
+#### Factory Production Planning (`sbot plan-production`)
+Generate an optimized production layout plan for a specific item at a target rate:
+```bash
+# Plan factory layout to produce 10 Modular Frames per minute
+sbot plan-production --item "Modular Frame" --rate 10
+```
+
+#### Late-Game Specialized Planning (`sbot plan-late-game`)
+Plan late-game production lines (Phase 5 parts) with power shards, Somersloops, fuel generator calculations, and build phasing tier guides:
+```bash
+# Plan 10 Ballistic Warp Drives per minute with 0.75 recipe multiplier and specific Somersloop amplifications
+sbot plan-late-game --item BWD --rate 10 --recipe-multiplier 0.75 --sloops SO DMC
+```
+
 ### 3. Trigger workflows
 
 ```bash

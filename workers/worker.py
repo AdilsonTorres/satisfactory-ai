@@ -49,7 +49,7 @@ def _is_fail_safe_key(key, configured_key_str: str) -> bool:
 
     if key_str.startswith("key."):
         key_name = key_str.split(".")[1]
-        return getattr(keyboard.Key, key_name, None) == key
+        return bool(getattr(keyboard.Key, key_name, None) == key)
 
     special_map = {
         "f12": keyboard.Key.f12,
@@ -62,17 +62,34 @@ def _is_fail_safe_key(key, configured_key_str: str) -> bool:
         "scroll_lock": keyboard.Key.scroll_lock,
     }
     if key_str in special_map:
-        return special_map[key_str] == key
+        return bool(special_map[key_str] == key)
 
     char = getattr(key, "char", None)
     if char is not None:
-        return char.lower() == key_str
+        return bool(char.lower() == key_str)
 
     return False
 
 
 async def emergency_stop(client: Client) -> None:
-    _logger.warning("[FAIL-SAFE] Fail-safe key pressed! Signaling running workflows to stop...")
+    _logger.warning("[FAIL-SAFE] Fail-safe key pressed! Pausing schedules and stopping workflows...")
+
+    # Pause ALL gift-farm schedules first — otherwise the always-on schedule
+    # would just restart the workflow on the next hourly tick, defeating the
+    # purpose of the emergency stop. Run `schedule_gift_farm.py unpause` to
+    # re-enable them after resolving the issue.
+    try:
+        async for s in await client.list_schedules():
+            if s.id.startswith("gift-farm-"):
+                try:
+                    await client.get_schedule_handle(s.id).pause(note="paused by F9 fail-safe")
+                    _logger.info("[FAIL-SAFE] Paused schedule: %s", s.id)
+                except Exception as e:
+                    _logger.error("[FAIL-SAFE] Error pausing schedule %s: %s", s.id, e)
+    except Exception as exc:
+        _logger.warning("[FAIL-SAFE] Could not list/pause schedules: %s", exc)
+
+    # Signal all running workflows to stop gracefully.
     try:
         async for workflow_desc in client.list_workflows("ExecutionStatus = 'Running'"):
             try:
@@ -95,7 +112,7 @@ def start_fail_safe_listener(client: Client, loop: asyncio.AbstractEventLoop) ->
         _logger.warning("pynput not installed. Global fail-safe keyboard listener disabled.")
         return
 
-    fail_safe_key_str = cfg.get("input.fail_safe_key", "F12")
+    fail_safe_key_str = cfg.get("input.fail_safe_key", "F9")
 
     def on_press(key) -> None:
         if _is_fail_safe_key(key, fail_safe_key_str):

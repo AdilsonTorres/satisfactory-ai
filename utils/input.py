@@ -229,15 +229,15 @@ def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
     activated = focus_game(window_title)
     sw = cfg.get("display.screen_width", 2560)
     sh = cfg.get("display.screen_height", 1440)
-    _get_mouse().position = (sw // 2, sh // 2)
+    mouse = _get_mouse()
+    mouse.position = (sw // 2, sh // 2)
     time.sleep(0.2)
-    ui = _get_uinput_mouse()
+
+    from pynput.mouse import Button
     for _ in range(2):
-        ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 1)
-        ui.syn()
-        time.sleep(0.1)
-        ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 0)
-        ui.syn()
+        mouse.press(Button.right)
+        time.sleep(0.05)
+        mouse.release(Button.right)
         time.sleep(0.2)
     return activated
 
@@ -398,14 +398,14 @@ def right_click(x: int, y: int, delay_after: float = 0.1) -> None:
 def respawn_confirm() -> None:
     sw = cfg.get("display.screen_width", 2560)
     sh = cfg.get("display.screen_height", 1440)
-    _get_mouse().position = (sw // 2, sh // 2)
+    mouse = _get_mouse()
+    mouse.position = (sw // 2, sh // 2)
     time.sleep(0.2)
-    ui = _get_uinput_mouse()
-    ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 1)
-    ui.syn()
+
+    from pynput.mouse import Button
+    mouse.press(Button.right)
     time.sleep(0.3)
-    ui.write(ev_codes.EV_KEY, ev_codes.BTN_RIGHT, 0)
-    ui.syn()
+    mouse.release(Button.right)
 
 
 def shift_click(x: int, y: int, delay_after: float = 0.15) -> None:

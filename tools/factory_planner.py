@@ -89,7 +89,14 @@ def generate_production_plan(
         raise ValueError("Must specify either a target item and rate, or coupons per minute.")
 
     if target_item not in RECIPES:
-        raise ValueError(f"Item '{target_item}' is not supported or defined in the recipe database.")
+        import difflib
+
+        suggestions = difflib.get_close_matches(target_item, RECIPES.keys(), n=5, cutoff=0.45)
+        msg = f"Target item '{target_item}' is not recognised in the recipe database."
+        if suggestions:
+            formatted = ", ".join(f"'{s}'" for s in suggestions)
+            msg += f" Did you mean: {formatted}?"
+        raise ValueError(msg)
 
     # 3. Recursively generate tree steps
     steps: list[dict[str, Any]] = []

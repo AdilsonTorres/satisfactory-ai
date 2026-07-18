@@ -88,6 +88,7 @@ async def create(args: argparse.Namespace) -> None:
     tz = args.timezone or cfg.get("taming.schedule.timezone")
     doggos = cfg.get("taming.doggos") or [{"name": "doggo", "turn_dx": 0}]
     start_id, stop_id, stop_action_workflow_id = _schedule_ids(args.name)
+    always_on = args.no_stop
 
     # Replace this window's own schedules cleanly rather than erroring on
     # re-create; other named windows are left untouched.
@@ -95,40 +96,67 @@ async def create(args: argparse.Namespace) -> None:
         with contextlib.suppress(Exception):
             await client.get_schedule_handle(schedule_id).delete()
 
-    await client.create_schedule(
-        start_id,
-        Schedule(
-            action=ScheduleActionStartWorkflow(
-                GiftFarmWorkflow.run,
-                args=[doggos, args.ammo_per_craft, args.screenshot_every_cycles, args.interval],
-                id=WORKFLOW_ID,
-                task_queue=task_queue,
+    if always_on:
+        # Always-on mode: schedule the workflow to start every hour on the
+        # hour. SKIP overlap means if it's already running, the tick is a
+        # no-op; if it crashed/stopped, the next hourly tick restarts it.
+        # No stop schedule is created.
+        await client.create_schedule(
+            start_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    GiftFarmWorkflow.run,
+                    args=[doggos, args.ammo_per_craft, args.screenshot_every_cycles, args.interval],
+                    id=WORKFLOW_ID,
+                    task_queue=task_queue,
+                ),
+                spec=ScheduleSpec(
+                    calendars=[ScheduleCalendarSpec(
+                        minute=[ScheduleRange(0)],
+                        comment=f"gift farm '{args.name}' always-on (hourly restart)",
+                    )],
+                    time_zone_name=tz,
+                ),
+                policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
             ),
-            spec=ScheduleSpec(
-                calendars=[_hhmm_to_calendar(args.start, f"gift farm '{args.name}' start")], time_zone_name=tz
+        )
+        print(f"Always-on schedule '{args.name}' created (hourly restart, {tz or 'UTC'}).")
+        print("The workflow runs 24/7. If it stops/crashes, it restarts on the next hour.")
+    else:
+        await client.create_schedule(
+            start_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    GiftFarmWorkflow.run,
+                    args=[doggos, args.ammo_per_craft, args.screenshot_every_cycles, args.interval],
+                    id=WORKFLOW_ID,
+                    task_queue=task_queue,
+                ),
+                spec=ScheduleSpec(
+                    calendars=[_hhmm_to_calendar(args.start, f"gift farm '{args.name}' start")], time_zone_name=tz
+                ),
+                # SKIP: if the farm is already running (started by hand earlier,
+                # or another window's start/stop hasn't landed yet), don't pile
+                # on another start attempt — just wait for the next tick.
+                policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
             ),
-            # SKIP: if the farm is already running (started by hand earlier,
-            # or another window's start/stop hasn't landed yet), don't pile
-            # on another start attempt — just wait for the next tick.
-            policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
-        ),
-    )
-    await client.create_schedule(
-        stop_id,
-        Schedule(
-            action=ScheduleActionStartWorkflow(
-                SignalWorkflowAction.run,
-                args=[WORKFLOW_ID, "stop"],
-                id=stop_action_workflow_id,
-                task_queue=task_queue,
+        )
+        await client.create_schedule(
+            stop_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    SignalWorkflowAction.run,
+                    args=[WORKFLOW_ID, "stop"],
+                    id=stop_action_workflow_id,
+                    task_queue=task_queue,
+                ),
+                spec=ScheduleSpec(
+                    calendars=[_hhmm_to_calendar(args.stop, f"gift farm '{args.name}' stop")], time_zone_name=tz
+                ),
+                policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
             ),
-            spec=ScheduleSpec(
-                calendars=[_hhmm_to_calendar(args.stop, f"gift farm '{args.name}' stop")], time_zone_name=tz
-            ),
-            policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
-        ),
-    )
-    print(f"Window '{args.name}' created: start {args.start}, stop {args.stop} ({tz or 'UTC'}).")
+        )
+        print(f"Window '{args.name}' created: start {args.start}, stop {args.stop} ({tz or 'UTC'}).")
     print("Manual control any time: uv run python gift_farm_ctl.py start|stop|pause|resume|status")
     print(f"Disable this window:     uv run python schedule_gift_farm.py pause|delete --name {args.name}")
 
@@ -186,6 +214,7 @@ def main() -> None:
     p_create.add_argument("--name", default="daily", help="Window name, e.g. 'daily' or 'night' [daily]")
     p_create.add_argument("--start", default=cfg.get("taming.schedule.start_time", "08:00"), help="Window start HH:MM")
     p_create.add_argument("--stop", default=cfg.get("taming.schedule.stop_time", "23:00"), help="Window stop HH:MM")
+    p_create.add_argument("--no-stop", action="store_true", help="Run 24/7 with no stop schedule (always-on mode)")
     p_create.add_argument(
         "--timezone",
         default=None,

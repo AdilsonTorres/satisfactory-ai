@@ -101,6 +101,37 @@ def main() -> None:
         "filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)"
     )
 
+    # --- plan-late-game ---
+    plan_lg_parser = subparsers.add_parser(
+        "plan-late-game",
+        help="Calculate late-game specialized factory scaling, power shards, somersloops, and fuel generators",
+        description=(
+            "Calculate late-game specialized factory scaling, power shards, somersloops, and fuel generators.\n\n"
+            "Examples:\n"
+            "  sbot plan-late-game --item \"Ballistic Warp Drive\" --rate 10\n"
+            "  sbot plan-late-game --sloops \"Superposition Oscillator\" \"Dark Matter Crystal\"\n"
+            "  sbot plan-late-game --recipe-multiplier 0.75"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    plan_lg_parser.add_argument("--item", default="Ballistic Warp Drive", help="Target output item name (default: 'Ballistic Warp Drive')")
+    plan_lg_parser.add_argument("--rate", type=float, default=5.0, help="Target production rate of the item per minute (default: 5.0)")
+    plan_lg_parser.add_argument("--no-overclock", action="store_true", help="Disable default 250% shard overclocking")
+    plan_lg_parser.add_argument(
+        "--sloops",
+        nargs="*",
+        default=[],
+        help=(
+            "List of items to amplify using Somersloops (doubles output rate). "
+            "Pass as space-separated names (use quotes for names with spaces), "
+            "e.g., --sloops \"Superposition Oscillator\" \"Dark Matter Crystal\""
+        ),
+    )
+    plan_lg_parser.add_argument("--recipe-multiplier", type=float, default=1.0, help="Recipe cost multiplier (e.g. 0.75)")
+    plan_lg_parser.add_argument(
+        "filename", nargs="?", help="Path to the Satisfactory save (.sav) file (defaults to latest)"
+    )
+
     # --- map ---
     subparsers.add_parser("map", help="Build Hover Pack power grid connectivity map and suggested routes")
 
@@ -126,6 +157,8 @@ def main() -> None:
         _run_plan(args)
     elif args.command == "plan-production":
         _run_plan_production(args)
+    elif args.command == "plan-late-game":
+        _run_plan_late_game(args)
     elif args.command == "map":
         _run_map()
     else:
@@ -616,6 +649,78 @@ def _run_map() -> None:
             )
 
 
+def _get_acronym_mapping(valid_items: set[str]) -> dict[str, str]:
+    """Generate a mapping from uppercase acronyms of multi-word items to full names."""
+    mapping = {}
+    for item in valid_items:
+        words = [w for w in item.split() if w]
+        if len(words) >= 2:
+            acronym = "".join(w[0].upper() for w in words if w[0].isalnum())
+            if acronym:
+                if acronym in mapping:
+                    mapping[acronym] = None
+                else:
+                    mapping[acronym] = item
+    return {k: v for k, v in mapping.items() if v is not None}
+
+
+def _resolve_item_interactive(item: str, valid_items: set[str], label: str = "Item") -> str:
+    """Resolve an item name interactively, offering fuzzy suggestions on mismatch.
+
+    Returns the validated (possibly corrected) item name, or calls sys.exit(1)
+    if the user declines all suggestions.
+    """
+    import difflib
+
+    if item in valid_items:
+        return item
+
+    # Check for exact uppercase shortname/acronym match
+    acronyms = _get_acronym_mapping(valid_items)
+    if item in acronyms:
+        resolved = acronyms[item]
+        print(f"  \u2192 Resolved shortcut '{item}' to '{resolved}'")
+        return resolved
+
+    suggestions = difflib.get_close_matches(item, sorted(valid_items), n=5, cutoff=0.45)
+
+    if not suggestions:
+        print(f"Error: {label} '{item}' is not recognised and no similar items were found.")
+        sys.exit(1)
+
+    if len(suggestions) == 1:
+        answer = input(f"{label} '{item}' not found. Did you mean '{suggestions[0]}'? [Y/n]: ").strip().lower()
+        if answer in ("", "y", "yes"):
+            print(f"  \u2192 Using '{suggestions[0]}'")
+            return suggestions[0]
+        print("Aborted.")
+        sys.exit(1)
+
+    # Multiple suggestions — numbered list
+    print(f"{label} '{item}' not found. Did you mean one of these?")
+    for i, s in enumerate(suggestions, 1):
+        print(f"  {i}. {s}")
+    print("  0. None of these (abort)")
+
+    choice = input("Enter number: ").strip()
+    try:
+        idx = int(choice)
+    except ValueError:
+        print("Invalid choice. Aborted.")
+        sys.exit(1)
+
+    if idx == 0:
+        print("Aborted.")
+        sys.exit(1)
+    if 1 <= idx <= len(suggestions):
+        selected = suggestions[idx - 1]
+        print(f"  \u2192 Using '{selected}'")
+        return selected
+
+    print("Invalid choice. Aborted.")
+    sys.exit(1)
+
+
 def _run_plan_production(args: argparse.Namespace) -> None:
     import os
     import sys
@@ -633,6 +738,12 @@ def _run_plan_production(args: argparse.Namespace) -> None:
     if not os.path.exists(filename):
         print(f"Error: File not found: {filename}")
         sys.exit(1)
+
+    # Resolve fuzzy item name if provided
+    if args.item:
+        from utils.recipe_db import RECIPES
+
+        args.item = _resolve_item_interactive(args.item, set(RECIPES.keys()), label="Target item")
 
     try:
         plan = generate_production_plan(
@@ -679,6 +790,148 @@ def _run_plan_production(args: argparse.Namespace) -> None:
         )
 
     print("=" * 55)
+
+
+def _run_plan_late_game(args: argparse.Namespace) -> None:
+    import math
+    import os
+    import sys
+
+    from tools.late_game_planner import ALL_RECIPES, generate_late_game_plan
+
+    filename = args.filename
+    if filename is None:
+        filename = _find_latest_save_file()
+        if filename is None:
+            print("Error: No save file specified and could not auto-discover any Satisfactory save files.")
+            sys.exit(1)
+        print(f"Auto-discovered latest save file: {filename}")
+
+    if not os.path.exists(filename):
+        print(f"Error: File not found: {filename}")
+        sys.exit(1)
+
+    # Resolve fuzzy item names interactively
+    valid_items = set(ALL_RECIPES.keys())
+    args.item = _resolve_item_interactive(args.item, valid_items, label="Target item")
+
+    sloop_items: set[str] = set()
+    for s in args.sloops:
+        sloop_items.add(_resolve_item_interactive(s, valid_items, label="Somersloop item"))
+
+    overclock = not args.no_overclock
+
+    try:
+        plan = generate_late_game_plan(
+            target_item=args.item,
+            target_rate=args.rate,
+            overclock=overclock,
+            sloop_items=sloop_items,
+            save_file_path=filename,
+            recipe_multiplier=args.recipe_multiplier
+        )
+    except Exception as e:
+        print(f"Error generating late game plan: {e}")
+        sys.exit(1)
+
+    print("\n" + "=" * 80)
+    print(f"=== LATE-GAME FACTORY PLAN: {plan['target_item']} @ {plan['target_rate']:.2f}/min ===")
+    print("=" * 80)
+    print(f"Overclocking (250%): {'ENABLED (uses 3 Shards per machine)' if plan['overclock'] else 'DISABLED'}")
+    if plan['sloop_items']:
+        print(f"Somersloop Amplified: {', '.join(plan['sloop_items'])}")
+    else:
+        print("Somersloop Amplified: NONE")
+
+    if plan["warnings"]:
+        print("\n[WARNINGS]")
+        for w in plan["warnings"]:
+            print(f" - {w}")
+
+    print("\n--- Raw Materials & Dimensional Depot Status ---")
+    print(f"{'Raw Resource':<25} | {'Required Rate':<15} | {'Stored in Depot':<15} | {'Depot Status'}")
+    print("-" * 75)
+    for raw, info in sorted(plan["depot_comparison"].items()):
+        status = "OK" if info["stored_qty"] >= info["required_rate"] * 10 else "Low Stored Buffer"
+        print(f"{raw:<25} | {info['required_rate']:<15.2f} | {info['stored_qty']:<15d} | {status}")
+
+    from utils.recipe_db import SINK_POINTS
+
+    total_sink_points = 0.0
+
+    print("\n--- Production Steps, Machines & Slugs/Sloops ---")
+    print(f"{'Output Item':<25} | {'Machine Type':<22} | {'Exact':<6} | {'Build':<5} | {'Shards':<6} | {'Sloops':<6} | {'Max Out':<8} | {'Overflow':<8} | {'Sink Pts/min'}")
+    print("-" * 115)
+    for step in sorted(plan["steps"], key=lambda x: x["item"]):
+        exact_cnt = step["machine_count"]
+        build_cnt = math.ceil(exact_cnt)
+        shards = build_cnt * step["shards_per_machine"]
+        sloops = build_cnt * step["sloops_per_machine"]
+        max_out = build_cnt * step["output_per_machine"]
+        overflow = max_out - step["rate"]
+        pts_each = SINK_POINTS.get(step["item"], 0)
+        sink_pts = overflow * pts_each
+        total_sink_points += sink_pts
+
+        print(
+            f"{step['item']:<25} | {step['machine']:<22} | {exact_cnt:<6.2f} | {build_cnt:<5d} | {shards:<6d} | {sloops:<6d} | {max_out:<8.1f} | {overflow:<8.1f} | {sink_pts:,.0f}"
+        )
+
+    print("-" * 115)
+    print(f"{'TOTALS':<49} | {'':<6} | {'':<5} | {plan['total_shards']:<6d} | {plan['total_sloops']:<6d} | {'':<8} | {'':<8} | {total_sink_points:,.0f} pts/min")
+
+    print("\n--- Energy & Generator Estimations ---")
+    gen = plan["fuel_generators"]
+    print(f"Total Factory Power Requirement:  {plan['total_power_mw']:.2f} MW")
+    print("Equivalent Fuel Generators (250MW standard / 625MW overclocked):")
+    print(f"  - At 100% clock speed: {math.ceil(gen['generators_needed'] * 2.5 if plan['overclock'] else gen['generators_needed'])} generators")
+    print(f"  - At 250% clock speed: {math.ceil(gen['generators_needed'] if plan['overclock'] else gen['generators_needed'] / 2.5)} generators")
+    print()
+    print("Fuel Supply (choose ONE — these are alternatives, not cumulative):")
+    print(f"  Option A — Rocket Fuel only:   {gen['rocket_fuel_m3_min']:>8.2f} m³/min")
+    print(f"  Option B — Ionized Fuel only:  {gen['ionized_fuel_m3_min']:>8.2f} m³/min")
+    print("  (Ionized Fuel is denser — fewer generators needed for the same power.)")
+
+    # --- Build Guide ---
+    guide = plan["build_guide"]
+    print("\n" + "=" * 80)
+    print("=== FACTORY BUILD GUIDE ===")
+    print("=" * 80)
+
+    for phase in guide["phases"]:
+        print(f"\n  Phase {phase['phase']} · {phase['name']}")
+        print(f"  {phase['description']}")
+        if phase["depth"] == -1:
+            # Raw extraction phase
+            print(f"  {'Resource':<25} | {'Required Rate':>14}")
+            print(f"  {'-' * 42}")
+            for item in phase["items"]:
+                print(f"  {item['item']:<25} | {item['rate']:>11.2f}/min")
+        else:
+            print(f"  {'Item':<25} | {'Machine':<22} | {'Build':>5} | {'Target':>10} | {'Max Out':>10}")
+            print(f"  {'-' * 83}")
+            for item in phase["items"]:
+                print(
+                    f"  {item['item']:<25} | {item['machine']:<22} | {item['machine_count']:>5d} | {item['rate']:>7.2f}/min | {item['max_output']:>7.2f}/min"
+                )
+
+    if guide["co_location_groups"]:
+        print("\n--- Co-locate (shared inputs) ---")
+        for g in guide["co_location_groups"]:
+            items_str = " + ".join(g["items"])
+            print(f"  • {items_str} — both consume {g['shared_input']}")
+
+    if guide["dedicated_items"]:
+        print("\n--- Dedicated Factory (multiple consumers) ---")
+        for d in guide["dedicated_items"]:
+            print(f"  • {d['item']} → feeds {', '.join(d['consumers'])}")
+
+    if guide["inline_items"]:
+        print("\n--- Build In-Line (single consumer) ---")
+        for il in guide["inline_items"]:
+            print(f"  • {il['item']} → only feeds {il['consumer']}")
+
+    print("=" * 80 + "\n")
 
 
 if __name__ == "__main__":

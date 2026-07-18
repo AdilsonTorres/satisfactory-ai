@@ -56,20 +56,11 @@ def _gift_prompt_region(sw: int, sh: int) -> tuple[int, int, int, int]:
     return (x, y, min(sw - x, 2 * half_w), min(sh - y, 2 * margin_y))
 
 
-def _camera_responds(v: Vision) -> bool:
+def _camera_responds(v: Vision) -> float | None:
     """
-    True if the gameplay camera actually turns when we send a relative mouse
-    move. The virtual mouse only drives the camera while the game holds
-    pointer capture; in a free-pointer state the same motion moves the menu
-    cursor instead and the view is frozen (measured live: a 2500px yaw left
-    the frame pixel-identical).
-
-    We nudge yaw and measure the horizontal SHIFT of a central patch via
-    phase correlation, recapturing once before giving up. Phase correlation
-    is used instead of a frame difference because grass and the Doggo's idle
-    animation make a plain abs-diff read ~13 even with the camera frozen
-    (false 'moved'); a real yaw shows up as a coherent x-translation while
-    in-place animation produces ~0 net shift (measured: frozen 0.01px).
+    Returns the measured mouse sensitivity factor (pixels per relative unit)
+    if the gameplay camera actually turns when we send a relative mouse move.
+    Returns None if the camera is frozen or not responding.
     """
     disp = cfg.get("display", {})
     sw = disp.get("screen_width", 1920)
@@ -91,57 +82,87 @@ def _camera_responds(v: Vision) -> bool:
         time.sleep(0.15)
         (shift_x, _), _ = cv2.phaseCorrelate(before, after, window)
         if abs(shift_x) > 5.0:  # in-place animation reads ~0; a real turn shifts many px
-            return True
+            return float(abs(shift_x) / 300.0)
         logger.debug("Camera probe %d: x-shift %.2fpx (frozen) — recapturing.", attempt, shift_x)
         inp.ensure_game_input_ready()
         time.sleep(0.2)
-    return False
+    return None
 
 
-def _face_doggo_and_recheck(v: Vision) -> MatchResult:
+def _reset_pitch_to_home(v: Vision, sensitivity: float | None = None) -> None:
     """
-    Bring the 'gift_prompt' into view when it isn't already, by sweeping the
-    camera until the interaction prompt appears.
+    Snap the camera pitch to a known 'home' baseline: slightly below the
+    horizon, where Lizard Doggos (ground creatures) are most likely to be
+    visible. Works by pitching hard upward to hit the engine's pitch clamp
+    (looking straight up — a fixed, known state), then pitching down by a
+    configured amount to reach the baseline.
 
-    Uses 'gift_prompt' (a crisp, fixed-position UI band: ~0.8 present vs ~0.2
-    absent) as the locator rather than the old 'doggo_body' world-crop, which
-    matched ~0.5-0.6 everywhere — including a blank wall — and never reliably
-    found the Doggo. The sweep walks PITCH as well as yaw because a Lizard
-    Doggo is a ground creature: a yaw-only sweep with the camera pitched at
-    the horizon misses it entirely. Bails early (and cheaply) if the camera
-    isn't responding.
+    This eliminates accumulated pitch drift between cycles and guarantees
+    that subsequent sweeps never waste time searching the sky. The yaw is
+    left untouched (it wraps, so there's no equivalent clamp trick).
+    """
+    sens = sensitivity if sensitivity is not None else 2.0
+    # Pitch hard up to hit the clamp (~90° up). At ~2.0 sens, 1400 relative
+    # units moves ~700px ≈ well past the ~45° limit in Satisfactory.
+    up_amount = int(1400.0 / sens)
+    inp.move_mouse_relative(0, -up_amount)
+    time.sleep(0.15)
+    # Now pitch down from the clamp to our home baseline. Configured as
+    # taming.home_pitch_down (positive = look down). Default 400 at sens=2.0
+    # ≈ 200px ≈ ~25° below zenith ≈ slightly below horizon for a standing
+    # player in the doggo pen.
+    home_down = int(cfg.get("taming.home_pitch_down", 400) / sens)
+    inp.move_mouse_relative(0, home_down)
+    time.sleep(0.15)
 
-    On a MISS (nothing found in any row) the pitch is restored, so a failed
-    sweep doesn't leave the view pointing at the ground. On a HIT the camera
-    is deliberately left exactly where it found the Doggo — restoring pitch
-    there too was a bug (fixed 2026-07-02): it undid the very reorientation
-    that found the Doggo, so the next cycle's initial check always failed
-    again and re-triggered a full sweep every single cycle indefinitely
-    ("spinning"). Leaving the camera on-target means later cycles find the
-    prompt immediately with no sweep at all.
+
+def _face_doggo_and_recheck(
+    v: Vision, sensitivity: float | None = None
+) -> tuple[MatchResult, int, int]:
+    """
+    Discovery sweep: reset the camera to a known 'home' pitch, then sweep
+    yaw x downward-pitch rows to find the 'gift_prompt' UI band.
+
+    Returns (result, net_yaw, net_pitch) — the camera offsets FROM HOME
+    where the doggo was found (both 0 on a miss, since the camera is
+    restored). On a HIT the camera is left on-target so the caller can
+    interact immediately and record the position.
+
+    Key improvements over the original:
+    - Resets pitch to home first → never searches the sky.
+    - Returns net_yaw AND net_pitch → caller can save both for the
+      locked-position fast path on subsequent cycles.
+    - Pitch rows only go DOWNWARD from home (doggos are ground creatures).
     """
     disp = cfg.get("display", {})
     sw = disp.get("screen_width", 1920)
     sh = disp.get("screen_height", 1080)
     region = _gift_prompt_region(sw, sh)
 
-    gp = v.find_in_region("gift_prompt", region)
-    if gp.found:
-        return gp
-
-    # Mouse-look only reaches the game when it holds real KWin input focus;
-    # take it before probing (focus routinely drifts to other windows between
-    # activities on this Wayland session).
+    # Mouse-look only reaches the game when it holds real KWin input focus.
     inp.focus_game()
 
-    if not _camera_responds(v):
+    sens = sensitivity if sensitivity is not None else _camera_responds(v)
+    if sens is None:
         logger.warning("Camera not responding to mouse-look — cannot sweep for the Doggo.")
-        return v.find_in_region("gift_prompt", region)
+        return v.find_in_region("gift_prompt", region), 0, 0
 
-    # Grid sweep: a few downward pitch rows, each swept across yaw. Track the
-    # net offset so we can undo it if the prompt never shows anywhere.
-    yaw_step = int(cfg.get("taming.search_yaw_step", 180))
+    # Reset pitch to home baseline before sweeping — eliminates drift and
+    # ensures we never waste time searching the sky.
+    _reset_pitch_to_home(v, sens)
+
+    # Check at home position before starting the expensive sweep.
+    gp = v.find_in_region("gift_prompt", region)
+    if gp.found:
+        logger.info("Gift prompt at home position (conf=%.2f).", gp.confidence)
+        return gp, 0, 0
+
+    # Calculate dynamic yaw step based on measured sensitivity.
+    # Target a 360-pixel shift per step (covers the 740px prompt width with ample overlap).
+    yaw_step = int(360.0 / sens)
     yaw_count = int(cfg.get("taming.search_yaw_count", 8))
+    # Pitch rows are DOWNWARD only (positive = look down). First row is 0
+    # (home pitch), subsequent rows step further down.
     pitch_rows = cfg.get("taming.search_pitch_rows", [0, 160, 160])
 
     net_pitch = 0
@@ -155,23 +176,26 @@ def _face_doggo_and_recheck(v: Vision) -> MatchResult:
             gp = v.find_in_region("gift_prompt", region)
             if gp.found:
                 logger.info("Gift prompt acquired (conf=%.2f) after sweep.", gp.confidence)
-                return gp  # leave the camera exactly where it found the Doggo
+                return gp, net_yaw, net_pitch  # leave camera on-target
             inp.move_mouse_relative(yaw_step, 0)
             net_yaw += yaw_step
             time.sleep(0.12)
         inp.move_mouse_relative(-net_yaw, 0)  # back to this row's yaw origin
         time.sleep(0.15)
 
-    # Exhausted every row with no hit — restore original pitch so the miss
-    # doesn't leave the view stuck pointing at the ground.
+    # Exhausted every row with no hit — restore to home pitch.
     if net_pitch:
         inp.move_mouse_relative(0, -net_pitch)
         time.sleep(0.15)
 
-    return v.find_in_region("gift_prompt", region)
+    return v.find_in_region("gift_prompt", region), 0, 0
 
 
-def _micro_sweep_for_prompt(v: Vision, region: tuple[int, int, int, int]) -> tuple[MatchResult, int]:
+def _micro_sweep_for_prompt(
+    v: Vision,
+    region: tuple[int, int, int, int],
+    sensitivity: float | None = None,
+) -> tuple[MatchResult, int]:
     """
     Small yaw and pitch sweep around the CURRENT facing to re-acquire 'gift_prompt' —
     alternating right/left. If not found, pitches down slightly and sweeps again.
@@ -181,9 +205,10 @@ def _micro_sweep_for_prompt(v: Vision, region: tuple[int, int, int, int]) -> tup
 
     Returns (result, net_yaw_applied).
     """
-    step = int(cfg.get("taming.micro_yaw_step", 40))
+    sens = sensitivity if sensitivity is not None else 2.0
+    step = int(80.0 / sens)
     count = int(cfg.get("taming.micro_yaw_count", 4))
-    pitch_step = int(cfg.get("taming.micro_pitch_step", 80))
+    pitch_step = int(160.0 / sens)
 
     # 1. Check current facing first
     gp = v.find_in_region("gift_prompt", region)
@@ -276,7 +301,23 @@ def _doggo_name_matches(ocr_name: str, expected_name: str) -> bool:
     diverge at their first differing character ('dogginh-o' vs 'dogginh-a'),
     so startswith can't cross-confuse them.
     """
-    return bool(ocr_name) and ocr_name.strip().lower().startswith(expected_name.strip().lower())
+    if not ocr_name:
+        return False
+    ocr = ocr_name.strip().lower()
+    exp = expected_name.strip().lower()
+    if ocr.startswith(exp) or exp in ocr:
+        return True
+    # Handle single character typos at the end (e.g. dogginha7, dogginh4, dogginh0)
+    if len(exp) > 1 and ocr.startswith(exp[:-1]):
+        last_char_exp = exp[-1]
+        last_char_ocr = ocr[len(exp)-1:] if len(ocr) >= len(exp) else ""
+        if last_char_ocr:
+            c = last_char_ocr[0]
+            if last_char_exp == "a" and c in "a4q@7bhnr":
+                return True
+            if last_char_exp == "o" and c in "o0u9dpfwi":
+                return True
+    return False
 
 
 def _read_loot_window_doggo_name(v: Vision) -> str:
@@ -302,6 +343,7 @@ def _search_for_named_doggo(
     v: Vision,
     region: tuple[int, int, int, int],
     expected_names: list[str],
+    sensitivity: float | None = None,
 ) -> tuple[MatchResult | None, str, int, int]:
     """
     Actively hunt for a SPECIFIC doggo by name, used when the loot window
@@ -332,7 +374,11 @@ def _search_for_named_doggo(
     """
     inp.focus_game()
 
-    fine_step = int(cfg.get("taming.identify_fine_yaw_step", 20))
+    sens = sensitivity if sensitivity is not None else _camera_responds(v)
+    if sens is None:
+        sens = 2.0  # Fallback to standard baseline if camera calibration is unavailable
+
+    fine_step = int(40.0 / sens)
     fine_count = int(cfg.get("taming.identify_fine_yaw_count", 10))
 
     # Check center first
@@ -371,9 +417,9 @@ def _search_for_named_doggo(
         inp.move_mouse_relative(-net_yaw, 0)
         time.sleep(0.1)
 
-    yaw_step = int(cfg.get("taming.search_yaw_step", 180))
+    yaw_step = int(360.0 / sens)
     yaw_count = int(cfg.get("taming.search_yaw_count", 8))
-    pitch_rows = cfg.get("taming.search_pitch_rows", [0, 160, 160])
+    pitch_rows = [int(p * 2.0 / sens) for p in cfg.get("taming.search_pitch_rows", [0, 160, 160])]
 
     net_pitch = 0
     for pitch in pitch_rows:
@@ -406,51 +452,67 @@ def _search_for_named_doggo(
 _TURN_OFFSET_PATH = Path("stats") / "doggo_turn_offsets.json"
 
 
-def _load_turn_offset(name: str) -> int | None:
+def _load_doggo_position(name: str) -> dict | None:
     """
-    Self-learned yaw offset for turning to `name` from the previously
-    checked doggo, preferred over config.toml's static turn_dx once we've
-    actually confirmed this doggo's identity at least once.
+    Load a doggo's learned camera position (yaw + pitch offsets from home).
 
-    Doggos wander independently, so a fixed config value goes stale (see
-    _search_for_named_doggo's docstring for the measured 2026-07-05
-    failure). This file is updated by _save_turn_offset every time
-    collect_doggo_gift CONFIRMS the target via the loot window title, so
-    the offset tracks the doggo's actual position over time instead of
-    needing a human recalibration.
+    Returns {"yaw": int, "pitch": int} if a position was previously saved,
+    or None if no learned position exists. Backwards-compatible: if the
+    stored value is a bare int (old yaw-only format), it's read as
+    {"yaw": value, "pitch": 0}.
+
+    Positions are ABSOLUTE offsets from the "home" camera orientation
+    (pitch reset to slightly below horizon via _reset_pitch_to_home)
+    rather than relative to the previous doggo. This decouples the
+    doggos from each other: finding doggo A no longer depends on where
+    the camera ended up after checking doggo B.
     """
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
         val = data.get(name)
-        return int(val) if val is not None else None
-    except FileNotFoundError, json.JSONDecodeError, ValueError:
+        if val is None:
+            return None
+        # Backwards compat: old format stored a bare int (yaw only)
+        if isinstance(val, int | float):
+            return {"yaw": int(val), "pitch": 0}
+        if isinstance(val, dict) and "yaw" in val:
+            return {"yaw": int(val["yaw"]), "pitch": int(val.get("pitch", 0))}
+        return None
+    except (FileNotFoundError, json.JSONDecodeError, ValueError):
         return None
 
 
-def _save_turn_offset(name: str, net_yaw: int) -> None:
+def _save_doggo_position(name: str, yaw: int, pitch: int) -> None:
+    """Persist a doggo's camera position (yaw + pitch from home)."""
     _TURN_OFFSET_PATH.parent.mkdir(exist_ok=True)
     data: dict = {}
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except FileNotFoundError, json.JSONDecodeError:
+    except (FileNotFoundError, json.JSONDecodeError):
         pass
-    data[name] = net_yaw
+    data[name] = {"yaw": yaw, "pitch": pitch}
     with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 
-def _reset_turn_offset(name: str) -> None:
-    """Drops a doggo's learned offset so the next cycle retries from config.toml's turn_dx."""
+def _reset_doggo_position(name: str) -> None:
+    """Drop a doggo's learned position so the next cycle re-discovers it."""
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except FileNotFoundError, json.JSONDecodeError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return
     if data.pop(name, None) is not None:
         with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+
+
+# Legacy alias — kept for any external callers.
+_load_turn_offset = lambda name: (pos["yaw"] if (pos := _load_doggo_position(name)) else None)  # noqa: E731
+_save_turn_offset = lambda name, yaw: _save_doggo_position(name, yaw, 0)  # noqa: E731
+_reset_turn_offset = _reset_doggo_position
 
 
 _MISS_COUNT_PATH = Path("stats") / "doggo_miss_counts.json"
@@ -458,22 +520,18 @@ _MISS_COUNT_PATH = Path("stats") / "doggo_miss_counts.json"
 
 def _record_miss_or_reset(name: str, max_misses: int) -> bool:
     """
-    Tracks consecutive 'no gift prompt visible' misses for a non-anchor doggo
-    (turn_dx != 0, so it has no wide pitch/yaw sweep fallback of its own — see
-    the comment above _face_doggo_and_recheck's caller). A learned offset that
-    drifted onto empty space had NO way back: measured live 2026-07-05,
-    dogginha's offset got stuck on a bad value for 7+ hours straight with zero
-    gifts collected, no warning logged. After max_misses in a row, drop the
-    learned offset (_reset_turn_offset) so the next cycle retries from the
-    configured seed instead of repeating the same dead angle forever. Returns
-    True if a reset just happened.
+    Tracks consecutive 'no gift prompt visible' misses for ANY doggo.
+    After max_misses in a row, drops the learned position
+    (_reset_doggo_position) so the next cycle re-discovers instead of
+    repeating the same dead angle forever. Returns True if a reset just
+    happened.
     """
     _MISS_COUNT_PATH.parent.mkdir(exist_ok=True)
     data: dict = {}
     try:
         with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except FileNotFoundError, json.JSONDecodeError:
+    except (FileNotFoundError, json.JSONDecodeError):
         pass
     misses = int(data.get(name, 0)) + 1
     reset = misses >= max_misses
@@ -481,7 +539,7 @@ def _record_miss_or_reset(name: str, max_misses: int) -> bool:
     with open(_MISS_COUNT_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     if reset:
-        _reset_turn_offset(name)
+        _reset_doggo_position(name)
     return reset
 
 
@@ -489,7 +547,7 @@ def _clear_miss_count(name: str) -> None:
     try:
         with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except FileNotFoundError, json.JSONDecodeError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return
     if data.get(name, 0) != 0:
         data[name] = 0
@@ -609,6 +667,17 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
     """
     Check ONE named doggo (or a list of unchecked doggos) for a gift and
     collect it if present.
+
+    Two-phase navigation:
+    1. LOCKED: if a saved position exists for this doggo, reset camera to
+       home pitch, apply the saved yaw+pitch offset, then micro-sweep.
+       This is fast (~1s) and finds the doggo >95% of the time.
+    2. DISCOVERY: if no saved position, or the locked phase missed, run
+       a full pitch/yaw sweep from home. On success, save the discovered
+       position for future locked-phase use.
+
+    After max_consecutive_misses (default 3), the saved position is wiped
+    and the next cycle re-enters discovery mode.
     """
     if isinstance(doggo, list):
         expected_names = []
@@ -618,14 +687,13 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
             else:
                 expected_names.append(str(item))
         name = expected_names[0] if expected_names else "doggo"
-        turn_dx = 0
     else:
         spec = doggo or {}
         name = str(spec.get("name", "doggo"))
         expected_names = [name]
-        configured_turn_dx = int(spec.get("turn_dx", 0))
-        learned_turn_dx = _load_turn_offset(name)
-        turn_dx = learned_turn_dx if learned_turn_dx is not None else configured_turn_dx
+
+    # Load saved position (yaw + pitch from home baseline).
+    saved_pos = _load_doggo_position(name)
 
     result: dict = {
         "doggo": name,
@@ -641,52 +709,65 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
         disp = cfg.get("display", {})
         region = _gift_prompt_region(disp.get("screen_width", 1920), disp.get("screen_height", 1080))
         net_yaw = 0
+        net_pitch = 0
 
-        if turn_dx:
-            inp.focus_game()
-            inp.move_mouse_relative(turn_dx, 0)
-            net_yaw += turn_dx
-            time.sleep(0.25)
-        gp = v.find_in_region("gift_prompt", region)
+        # Clear stuck menus first — a menu left open puts the mouse in
+        # menu-mode (camera won't turn), hiding the prompt and blocking
+        # any sweep. This must happen before ANY camera movement.
+        closed = close_open_menus(v)
+        if closed:
+            logger.info("Cleared stuck menu(s) before checking: %s", ", ".join(closed))
+
+        inp.focus_game()
+        sens = _camera_responds(v)
+        if sens is None:
+            logger.warning("Camera not responding — cannot navigate to doggo.")
+            return result
+
+        # ── Phase 1: LOCKED (saved position known) ──────────────────────
+        if saved_pos is not None:
+            # Reset pitch to home, then apply saved offsets.
+            _reset_pitch_to_home(v, sens)
+            saved_yaw = saved_pos["yaw"]
+            saved_pitch = saved_pos["pitch"]
+            if saved_yaw or saved_pitch:
+                inp.move_mouse_relative(saved_yaw, saved_pitch)
+                net_yaw = saved_yaw
+                net_pitch = saved_pitch
+                time.sleep(0.25)
+            gp = v.find_in_region("gift_prompt", region)
+
+            if not gp.found:
+                # Micro-sweep absorbs minor doggo wandering.
+                gp, micro_yaw = _micro_sweep_for_prompt(v, region, sens)
+                net_yaw += micro_yaw
+
+            if gp.found:
+                logger.info(
+                    "[%s] found at saved position (yaw=%d, pitch=%d, conf=%.2f).",
+                    name, net_yaw, net_pitch, gp.confidence,
+                )
+        else:
+            gp = v.find_in_region("gift_prompt", region)
+
+        # ── Phase 2: DISCOVERY (no saved position, or locked missed) ────
+        if not gp.found:
+            logger.info("[%s] not at saved position — entering discovery sweep.", name)
+            gp, disc_yaw, disc_pitch = _face_doggo_and_recheck(v, sens)
+            # _face_doggo_and_recheck resets pitch to home internally, so
+            # our net offsets are now purely what the sweep returned.
+            net_yaw = disc_yaw
+            net_pitch = disc_pitch
 
         if not gp.found:
-            # A menu left open by a previous cycle hides the prompt AND puts the
-            # mouse in menu-mode (the camera won't turn, so a sweep can't help).
-            # Clear any stuck menu first — this is what stops a failed close on
-            # one cycle from cascading into "can't find the Doggo" on the next.
-            closed = close_open_menus(v)
-            if closed:
-                logger.info("Cleared stuck menu(s) before re-checking: %s", ", ".join(closed))
-                if turn_dx:
-                    # the earlier turn was swallowed while the menu held the mouse
-                    inp.focus_game()
-                    inp.move_mouse_relative(turn_dx, 0)
-                    time.sleep(0.25)
-                gp = v.find_in_region("gift_prompt", region)
-
-        if not gp.found:
-            inp.focus_game()
-            gp, micro_yaw = _micro_sweep_for_prompt(v, region)
-            net_yaw += micro_yaw
-
-        # Full pitch/yaw sweep only for the anchor doggo (turn_dx == 0 or the
-        # first of the roster): near a second doggo it could acquire the
-        # WRONG one and corrupt the per-doggo history.
-        if not gp.found and turn_dx == 0:
-            gp = _face_doggo_and_recheck(v)
-
-        if not gp.found:
-            if turn_dx != 0:
-                max_misses = int(cfg.get("taming.max_consecutive_misses", 3))
-                if _record_miss_or_reset(name, max_misses):
-                    logger.warning(
-                        "[%s] missed %d cycles in a row on learned offset %d — "
-                        "reverting to configured turn_dx (%d) for the next attempt.",
-                        name,
-                        max_misses,
-                        turn_dx,
-                        configured_turn_dx,
-                    )
+            max_misses = int(cfg.get("taming.max_consecutive_misses", 3))
+            if _record_miss_or_reset(name, max_misses):
+                logger.warning(
+                    "[%s] missed %d cycles in a row — wiping saved position "
+                    "to force re-discovery next cycle.",
+                    name,
+                    max_misses,
+                )
             logger.info(
                 "[%s] no gift prompt visible after focus+sweep (conf=%.2f) — "
                 "likely lost input focus or player not at the pen.",
@@ -725,8 +806,9 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
             # Wrong doggo. Hunt for one of them.
             logger.info("[%s] found '%s' instead — searching.", name, ocr_name)
             press_until_closed(v, "doggo_loot_window")
-            search_confirm, ocr_name, search_yaw, _search_pitch = _search_for_named_doggo(v, region, expected_names)
+            search_confirm, ocr_name, search_yaw, search_pitch = _search_for_named_doggo(v, region, expected_names, sens)
             net_yaw += search_yaw
+            net_pitch += search_pitch
             matched_name = _any_doggo_name_matches(ocr_name, expected_names)
             if search_confirm is None or not matched_name:
                 logger.warning(
@@ -737,11 +819,19 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
                 return result
             confirm = search_confirm
 
-        if turn_dx != 0 and matched_name:
-            _save_turn_offset(matched_name, net_yaw)
+        # Save/update this doggo's position for the locked fast-path.
+        # Works for ALL doggos now (no turn_dx gate).
+        if matched_name:
+            _save_doggo_position(matched_name, net_yaw, net_pitch)
             _clear_miss_count(matched_name)
-            if net_yaw != turn_dx:
-                logger.info("[%s] learned turn offset updated: %d -> %d.", matched_name, turn_dx, net_yaw)
+            old_pos = saved_pos or {}
+            if net_yaw != old_pos.get("yaw", 0) or net_pitch != old_pos.get("pitch", 0):
+                logger.info(
+                    "[%s] position updated: yaw %d→%d, pitch %d→%d.",
+                    matched_name,
+                    old_pos.get("yaw", 0), net_yaw,
+                    old_pos.get("pitch", 0), net_pitch,
+                )
 
         if ocr_name and not matched_name:
             logger.warning(
@@ -767,7 +857,9 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
         # The pre-walk patch is grabbed unconditionally: it doubles as the
         # refresh source when the full path confirms empty below.
         prewalk_patch = v.grab_region(slot_x - hw, slot_y - hh, 2 * hw, 2 * hh)
-        ref = _empty_slot_reference(result["doggo"])
+        # Use stable canonical name for empty reference file keying to avoid caching under noisy OCR spellings
+        ref_key_name = matched_name if matched_name else name
+        ref = _empty_slot_reference(ref_key_name)
         if ref is not None and ref.shape == prewalk_patch.shape:
             empty_diff = float(np.mean(np.abs(prewalk_patch.astype(np.float32) - ref.astype(np.float32))))
             if empty_diff < threshold:
@@ -825,7 +917,7 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
                 # band after retries, click was a no-op): refresh this
                 # doggo's empty-slot reference so the next checks take the
                 # fast path against the current backdrop.
-                _refresh_empty_slot_reference(result["doggo"], prewalk_patch)
+                _refresh_empty_slot_reference(ref_key_name, prewalk_patch)
         return result
 
 
