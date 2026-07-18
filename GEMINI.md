@@ -16,10 +16,10 @@ graph TD
     subgraph Docker ["Docker Stack (Persistence & Orchestrator)"]
         Orchestrator[Orchestrator Worker] -->|Runs| Workflows[Loop / Orchestrator Workflows]
         Orchestrator -->|Runs| PersistActivities[DB / Save History Activities]
-        TemporalServer[Temporal Server 1.30.5] <-->|gRPC| Orchestrator
+        TemporalServer[Temporal Server 1.31.2] <-->|gRPC| Orchestrator
         TemporalServer <-->|gRPC| HostWorker
         TemporalServer <-->|State DB| PostgreSQL[(PostgreSQL 18)]
-        TemporalUI[Temporal UI 2.51.1] -->|Inspects| TemporalServer
+        TemporalUI[Temporal UI 2.52.1] -->|Inspects| TemporalServer
     end
 ```
 

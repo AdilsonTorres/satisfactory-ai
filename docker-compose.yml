@@ -20,7 +20,7 @@ services:
       - temporal-net
 
   temporal-schema-setup:
-    image: temporalio/admin-tools:1.30.5
+    image: temporalio/admin-tools:1.31.2
     container_name: temporal-schema-setup
     depends_on:
       postgresql:
@@ -42,7 +42,7 @@ services:
       - temporal-net
 
   temporal:
-    image: temporalio/server:1.30.5
+    image: temporalio/server:1.31.2
     container_name: temporal
     restart: unless-stopped
     depends_on:
@@ -62,7 +62,7 @@ services:
       - temporal-net
 
   temporal-namespace-setup:
-    image: temporalio/admin-tools:1.30.5
+    image: temporalio/admin-tools:1.31.2
     container_name: temporal-namespace-setup
     depends_on:
       - temporal
@@ -76,7 +76,7 @@ services:
       - temporal-net
 
   temporal-ui:
-    image: temporalio/ui:2.51.1
+    image: temporalio/ui:2.52.1
     container_name: temporal-ui
     restart: unless-stopped
     depends_on:
