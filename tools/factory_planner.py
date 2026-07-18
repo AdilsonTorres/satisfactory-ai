@@ -68,7 +68,13 @@ def generate_production_plan(
     """Generates the full factory production plan."""
     # 1. Parse save file to get unlocked schematics and coupon count
     save = SatisfactorySave(save_file_path)
-    unlocked_schematics = set(save.schematics)
+    # mPurchasedSchematics (milestones) + mAvailableRecipes (MAM hard-drive unlocks).
+    # mAvailableRecipes uses "Recipe_Alternate_X"; recipe_db keys use "Schematic_Alternate_X".
+    unlocked_schematics = set(save.schematics) | {
+        r.replace("Recipe_Alternate_", "Schematic_Alternate_", 1)
+        for r in save.recipes
+        if r.startswith("Recipe_Alternate_")
+    }
     current_coupons = save.resource_sink.get("coupons_earned_items", 0)
 
     # 2. Determine target item and rate

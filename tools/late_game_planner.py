@@ -282,7 +282,13 @@ def generate_late_game_plan(
         validate_item_name(sloop_item, valid_items, label="Somersloop item")
 
     save = SatisfactorySave(save_file_path)
-    unlocked_schematics = set(save.schematics)
+    # mPurchasedSchematics (milestones) + mAvailableRecipes (MAM hard-drive unlocks).
+    # mAvailableRecipes uses "Recipe_Alternate_X"; recipe_db keys use "Schematic_Alternate_X".
+    unlocked_schematics = set(save.schematics) | {
+        r.replace("Recipe_Alternate_", "Schematic_Alternate_", 1)
+        for r in save.recipes
+        if r.startswith("Recipe_Alternate_")
+    }
 
     steps: list[dict[str, Any]] = []
     raw_materials: dict[str, float] = {}
