@@ -153,52 +153,52 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     k, v = pair.split("=", 1)
                     params[k] = urllib.parse.unquote_plus(v)
 
-            raw_item = params.get("item", "Modular Frame")
-            rate = float(params.get("rate", "10.0"))
-            mode = params.get("mode", "standard")
-            overclock = params.get("overclock", "true") == "true"
-            sloops_str = params.get("sloops", "")
-            recipe_multiplier = float(params.get("recipe_multiplier", "0.75"))
-
-            # Resolve item name case-insensitively and handle acronyms
-            from tools.late_game_planner import ALL_RECIPES
-            from utils.recipe_db import RECIPES
-
-            def resolve_item(name: str) -> str:
-                if name in ALL_RECIPES:
-                    return name
-                for r in ALL_RECIPES:
-                    if r.lower() == name.lower():
-                        return r
-                mapping = {}
-                for r in ALL_RECIPES:
-                    words = [w for w in r.split() if w]
-                    if len(words) >= 2:
-                        acronym = "".join(w[0].upper() for w in words if w[0].isalnum())
-                        if acronym:
-                            mapping[acronym] = r
-                if name.upper() in mapping:
-                    return mapping[name.upper()]
-                return name
-
-            item = resolve_item(raw_item)
-            sloops = [resolve_item(s.strip()) for s in sloops_str.split(",") if s.strip()]
-
-            # Auto-upgrade to late_game if the item is not in standard recipes
-            if item not in RECIPES and item in ALL_RECIPES:
-                mode = "late_game"
-
-            from tools.cli import _find_latest_save_file
-
-            save_path = _find_latest_save_file()
-            if not save_path:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "No save file found"}).encode("utf-8"))
-                return
-
             try:
+                raw_item = params.get("item", "Modular Frame")
+                rate = float(params.get("rate", "10.0"))
+                mode = params.get("mode", "standard")
+                overclock = params.get("overclock", "true") == "true"
+                sloops_str = params.get("sloops", "")
+                recipe_multiplier = float(params.get("recipe_multiplier", "0.75"))
+
+                # Resolve item name case-insensitively and handle acronyms
+                from tools.late_game_planner import ALL_RECIPES
+                from utils.recipe_db import RECIPES
+
+                def resolve_item(name: str) -> str:
+                    if name in ALL_RECIPES:
+                        return name
+                    for r in ALL_RECIPES:
+                        if r.lower() == name.lower():
+                            return r
+                    mapping = {}
+                    for r in ALL_RECIPES:
+                        words = [w for w in r.split() if w]
+                        if len(words) >= 2:
+                            acronym = "".join(w[0].upper() for w in words if w[0].isalnum())
+                            if acronym:
+                                mapping[acronym] = r
+                    if name.upper() in mapping:
+                        return mapping[name.upper()]
+                    return name
+
+                item = resolve_item(raw_item)
+                sloops = [resolve_item(s.strip()) for s in sloops_str.split(",") if s.strip()]
+
+                # Auto-upgrade to late_game if the item is not in standard recipes
+                if item not in RECIPES and item in ALL_RECIPES:
+                    mode = "late_game"
+
+                from tools.cli import _find_latest_save_file
+
+                save_path = _find_latest_save_file()
+                if not save_path:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "No save file found"}).encode("utf-8"))
+                    return
+
                 if mode == "late_game":
                     from tools.late_game_planner import generate_late_game_plan
                     from tools.late_game_planner import generate_mermaid_flowchart as gen_flowchart_lg
@@ -218,6 +218,9 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 response = {"plan": plan, "flowchart": flowchart}
                 self.wfile.write(json.dumps(response).encode("utf-8"))
             except Exception as e:
+                import traceback
+                print(f"[Dashboard Planner Exception] {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
