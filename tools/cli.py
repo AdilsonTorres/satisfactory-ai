@@ -134,7 +134,7 @@ def create_parser() -> argparse.ArgumentParser:
         ),
     )
     plan_lg_parser.add_argument(
-        "--recipe-multiplier", type=float, default=1.0, help="Recipe cost multiplier (e.g. 0.75)"
+        "--recipe-multiplier", type=float, default=0.75, help="Recipe cost multiplier (e.g. 0.75)"
     )
     plan_lg_parser.add_argument("--draw", action="store_true", help="Draw Mermaid flowchart of the factory layout")
     plan_lg_parser.add_argument("--draw-html", action="store_true", help="Draw flowchart and open in browser")

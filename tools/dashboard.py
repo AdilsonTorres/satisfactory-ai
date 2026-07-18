@@ -159,6 +159,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             overclock = params.get("overclock", "true") == "true"
             sloops_str = params.get("sloops", "")
             sloops = [s.strip() for s in sloops_str.split(",") if s.strip()]
+            recipe_multiplier = float(params.get("recipe_multiplier", "0.75"))
 
             # Resolve item name case-insensitively and handle acronyms
             from tools.late_game_planner import ALL_RECIPES
@@ -202,8 +203,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     from tools.late_game_planner import generate_late_game_plan
                     from tools.late_game_planner import generate_mermaid_flowchart as gen_flowchart_lg
 
-                    plan = generate_late_game_plan(item, rate, overclock, set(sloops), save_path)
-                    flowchart = gen_flowchart_lg(plan["steps"], plan["raw_materials"], set(sloops), overclock)
+                    plan = generate_late_game_plan(item, rate, overclock, set(sloops), save_path, recipe_multiplier)
+                    flowchart = gen_flowchart_lg(item, rate, set(), set(sloops), overclock, recipe_multiplier)
                 else:
                     from tools.factory_planner import generate_mermaid_flowchart as gen_flowchart_std
                     from tools.factory_planner import generate_production_plan
@@ -978,6 +979,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
               <label for="plan-sloops">Somersloop Amplify Items (comma separated names)</label>
               <input type="text" id="plan-sloops" placeholder="e.g. Superposition Oscillator, Dark Matter Crystal">
             </div>
+            <div class="form-group" style="flex: 0; min-width: 150px;">
+              <label for="plan-mult">Recipe Multiplier</label>
+              <input type="number" id="plan-mult" value="0.75" min="0.05" max="2.0" step="0.05">
+            </div>
             <div class="form-group" style="flex: 0; min-width: 120px; text-align: center;">
               <label for="plan-overclock">Overclock (250%)</label>
               <input type="checkbox" id="plan-overclock" checked style="width: 20px; height: 20px; margin: 10px auto 0 auto;">
@@ -1151,10 +1156,11 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       const mode = document.getElementById('plan-mode').value;
       const overclock = document.getElementById('plan-overclock').checked;
       const sloops = document.getElementById('plan-sloops').value;
+      const recipe_multiplier = document.getElementById('plan-mult').value;
 
       try {
         showNotification('Running mathematical recipe optimizations...');
-        const res = await fetch(`/api/planner?item=${encodeURIComponent(item)}&rate=${rate}&mode=${mode}&overclock=${overclock}&sloops=${encodeURIComponent(sloops)}`);
+        const res = await fetch(`/api/planner?item=${encodeURIComponent(item)}&rate=${rate}&mode=${mode}&overclock=${overclock}&sloops=${encodeURIComponent(sloops)}&recipe_multiplier=${recipe_multiplier}`);
         const data = await res.json();
 
         if (data.error) {
