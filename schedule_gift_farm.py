@@ -111,10 +111,12 @@ async def create(args: argparse.Namespace) -> None:
                     task_queue=task_queue,
                 ),
                 spec=ScheduleSpec(
-                    calendars=[ScheduleCalendarSpec(
-                        minute=[ScheduleRange(0)],
-                        comment=f"gift farm '{args.name}' always-on (hourly restart)",
-                    )],
+                    calendars=[
+                        ScheduleCalendarSpec(
+                            minute=[ScheduleRange(0)],
+                            comment=f"gift farm '{args.name}' always-on (hourly restart)",
+                        )
+                    ],
                     time_zone_name=tz,
                 ),
                 policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),

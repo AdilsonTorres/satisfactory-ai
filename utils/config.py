@@ -15,15 +15,18 @@ _cache: dict | None = None
 
 # --- Pydantic Models for Validation ---
 
+
 class TemporalConfig(BaseModel):
     address: str = "localhost:7233"
     task_queue: str = "satisfactory-bot"
     persist_task_queue: str = "satisfactory-persist"
 
+
 class InputConfig(BaseModel):
     cursor_step: int = 2
     cursor_step_pause: float = 0.012
     fail_safe_key: str = "F9"
+
 
 class RegionConfig(BaseModel):
     x: int
@@ -31,10 +34,12 @@ class RegionConfig(BaseModel):
     w: int
     h: int
 
+
 class VisionRegionsConfig(BaseModel):
     inventory_open: RegionConfig | None = None
     doggo_loot_window: RegionConfig | None = None
     pause_menu: RegionConfig | None = None
+
 
 class VisionConfig(BaseModel):
     monitor_index: int = 1
@@ -42,17 +47,21 @@ class VisionConfig(BaseModel):
     thresholds: dict[str, float] = Field(default_factory=dict)
     regions: VisionRegionsConfig = Field(default_factory=VisionRegionsConfig)
 
+
 class HarvestingConfig(BaseModel):
     swing_interval_seconds: float = 0.5
+
 
 class DoggoConfig(BaseModel):
     name: str
     turn_dx: int = 0
 
+
 class ScheduleConfig(BaseModel):
     start_time: str = "08:00"
     stop_time: str = "23:00"
     timezone: str = "America/Sao_Paulo"
+
 
 class TamingConfig(BaseModel):
     drop_point_x: int = 1280
@@ -81,6 +90,7 @@ class TamingConfig(BaseModel):
     doggos: list[DoggoConfig] = Field(default_factory=list)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
 
+
 class InventoryGridConfig(BaseModel):
     origin_x: int = 568
     origin_y: int = 330
@@ -89,12 +99,15 @@ class InventoryGridConfig(BaseModel):
     columns: int = 10
     rows: int = 5
 
+
 class InventorySortButtonConfig(BaseModel):
     x: int = 630
     y: int = 575
 
+
 class InventoryConfig(BaseModel):
     empty_slot_brightness: int = 80
+
 
 class NavigationConfig(BaseModel):
     to_workshop_forward_1: float = 1.2
@@ -104,19 +117,23 @@ class NavigationConfig(BaseModel):
     back_to_base_strafe_left: float = 0.8
     back_to_base_backward_2: float = 0.5
 
+
 class LocationStepConfig(BaseModel):
     key: str
     duration: float
+
 
 class LocationConfig(BaseModel):
     arrival_timeout: float = 5.0
     arrival_template: str | None = None
     steps: list[LocationStepConfig] = Field(default_factory=list)
 
+
 class ExplorationRouteConfig(BaseModel):
     keys: list[str] = Field(default_factory=list)
     duration: float
     turn_dx: int = 0
+
 
 class ExplorationConfig(BaseModel):
     max_total_duration_seconds: float = 25.0
@@ -128,11 +145,13 @@ class ExplorationConfig(BaseModel):
     ascend_pulse_seconds: float = 0.3
     route: list[ExplorationRouteConfig] = Field(default_factory=list)
 
+
 class CombatAmmoRegionConfig(BaseModel):
     x: int = 2360
     y: int = 1320
     w: int = 100
     h: int = 40
+
 
 class CombatConfig(BaseModel):
     aim_sensitivity_factor: float = 0.8
@@ -143,12 +162,15 @@ class CombatConfig(BaseModel):
     low_ammo_threshold: int = 20
     ammo_region: CombatAmmoRegionConfig = Field(default_factory=CombatAmmoRegionConfig)
 
+
 class DisplayConfig(BaseModel):
     screen_width: int = 2560
     screen_height: int = 1440
 
+
 class LoggingConfig(BaseModel):
     level: str = "INFO"
+
 
 class AppConfig(BaseModel):
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)

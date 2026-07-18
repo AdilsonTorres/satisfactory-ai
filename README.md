@@ -170,6 +170,22 @@ sbot schedules pause --name daily
 sbot schedules unpause --name daily
 ```
 
+#### Power Grid Map Visualizer (`sbot map`)
+Extract your built power network and analyze Lizard Doggo and threat spatial POIs:
+```bash
+# Print spatial statistics and route chains
+sbot map
+
+# Open a beautiful, interactive dark-mode SVG map in your browser
+sbot map --draw-html
+```
+
+#### Gameplay Dashboard Server (`sbot dashboard`)
+Spin up a local web server to monitor live telemetry, taming rates, screenshots, and visual map tabs:
+```bash
+sbot dashboard --port 8080
+```
+
 ### 3. Trigger workflows
 
 ```bash

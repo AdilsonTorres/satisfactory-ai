@@ -234,6 +234,7 @@ def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
     time.sleep(0.2)
 
     from pynput.mouse import Button
+
     for _ in range(2):
         mouse.press(Button.right)
         time.sleep(0.05)
@@ -403,6 +404,7 @@ def respawn_confirm() -> None:
     time.sleep(0.2)
 
     from pynput.mouse import Button
+
     mouse.press(Button.right)
     time.sleep(0.3)
     mouse.release(Button.right)

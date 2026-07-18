@@ -63,6 +63,7 @@ def test_generate_production_plan_coupons(mock_save_class):
 
 def test_generate_mermaid_flowchart():
     from tools.factory_planner import generate_mermaid_flowchart
+
     chart = generate_mermaid_flowchart("Iron Ingot", 65.0)
     assert "flowchart TD" in chart
     assert "Iron Ore" in chart

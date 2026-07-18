@@ -21,16 +21,12 @@ def test_generate_late_game_plan_simple(mock_save_class):
     mock_save.schematics = ["Schematic_Alternate_PureIronIngot"]
     mock_save.dimensional_depot = [
         {"name": "Desc_IronOre", "quantity": 1500},
-        {"name": "Desc_IronPlate", "quantity": 800}
+        {"name": "Desc_IronPlate", "quantity": 800},
     ]
 
     # Generate a simple plan for 65 Iron Ingots/min, with overclocking
     plan = generate_late_game_plan(
-        target_item="Iron Ingot",
-        target_rate=65.0,
-        overclock=True,
-        sloop_items=set(),
-        save_file_path="mock_save.sav"
+        target_item="Iron Ingot", target_rate=65.0, overclock=True, sloop_items=set(), save_file_path="mock_save.sav"
     )
 
     assert plan["target_item"] == "Iron Ingot"
@@ -74,7 +70,7 @@ def test_generate_late_game_plan_with_sloops(mock_save_class):
         target_rate=65.0,
         overclock=True,
         sloop_items={"Iron Ingot"},
-        save_file_path="mock_save.sav"
+        save_file_path="mock_save.sav",
     )
 
     assert plan["total_sloops"] == 2  # 1 Refinery built (ceil(0.2) = 1) * 2 sloop slots
@@ -205,7 +201,6 @@ def test_resolve_interactive_acronym_match():
     assert _resolve_item_interactive("SO", VALID_ITEMS) == "Superposition Oscillator"
     assert _resolve_item_interactive("DMC", VALID_ITEMS) == "Dark Matter Crystal"
     assert _resolve_item_interactive("TPR", VALID_ITEMS) == "Thermal Propulsion Rocket"
-
 
 
 # --- Build guide tests ---
@@ -344,6 +339,7 @@ def test_generate_late_game_plan_locked_recipe_warning(mock_save_class):
 
 def test_generate_mermaid_flowchart_late_game():
     from tools.late_game_planner import generate_mermaid_flowchart
+
     chart = generate_mermaid_flowchart(
         target_item="Iron Ingot",
         target_rate=65.0,
@@ -355,6 +351,3 @@ def test_generate_mermaid_flowchart_late_game():
     assert "flowchart TD" in chart
     assert "Iron Ore" in chart
     assert "Sloop 2x" in chart
-
-
-

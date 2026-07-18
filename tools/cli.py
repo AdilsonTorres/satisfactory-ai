@@ -110,14 +110,18 @@ def create_parser() -> argparse.ArgumentParser:
         description=(
             "Calculate late-game specialized factory scaling, power shards, somersloops, and fuel generators.\n\n"
             "Examples:\n"
-            "  sbot plan-late-game --item \"Ballistic Warp Drive\" --rate 10\n"
-            "  sbot plan-late-game --sloops \"Superposition Oscillator\" \"Dark Matter Crystal\"\n"
+            '  sbot plan-late-game --item "Ballistic Warp Drive" --rate 10\n'
+            '  sbot plan-late-game --sloops "Superposition Oscillator" "Dark Matter Crystal"\n'
             "  sbot plan-late-game --recipe-multiplier 0.75"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    plan_lg_parser.add_argument("--item", default="Ballistic Warp Drive", help="Target output item name (default: 'Ballistic Warp Drive')")
-    plan_lg_parser.add_argument("--rate", type=float, default=5.0, help="Target production rate of the item per minute (default: 5.0)")
+    plan_lg_parser.add_argument(
+        "--item", default="Ballistic Warp Drive", help="Target output item name (default: 'Ballistic Warp Drive')"
+    )
+    plan_lg_parser.add_argument(
+        "--rate", type=float, default=5.0, help="Target production rate of the item per minute (default: 5.0)"
+    )
     plan_lg_parser.add_argument("--no-overclock", action="store_true", help="Disable default 250% shard overclocking")
     plan_lg_parser.add_argument(
         "--sloops",
@@ -126,10 +130,12 @@ def create_parser() -> argparse.ArgumentParser:
         help=(
             "List of items to amplify using Somersloops (doubles output rate). "
             "Pass as space-separated names (use quotes for names with spaces), "
-            "e.g., --sloops \"Superposition Oscillator\" \"Dark Matter Crystal\""
+            'e.g., --sloops "Superposition Oscillator" "Dark Matter Crystal"'
         ),
     )
-    plan_lg_parser.add_argument("--recipe-multiplier", type=float, default=1.0, help="Recipe cost multiplier (e.g. 0.75)")
+    plan_lg_parser.add_argument(
+        "--recipe-multiplier", type=float, default=1.0, help="Recipe cost multiplier (e.g. 0.75)"
+    )
     plan_lg_parser.add_argument("--draw", action="store_true", help="Draw Mermaid flowchart of the factory layout")
     plan_lg_parser.add_argument("--draw-html", action="store_true", help="Draw flowchart and open in browser")
     plan_lg_parser.add_argument(
@@ -137,10 +143,17 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # --- map ---
-    subparsers.add_parser("map", help="Build Hover Pack power grid connectivity map and suggested routes")
+    map_parser = subparsers.add_parser("map", help="Build Hover Pack power grid connectivity map and suggested routes")
+    map_parser.add_argument("--draw-html", action="store_true", help="Draw map and open in browser")
 
     # --- status ---
     subparsers.add_parser("status", help="Show active Temporal workflow status and telemetry")
+
+    # --- dashboard ---
+    dash_parser = subparsers.add_parser(
+        "dashboard", help="Start local web dashboard monitoring loop status and screenshot Crops"
+    )
+    dash_parser.add_argument("--port", type=int, default=8080, help="Local server port [8080]")
 
     # --- schedules ---
     sched_parser = subparsers.add_parser("schedules", help="Manage Temporal gift-farming schedules")
@@ -199,12 +212,16 @@ def main() -> None:
     elif args.command == "plan-late-game":
         _run_plan_late_game(args)
     elif args.command == "map":
-        _run_map()
+        _run_map(args)
     elif args.command == "status":
         import asyncio
+
         asyncio.run(_run_status())
+    elif args.command == "dashboard":
+        _run_dashboard(args)
     elif args.command == "schedules":
         import asyncio
+
         asyncio.run(_run_schedules(args))
     else:
         parser.print_help()
@@ -647,7 +664,314 @@ def _run_plan(args: argparse.Namespace) -> None:
         _track_save_progress(save)
 
 
-def _run_map() -> None:
+def _save_map_html(map_data: dict, pois: dict) -> str:
+    import contextlib
+    import os
+    import webbrowser
+    from pathlib import Path
+
+    stats_dir = Path("stats")
+    stats_dir.mkdir(exist_ok=True)
+    html_file = stats_dir / "reachable_power_map.html"
+
+    # 1. Collect all coordinates to compute bounding box
+    all_x = []
+    all_y = []
+
+    player_pos = map_data["stats"]["player_position"]
+    all_x.append(player_pos[0])
+    all_y.append(player_pos[1])
+
+    nodes_dict = {n["id"]: n for n in map_data["reachable_nodes"]}
+    for node in map_data["reachable_nodes"]:
+        all_x.append(node["pos"][0])
+        all_y.append(node["pos"][1])
+
+    for p_list in pois.values():
+        for p in p_list:
+            if "pos" in p:
+                all_x.append(p["pos"][0])
+                all_y.append(p["pos"][1])
+            elif "position" in p:
+                all_x.append(p["position"][0])
+                all_y.append(p["position"][1])
+
+    min_x, max_x = min(all_x), max(all_x)
+    min_y, max_y = min(all_y), max(all_y)
+
+    span_x = max_x - min_x
+    span_y = max_y - min_y
+    if span_x < 20000:
+        min_x -= (20000 - span_x) / 2
+        max_x += (20000 - span_x) / 2
+    if span_y < 20000:
+        min_y -= (20000 - span_y) / 2
+        max_y += (20000 - span_y) / 2
+
+    padding = 5000.0
+    min_x -= padding
+    max_x += padding
+    min_y -= padding
+    max_y += padding
+
+    width = max_x - min_x
+    height = max_y - min_y
+
+    def map_x(v):
+        return (v - min_x) / width * 1000
+
+    def map_y(v):
+        return 1000 - ((v - min_y) / height * 1000)
+
+    # 2. Render SVG elements
+    svg_elements = []
+
+    # Hover Pack coverage circles (underneath wires)
+    for node in map_data["reachable_nodes"]:
+        r_px = (node["range"] / width) * 1000
+        cx = map_x(node["pos"][0])
+        cy = map_y(node["pos"][1])
+        svg_elements.append(f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r_px:.1f}" class="node-range" />')
+
+    # Reachable Wires
+    for w in map_data["reachable_wires"]:
+        node_a = nodes_dict.get(w["node_a"])
+        node_b = nodes_dict.get(w["node_b"])
+        if node_a and node_b:
+            ax, ay = map_x(node_a["pos"][0]), map_y(node_a["pos"][1])
+            bx, by = map_x(node_b["pos"][0]), map_y(node_b["pos"][1])
+            svg_elements.append(f'  <line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" class="wire" />')
+
+    # Power Nodes
+    for node in map_data["reachable_nodes"]:
+        cx = map_x(node["pos"][0])
+        cy = map_y(node["pos"][1])
+        label = node["type"].split(".")[-1].removesuffix("_C")
+        svg_elements.append(
+            f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" class="power-node" data-tooltip="Power Node: {label}" />'
+        )
+
+    # POIs (Doggos, Crash Sites, Nests)
+    for _idx, doggo in enumerate(pois.get("lizard_doggos", [])):
+        pos = doggo.get("pos") or doggo.get("position")
+        if pos:
+            cx, cy = map_x(pos[0]), map_y(pos[1])
+            svg_elements.append(
+                f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="poi-doggo" data-tooltip="Lizard Doggo: {doggo.get("name", "Wild")}" />'
+            )
+
+    for _idx, pod in enumerate(pois.get("drop_pods", [])):
+        pos = pod.get("pos") or pod.get("position")
+        if pos:
+            cx, cy = map_x(pos[0]), map_y(pos[1])
+            svg_elements.append(
+                f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="poi-pod" data-tooltip="Crash Site (Drop Pod)" />'
+            )
+
+    for _idx, nest in enumerate(pois.get("enemy_nests", [])):
+        pos = nest.get("pos") or nest.get("position")
+        if pos:
+            cx, cy = map_x(pos[0]), map_y(pos[1])
+            svg_elements.append(
+                f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="poi-nest" data-tooltip="Fauna Nest (Hazard)" />'
+            )
+
+    # Player position
+    px = map_x(player_pos[0])
+    py = map_y(player_pos[1])
+    svg_elements.append(f'  <circle cx="{px:.1f}" cy="{py:.1f}" r="12" class="player-pulse" />')
+    svg_elements.append(
+        f'  <circle cx="{px:.1f}" cy="{py:.1f}" r="5" class="player-dot" data-tooltip="Player Position" />'
+    )
+
+    svg_content = "\n".join(svg_elements)
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hover Pack Power Grid Map</title>
+  <style>
+    body {{
+      background-color: #121212;
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }}
+    h1 {{
+      color: #ff9800;
+      margin-bottom: 5px;
+    }}
+    p {{
+      color: #90a4ae;
+      margin-top: 0;
+      margin-bottom: 20px;
+    }}
+    .map-container {{
+      position: relative;
+      background-color: #1e1e1e;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+      width: 100%;
+      max-width: 900px;
+    }}
+    svg {{
+      width: 100%;
+      height: auto;
+      border: 1px solid #37474f;
+      border-radius: 8px;
+      background-color: #0d0d0d;
+    }}
+    .wire {{
+      stroke: #00e5ff;
+      stroke-width: 2px;
+      stroke-linecap: round;
+      opacity: 0.8;
+    }}
+    .power-node {{
+      fill: #ffea00;
+      stroke: #121212;
+      stroke-width: 1px;
+      cursor: pointer;
+    }}
+    .node-range {{
+      fill: #00e5ff;
+      fill-opacity: 0.03;
+      stroke: #00e5ff;
+      stroke-width: 1px;
+      stroke-opacity: 0.2;
+      stroke-dasharray: 4;
+    }}
+    .poi-doggo {{
+      fill: #ffab00;
+      stroke: #121212;
+      stroke-width: 1px;
+      cursor: pointer;
+    }}
+    .poi-pod {{
+      fill: #00e676;
+      stroke: #121212;
+      stroke-width: 1px;
+      cursor: pointer;
+    }}
+    .poi-nest {{
+      fill: #ff1744;
+      stroke: #121212;
+      stroke-width: 1px;
+      cursor: pointer;
+    }}
+    .player-dot {{
+      fill: #00e676;
+      stroke: #ffffff;
+      stroke-width: 2px;
+      cursor: pointer;
+    }}
+    .player-pulse {{
+      fill: none;
+      stroke: #00e676;
+      stroke-width: 2px;
+      transform-origin: center;
+      animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }}
+    @keyframes pulse-ring {{
+      0% {{ transform: scale(0.3); opacity: 0.8; }}
+      80%, 100% {{ transform: scale(1.8); opacity: 0; }}
+    }}
+    .tooltip {{
+      position: absolute;
+      background: rgba(0,0,0,0.85);
+      border: 1px solid #ff9800;
+      border-radius: 4px;
+      padding: 6px 10px;
+      color: #fff;
+      font-size: 12px;
+      pointer-events: none;
+      display: none;
+      z-index: 100;
+    }}
+    .legend {{
+      margin-top: 20px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }}
+    .legend-item {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }}
+    .legend-color {{
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }}
+  </style>
+</head>
+<body>
+  <h1>Hover Pack Grid Map</h1>
+  <p>Live cartography of reachable power coverage and points of interest</p>
+  <div class="map-container">
+    <svg viewBox="0 0 1000 1000" id="map-svg">
+{svg_content}
+    </svg>
+    <div class="tooltip" id="map-tooltip"></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-color" style="background: #00e676;"></div>Player</div>
+    <div class="legend-item"><div class="legend-color" style="background: #ffea00;"></div>Power Pole / Tower</div>
+    <div class="legend-item"><div class="legend-color" style="background: #00e5ff; border: 1px dashed rgba(0,229,255,0.5);"></div>Hover Pack Range</div>
+    <div class="legend-item"><div class="legend-color" style="background: #ffab00;"></div>Lizard Doggo</div>
+    <div class="legend-item"><div class="legend-color" style="background: #ff1744;"></div>Fauna Nest (Hazard)</div>
+    <div class="legend-item"><div class="legend-color" style="background: #00e676; border: 1px solid #121212;"></div>Crash Site (Drop Pod)</div>
+  </div>
+
+  <script>
+    const svg = document.getElementById('map-svg');
+    const tooltip = document.getElementById('map-tooltip');
+
+    svg.addEventListener('mouseover', (e) => {{
+      const text = e.target.getAttribute('data-tooltip');
+      if (text) {{
+        tooltip.textContent = text;
+        tooltip.style.display = 'block';
+      }}
+    }});
+
+    svg.addEventListener('mousemove', (e) => {{
+      const rect = svg.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      tooltip.style.left = (x + 15) + 'px';
+      tooltip.style.top = (y + 15) + 'px';
+    }});
+
+    svg.addEventListener('mouseout', (e) => {{
+      if (e.target.getAttribute('data-tooltip')) {{
+        tooltip.style.display = 'none';
+      }}
+    }});
+  </script>
+</body>
+</html>
+"""
+    with open(html_file, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    abs_path = os.path.abspath(html_file)
+    with contextlib.suppress(Exception):
+        webbrowser.open(f"file://{abs_path}")
+    return str(html_file)
+
+
+def _run_map(args: argparse.Namespace) -> None:
     from tools.map_power import generate_power_map
 
     result = generate_power_map()
@@ -692,6 +1016,16 @@ def _run_map() -> None:
             print(
                 "\n[Tip] Walk closer to your power poles (within 30m) to get powered, then run this command again to trace your reachable paths!"
             )
+
+    if args.draw_html:
+        path = _save_map_html(map_data, pois)
+        print(f"\nInteractive Map exported to: {path}")
+
+
+def _run_dashboard(args: argparse.Namespace) -> None:
+    from tools.dashboard import start_server
+
+    start_server(args.port)
 
 
 def _get_acronym_mapping(valid_items: set[str]) -> dict[str, str]:
@@ -911,6 +1245,7 @@ def _run_plan_production(args: argparse.Namespace) -> None:
 
     if args.draw or args.draw_html:
         from tools.factory_planner import generate_mermaid_flowchart
+
         chart = generate_mermaid_flowchart(plan["target_item"], plan["target_rate"])
         if args.draw:
             print("\n--- Factory Layout Flowchart (Mermaid) ---")
@@ -959,7 +1294,7 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
             overclock=overclock,
             sloop_items=sloop_items,
             save_file_path=filename,
-            recipe_multiplier=args.recipe_multiplier
+            recipe_multiplier=args.recipe_multiplier,
         )
     except Exception as e:
         print(f"Error generating late game plan: {e}")
@@ -969,7 +1304,7 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
     print(f"=== LATE-GAME FACTORY PLAN: {plan['target_item']} @ {plan['target_rate']:.2f}/min ===")
     print("=" * 80)
     print(f"Overclocking (250%): {'ENABLED (uses 3 Shards per machine)' if plan['overclock'] else 'DISABLED'}")
-    if plan['sloop_items']:
+    if plan["sloop_items"]:
         print(f"Somersloop Amplified: {', '.join(plan['sloop_items'])}")
     else:
         print("Somersloop Amplified: NONE")
@@ -991,7 +1326,9 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
     total_sink_points = 0.0
 
     print("\n--- Production Steps, Machines & Slugs/Sloops ---")
-    print(f"{'Output Item':<25} | {'Machine Type':<22} | {'Exact':<6} | {'Build':<5} | {'Shards':<6} | {'Sloops':<6} | {'Max Out':<8} | {'Overflow':<8} | {'Sink Pts/min'}")
+    print(
+        f"{'Output Item':<25} | {'Machine Type':<22} | {'Exact':<6} | {'Build':<5} | {'Shards':<6} | {'Sloops':<6} | {'Max Out':<8} | {'Overflow':<8} | {'Sink Pts/min'}"
+    )
     print("-" * 115)
     for step in sorted(plan["steps"], key=lambda x: x["item"]):
         exact_cnt = step["machine_count"]
@@ -1009,14 +1346,20 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
         )
 
     print("-" * 115)
-    print(f"{'TOTALS':<49} | {'':<6} | {'':<5} | {plan['total_shards']:<6d} | {plan['total_sloops']:<6d} | {'':<8} | {'':<8} | {total_sink_points:,.0f} pts/min")
+    print(
+        f"{'TOTALS':<49} | {'':<6} | {'':<5} | {plan['total_shards']:<6d} | {plan['total_sloops']:<6d} | {'':<8} | {'':<8} | {total_sink_points:,.0f} pts/min"
+    )
 
     print("\n--- Energy & Generator Estimations ---")
     gen = plan["fuel_generators"]
     print(f"Total Factory Power Requirement:  {plan['total_power_mw']:.2f} MW")
     print("Equivalent Fuel Generators (250MW standard / 625MW overclocked):")
-    print(f"  - At 100% clock speed: {math.ceil(gen['generators_needed'] * 2.5 if plan['overclock'] else gen['generators_needed'])} generators")
-    print(f"  - At 250% clock speed: {math.ceil(gen['generators_needed'] if plan['overclock'] else gen['generators_needed'] / 2.5)} generators")
+    print(
+        f"  - At 100% clock speed: {math.ceil(gen['generators_needed'] * 2.5 if plan['overclock'] else gen['generators_needed'])} generators"
+    )
+    print(
+        f"  - At 250% clock speed: {math.ceil(gen['generators_needed'] if plan['overclock'] else gen['generators_needed'] / 2.5)} generators"
+    )
     print()
     print("Fuel Supply (choose ONE — these are alternatives, not cumulative):")
     print(f"  Option A — Rocket Fuel only:   {gen['rocket_fuel_m3_min']:>8.2f} m³/min")
@@ -1066,6 +1409,7 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
 
     if args.draw or args.draw_html:
         from tools.late_game_planner import generate_mermaid_flowchart
+
         chart = generate_mermaid_flowchart(
             plan["target_item"],
             plan["target_rate"],

@@ -30,6 +30,7 @@ class GiftCheckRecord(BaseModel):
     slot_diff: float | None = None
     crop_path: str | None = None
 
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS gift_checks (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

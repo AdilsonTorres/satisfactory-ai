@@ -70,7 +70,7 @@ EXTRAS = {
             "outputs": {"Excited Photonic Matter": 200.0},
             "alternate": False,
         }
-    }
+    },
 }
 
 ALL_RECIPES = {**RECIPES, **EXTRAS}
@@ -158,11 +158,12 @@ ITEM_MAP = {
     "Desc_Fuel": "Fuel",
 }
 
+
 def get_readable_name(class_name: str) -> str:
     if class_name in ITEM_MAP:
         return ITEM_MAP[class_name]
     name = class_name.replace("Desc_", "")
-    name = re.sub(r'(?<!^)(?=[A-Z])', ' ', name)
+    name = re.sub(r"(?<!^)(?=[A-Z])", " ", name)
     return name
 
 
@@ -180,6 +181,7 @@ def validate_item_name(item: str, valid_items: set[str], label: str = "Item") ->
         formatted = ", ".join(f"'{s}'" for s in suggestions)
         msg += f" Did you mean: {formatted}?"
     raise ValueError(msg)
+
 
 def plan_step(
     item: str,
@@ -216,7 +218,7 @@ def plan_step(
     machine_count = rate / output_per_machine
 
     # Power calculations
-    overclock_power_factor = (speed_mult ** 1.321928) if overclock else 1.0
+    overclock_power_factor = (speed_mult**1.321928) if overclock else 1.0
     sloop_power_factor = 4.0 if is_slopped else 1.0
 
     base_mw = MACHINE_BASE_POWER.get(machine_name, 10.0)
@@ -230,27 +232,39 @@ def plan_step(
     if recipe.get("alternate") and recipe.get("schematic"):
         is_unlocked = recipe["schematic"] in unlocked_schematics
 
-    steps.append({
-        "item": item,
-        "rate": rate,
-        "recipe_name": recipe["name"],
-        "machine": machine_name,
-        "machine_count": machine_count,
-        "unlocked": is_unlocked,
-        "alternate": recipe.get("alternate", False),
-        "is_slopped": is_slopped,
-        "shards": shards_used,
-        "sloops": sloops_used,
-        "power_mw": total_mw,
-        "output_per_machine": output_per_machine,
-        "depth": depth,
-    })
+    steps.append(
+        {
+            "item": item,
+            "rate": rate,
+            "recipe_name": recipe["name"],
+            "machine": machine_name,
+            "machine_count": machine_count,
+            "unlocked": is_unlocked,
+            "alternate": recipe.get("alternate", False),
+            "is_slopped": is_slopped,
+            "shards": shards_used,
+            "sloops": sloops_used,
+            "power_mw": total_mw,
+            "output_per_machine": output_per_machine,
+            "depth": depth,
+        }
+    )
 
     # Recurse through inputs
     for input_item, input_rate_per_machine in recipe["inputs"].items():
         # Apply the recipe cost multiplier to raw inputs
         required_input_rate = input_rate_per_machine * recipe_multiplier * (rate / (base_output * sloop_mult))
-        plan_step(input_item, required_input_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier, steps, raw_materials, depth=depth + 1)
+        plan_step(
+            input_item,
+            required_input_rate,
+            unlocked_schematics,
+            sloop_items,
+            overclock,
+            recipe_multiplier,
+            steps,
+            raw_materials,
+            depth=depth + 1,
+        )
 
 
 def generate_late_game_plan(
@@ -259,7 +273,7 @@ def generate_late_game_plan(
     overclock: bool,
     sloop_items: set[str],
     save_file_path: str,
-    recipe_multiplier: float = 1.0
+    recipe_multiplier: float = 1.0,
 ) -> dict[str, Any]:
     # Validate item names before doing any heavy work
     valid_items = set(ALL_RECIPES.keys())
@@ -273,7 +287,9 @@ def generate_late_game_plan(
     steps: list[dict[str, Any]] = []
     raw_materials: dict[str, float] = {}
 
-    plan_step(target_item, target_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier, steps, raw_materials)
+    plan_step(
+        target_item, target_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier, steps, raw_materials
+    )
 
     # Combine steps
     combined_steps = {}
@@ -325,10 +341,7 @@ def generate_late_game_plan(
     # Compare planned items with dimensional depot
     depot_comparison = {}
     for raw, req_rate in raw_materials.items():
-        depot_comparison[raw] = {
-            "required_rate": req_rate,
-            "stored_qty": depot_status.get(raw, 0)
-        }
+        depot_comparison[raw] = {"required_rate": req_rate, "stored_qty": depot_status.get(raw, 0)}
 
     # Fuel generator calculations (Rocket fuel: 250MW standard, 625MW overclocked)
     generators_needed = total_power / 625.0 if overclock else total_power / 250.0
@@ -356,7 +369,7 @@ def generate_late_game_plan(
         "fuel_generators": {
             "generators_needed": generators_needed,
             "rocket_fuel_m3_min": total_rocket_fuel_needed,
-            "ionized_fuel_m3_min": total_ionized_fuel_needed
+            "ionized_fuel_m3_min": total_ionized_fuel_needed,
         },
         "build_guide": build_guide,
     }
@@ -377,7 +390,10 @@ def _compute_build_guide(
         1: ("Primary Components", "Direct inputs to the final product. Build nearby or use short belts."),
         2: ("Sub-Components", "Intermediate processing feeding into primary components."),
     }
-    _DEFAULT_LABEL = ("Basic Processing", "Foundational material processing. Can be in a separate factory with transport.")
+    _DEFAULT_LABEL = (
+        "Basic Processing",
+        "Foundational material processing. Can be in a separate factory with transport.",
+    )
 
     depth_groups: dict[int, list[dict[str, Any]]] = {}
     for step in steps_list:
@@ -388,35 +404,39 @@ def _compute_build_guide(
     for d in sorted(depth_groups):
         label, desc = _PHASE_LABELS.get(d, _DEFAULT_LABEL)
         items = sorted(depth_groups[d], key=lambda s: s["item"])
-        phases.append({
-            "phase": d + 1,
-            "name": label,
-            "description": desc,
-            "depth": d,
-            "items": [
-                {
-                    "item": s["item"],
-                    "machine": s["machine"],
-                    "machine_count": math.ceil(s["machine_count"]),
-                    "rate": s["rate"],
-                    "max_output": math.ceil(s["machine_count"]) * s["output_per_machine"],
-                }
-                for s in items
-            ],
-        })
+        phases.append(
+            {
+                "phase": d + 1,
+                "name": label,
+                "description": desc,
+                "depth": d,
+                "items": [
+                    {
+                        "item": s["item"],
+                        "machine": s["machine"],
+                        "machine_count": math.ceil(s["machine_count"]),
+                        "rate": s["rate"],
+                        "max_output": math.ceil(s["machine_count"]) * s["output_per_machine"],
+                    }
+                    for s in items
+                ],
+            }
+        )
 
     # Add raw extraction phase
     if raw_materials:
-        phases.append({
-            "phase": len(phases) + 1,
-            "name": "Raw Extraction",
-            "description": "Mine or extract from resource nodes and transport to processing.",
-            "depth": -1,
-            "items": [
-                {"item": raw, "machine": "Miner / Extractor", "machine_count": 0, "rate": rate, "max_output": rate}
-                for raw, rate in sorted(raw_materials.items())
-            ],
-        })
+        phases.append(
+            {
+                "phase": len(phases) + 1,
+                "name": "Raw Extraction",
+                "description": "Mine or extract from resource nodes and transport to processing.",
+                "depth": -1,
+                "items": [
+                    {"item": raw, "machine": "Miner / Extractor", "machine_count": 0, "rate": rate, "max_output": rate}
+                    for raw, rate in sorted(raw_materials.items())
+                ],
+            }
+        )
 
     # --- Consumer analysis for layout recommendations ---
     produced_items = {s["item"] for s in steps_list}
@@ -437,17 +457,21 @@ def _compute_build_guide(
         if item_name not in produced_items:
             continue
         if len(item_consumers) == 1:
-            inline_items.append({
-                "item": item_name,
-                "consumer": next(iter(item_consumers)),
-                "recommendation": f"Build in-line — only feeds {next(iter(item_consumers))}.",
-            })
+            inline_items.append(
+                {
+                    "item": item_name,
+                    "consumer": next(iter(item_consumers)),
+                    "recommendation": f"Build in-line — only feeds {next(iter(item_consumers))}.",
+                }
+            )
         else:
-            dedicated_items.append({
-                "item": item_name,
-                "consumers": sorted(item_consumers),
-                "recommendation": f"Dedicated factory — feeds {', '.join(sorted(item_consumers))}.",
-            })
+            dedicated_items.append(
+                {
+                    "item": item_name,
+                    "consumers": sorted(item_consumers),
+                    "recommendation": f"Dedicated factory — feeds {', '.join(sorted(item_consumers))}.",
+                }
+            )
 
     # --- Co-location: items sharing a common input at the same depth ---
     item_depth = {s["item"]: s["depth"] for s in steps_list}
@@ -469,11 +493,13 @@ def _compute_build_guide(
             if key in seen_groups:
                 continue
             seen_groups.add(key)
-            co_location_groups.append({
-                "items": sorted(group),
-                "shared_input": shared_input,
-                "reason": f"Both consume {shared_input} — co-locate to share supply.",
-            })
+            co_location_groups.append(
+                {
+                    "items": sorted(group),
+                    "shared_input": shared_input,
+                    "reason": f"Both consume {shared_input} — co-locate to share supply.",
+                }
+            )
 
     return {
         "phases": phases,

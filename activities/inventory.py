@@ -116,9 +116,7 @@ def _reset_pitch_to_home(v: Vision, sensitivity: float | None = None) -> None:
     time.sleep(0.15)
 
 
-def _face_doggo_and_recheck(
-    v: Vision, sensitivity: float | None = None
-) -> tuple[MatchResult, int, int]:
+def _face_doggo_and_recheck(v: Vision, sensitivity: float | None = None) -> tuple[MatchResult, int, int]:
     """
     Discovery sweep: reset the camera to a known 'home' pitch, then sweep
     yaw x downward-pitch rows to find the 'gift_prompt' UI band.
@@ -310,7 +308,7 @@ def _doggo_name_matches(ocr_name: str, expected_name: str) -> bool:
     # Handle single character typos at the end (e.g. dogginha7, dogginh4, dogginh0)
     if len(exp) > 1 and ocr.startswith(exp[:-1]):
         last_char_exp = exp[-1]
-        last_char_ocr = ocr[len(exp)-1:] if len(ocr) >= len(exp) else ""
+        last_char_ocr = ocr[len(exp) - 1 :] if len(ocr) >= len(exp) else ""
         if last_char_ocr:
             c = last_char_ocr[0]
             if last_char_exp == "a" and c in "a4q@7bhnr":
@@ -479,7 +477,7 @@ def _load_doggo_position(name: str) -> dict | None:
         if isinstance(val, dict) and "yaw" in val:
             return {"yaw": int(val["yaw"]), "pitch": int(val.get("pitch", 0))}
         return None
-    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+    except FileNotFoundError, json.JSONDecodeError, ValueError:
         return None
 
 
@@ -490,7 +488,7 @@ def _save_doggo_position(name: str, yaw: int, pitch: int) -> None:
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         pass
     data[name] = {"yaw": yaw, "pitch": pitch}
     with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
@@ -502,7 +500,7 @@ def _reset_doggo_position(name: str) -> None:
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         return
     if data.pop(name, None) is not None:
         with open(_TURN_OFFSET_PATH, "w", encoding="utf-8") as f:
@@ -510,7 +508,7 @@ def _reset_doggo_position(name: str) -> None:
 
 
 # Legacy alias — kept for any external callers.
-_load_turn_offset = lambda name: (pos["yaw"] if (pos := _load_doggo_position(name)) else None)  # noqa: E731
+_load_turn_offset = lambda name: pos["yaw"] if (pos := _load_doggo_position(name)) else None  # noqa: E731
 _save_turn_offset = lambda name, yaw: _save_doggo_position(name, yaw, 0)  # noqa: E731
 _reset_turn_offset = _reset_doggo_position
 
@@ -531,7 +529,7 @@ def _record_miss_or_reset(name: str, max_misses: int) -> bool:
     try:
         with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         pass
     misses = int(data.get(name, 0)) + 1
     reset = misses >= max_misses
@@ -547,7 +545,7 @@ def _clear_miss_count(name: str) -> None:
     try:
         with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
             data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         return
     if data.get(name, 0) != 0:
         data[name] = 0
@@ -745,7 +743,10 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
             if gp.found:
                 logger.info(
                     "[%s] found at saved position (yaw=%d, pitch=%d, conf=%.2f).",
-                    name, net_yaw, net_pitch, gp.confidence,
+                    name,
+                    net_yaw,
+                    net_pitch,
+                    gp.confidence,
                 )
         else:
             gp = v.find_in_region("gift_prompt", region)
@@ -763,8 +764,7 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
             max_misses = int(cfg.get("taming.max_consecutive_misses", 3))
             if _record_miss_or_reset(name, max_misses):
                 logger.warning(
-                    "[%s] missed %d cycles in a row — wiping saved position "
-                    "to force re-discovery next cycle.",
+                    "[%s] missed %d cycles in a row — wiping saved position to force re-discovery next cycle.",
                     name,
                     max_misses,
                 )
@@ -806,7 +806,9 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
             # Wrong doggo. Hunt for one of them.
             logger.info("[%s] found '%s' instead — searching.", name, ocr_name)
             press_until_closed(v, "doggo_loot_window")
-            search_confirm, ocr_name, search_yaw, search_pitch = _search_for_named_doggo(v, region, expected_names, sens)
+            search_confirm, ocr_name, search_yaw, search_pitch = _search_for_named_doggo(
+                v, region, expected_names, sens
+            )
             net_yaw += search_yaw
             net_pitch += search_pitch
             matched_name = _any_doggo_name_matches(ocr_name, expected_names)
@@ -829,8 +831,10 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
                 logger.info(
                     "[%s] position updated: yaw %d→%d, pitch %d→%d.",
                     matched_name,
-                    old_pos.get("yaw", 0), net_yaw,
-                    old_pos.get("pitch", 0), net_pitch,
+                    old_pos.get("yaw", 0),
+                    net_yaw,
+                    old_pos.get("pitch", 0),
+                    net_pitch,
                 )
 
         if ocr_name and not matched_name:

@@ -25,11 +25,7 @@ def save(workflow_type: str, stats: dict) -> Path:
     path = STATS_DIR / f"{ts}_{workflow_type}.json"
 
     # Validate using Pydantic
-    model = SessionStats(
-        workflow_type=workflow_type,
-        saved_at=datetime.now(),
-        **stats
-    )
+    model = SessionStats(workflow_type=workflow_type, saved_at=datetime.now(), **stats)
 
     # Write using Pydantic's optimized JSON serialization
     with open(path, "w", encoding="utf-8") as f:
