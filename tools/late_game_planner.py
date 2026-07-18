@@ -226,13 +226,17 @@ def plan_step(
     shards_used = 3 if overclock else 0
     sloops_used = sloop_slots
 
+    is_unlocked = True
+    if recipe.get("alternate") and recipe.get("schematic"):
+        is_unlocked = recipe["schematic"] in unlocked_schematics
+
     steps.append({
         "item": item,
         "rate": rate,
         "recipe_name": recipe["name"],
         "machine": machine_name,
         "machine_count": machine_count,
-        "unlocked": True,
+        "unlocked": is_unlocked,
         "alternate": recipe.get("alternate", False),
         "is_slopped": is_slopped,
         "shards": shards_used,
