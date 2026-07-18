@@ -8,6 +8,7 @@ Serves a Single Page Application with interactive tabs for:
 3. Live power grid and POI visualizer map.
 4. Active controls (triggering loops & schedules).
 5. Interactive calibration parameters configuration.
+6. Factory Production and Late-Game specialized planners.
 """
 
 import contextlib
@@ -19,6 +20,7 @@ import sqlite3
 import sys
 import threading
 import time
+import urllib.parse
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -136,6 +138,58 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 "modified": global_last_modified,
             }
             self.wfile.write(json.dumps(response).encode("utf-8"))
+            return
+
+        # Serve API: Run production / late game factory planner
+        if self.path.startswith("/api/planner"):
+            query = self.path.split("?")[-1] if "?" in self.path else ""
+            params = {}
+            for pair in query.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    params[k] = urllib.parse.unquote(v)
+
+            item = params.get("item", "Modular Frame")
+            rate = float(params.get("rate", "10.0"))
+            mode = params.get("mode", "standard")
+            overclock = params.get("overclock", "true") == "true"
+            sloops_str = params.get("sloops", "")
+            sloops = [s.strip() for s in sloops_str.split(",") if s.strip()]
+
+            from tools.cli import _find_latest_save_file
+
+            save_path = _find_latest_save_file()
+            if not save_path:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "No save file found"}).encode("utf-8"))
+                return
+
+            try:
+                if mode == "late_game":
+                    from tools.late_game_planner import generate_late_game_plan
+                    from tools.late_game_planner import generate_mermaid_flowchart as gen_flowchart_lg
+
+                    plan = generate_late_game_plan(item, rate, overclock, set(sloops), save_path)
+                    flowchart = gen_flowchart_lg(plan["steps"], plan["raw_materials"], set(sloops), overclock)
+                else:
+                    from tools.factory_planner import generate_mermaid_flowchart as gen_flowchart_std
+                    from tools.factory_planner import generate_production_plan
+
+                    plan = generate_production_plan(item, rate, None, save_path)
+                    flowchart = gen_flowchart_std(plan["steps"], plan["raw_materials"])
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                response = {"plan": plan, "flowchart": flowchart}
+                self.wfile.write(json.dumps(response).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
         # Serve API: Get config options
@@ -413,6 +467,16 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 <head>
   <meta charset="utf-8">
   <title>Satisfactory gameplay Dashboard</title>
+  <!-- Load Mermaid dynamically for flowchart rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose',
+      flowchart: { useMaxWidth: true, htmlLabels: true }
+    });
+  </script>
   <style>
     body {
       background-color: #121212;
@@ -594,6 +658,38 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       color: #00e5ff;
       width: 50px;
     }
+    .form-row {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 15px;
+      align-items: center;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .form-group label {
+      font-size: 12px;
+      color: #90a4ae;
+      margin-bottom: 5px;
+    }
+    .form-group input, .form-group select {
+      background-color: #263238;
+      border: 1px solid #37474f;
+      border-radius: 4px;
+      padding: 10px;
+      color: #fff;
+      font-size: 14px;
+    }
+    .mermaid {
+      background-color: #0a0a0a;
+      border: 1px solid #37474f;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -608,6 +704,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     <div class="tab" onclick="switchTab('map-view')">🗺️ Live Power Grid Map</div>
     <div class="tab" onclick="switchTab('controls')">🎮 Active Controls</div>
     <div class="tab" onclick="switchTab('calibration')">🎛️ Calibration Wizard</div>
+    <div class="tab" onclick="switchTab('planner-view')">🏭 Factory Planner</div>
   </div>
 
   <div class="content-area">
@@ -736,6 +833,120 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         </div>
       </div>
     </div>
+
+    <!-- Factory Planner Tab -->
+    <div id="planner-view" class="tab-content">
+      <div class="card">
+        <h2>Production Optimization Calculator</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="plan-item">Output Target Item</label>
+            <select id="plan-item">
+              <option value="Modular Frame">Modular Frame</option>
+              <option value="Heavy Modular Frame">Heavy Modular Frame</option>
+              <option value="Thermal Propulsion Rocket">Thermal Propulsion Rocket</option>
+              <option value="Ballistic Warp Drive">Ballistic Warp Drive</option>
+              <option value="Superposition Oscillator">Superposition Oscillator</option>
+              <option value="Nuclear Pasta">Nuclear Pasta</option>
+              <option value="Magnetic Field Generator">Magnetic Field Generator</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="plan-rate">Desired Output Rate (items/min)</label>
+            <input type="number" id="plan-rate" value="10" min="0.1" step="0.5">
+          </div>
+          <div class="form-group">
+            <label for="plan-mode">Planner Mode Selection</label>
+            <select id="plan-mode" onchange="togglePlannerModeInputs()">
+              <option value="standard">Standard Production</option>
+              <option value="late_game">Late-Game Specialized Scaling</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="late-game-inputs" style="display: none; border-top: 1px solid #37474f; padding-top: 15px; margin-top: 15px;">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="plan-sloops">Somersloop Amplify Items (comma separated names)</label>
+              <input type="text" id="plan-sloops" placeholder="e.g. Superposition Oscillator, Dark Matter Crystal">
+            </div>
+            <div class="form-group" style="flex: 0; min-width: 120px; text-align: center;">
+              <label for="plan-overclock">Overclock (250%)</label>
+              <input type="checkbox" id="plan-overclock" checked style="width: 20px; height: 20px; margin: 10px auto 0 auto;">
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+          <button class="btn" onclick="calculateFactoryPlan()">Calculate Optimized Plan</button>
+        </div>
+      </div>
+
+      <div id="planner-results" style="display: none;">
+        <!-- Warnings Card -->
+        <div id="planner-warnings-card" class="card" style="display: none; border-left: 5px solid #ff1744;">
+          <h2 style="color: #ff1744;">Recipe Research Warnings</h2>
+          <ul id="planner-warnings-list" style="margin-top: 10px; padding-left: 20px; color: #ff8a80; font-size: 13px;"></ul>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div id="planner-metrics-card" class="card" style="display: none;">
+          <h2>Power & Shards Requirements Summary</h2>
+          <div style="display: flex; justify-content: space-around; text-align: center;">
+            <div>
+              <div class="metric" id="plan-total-power" style="color: #00e5ff;">0 MW</div>
+              <div class="metric-sub">Estimated Peak Power</div>
+            </div>
+            <div>
+              <div class="metric" id="plan-total-shards" style="color: #ffd600;">0</div>
+              <div class="metric-sub">Power Shards Needed</div>
+            </div>
+            <div>
+              <div class="metric" id="plan-total-sloops" style="color: #d500f9;">0</div>
+              <div class="metric-sub">Somersloops Required</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Steps Table -->
+          <div class="card">
+            <h2>Detailed Production Steps</h2>
+            <table id="plan-steps-table">
+              <thead>
+                <tr>
+                  <th>Item Produced</th>
+                  <th>Recipe</th>
+                  <th>Machine & Qty</th>
+                  <th>Rate</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <!-- Raw Materials Table -->
+          <div class="card">
+            <h2>Raw Node Materials Required</h2>
+            <table id="plan-raw-table">
+              <thead>
+                <tr>
+                  <th>Raw Resource Name</th>
+                  <th>Required Rate</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Mermaid Flowchart Visualizer -->
+        <div class="card">
+          <h2>Visual Production Layout Flowchart</h2>
+          <div id="flowchart-container" style="margin-top: 15px;"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -789,7 +1000,6 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         const res = await fetch('/api/config/get');
         const data = await res.json();
 
-        // Populate sliders
         document.getElementById('threshold-slider').value = data.vision.default_threshold;
         document.getElementById('threshold-val').textContent = data.vision.default_threshold;
 
@@ -804,7 +1014,6 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     }
 
     async function updateConfigOption(key, value) {
-      // Update label instantly
       if (key === 'vision.default_threshold') document.getElementById('threshold-val').textContent = value;
       if (key === 'taming.feed_wait_seconds') document.getElementById('feed-val').textContent = value;
       if (key === 'combat.low_health_threshold') document.getElementById('health-val').textContent = value;
@@ -822,6 +1031,93 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       }
     }
 
+    function togglePlannerModeInputs() {
+      const mode = document.getElementById('plan-mode').value;
+      const lateGameDiv = document.getElementById('late-game-inputs');
+      lateGameDiv.style.display = mode === 'late_game' ? 'block' : 'none';
+    }
+
+    async function calculateFactoryPlan() {
+      const item = document.getElementById('plan-item').value;
+      const rate = document.getElementById('plan-rate').value;
+      const mode = document.getElementById('plan-mode').value;
+      const overclock = document.getElementById('plan-overclock').checked;
+      const sloops = document.getElementById('plan-sloops').value;
+
+      try {
+        showNotification('Running mathematical recipe optimizations...');
+        const res = await fetch(`/api/planner?item=${encodeURIComponent(item)}&rate=${rate}&mode=${mode}&overclock=${overclock}&sloops=${encodeURIComponent(sloops)}`);
+        const data = await res.json();
+
+        if (data.error) {
+          showNotification(data.error, false);
+          return;
+        }
+
+        const plan = data.plan;
+        document.getElementById('planner-results').style.display = 'block';
+
+        // Warnings
+        const warnCard = document.getElementById('planner-warnings-card');
+        const warnList = document.getElementById('planner-warnings-list');
+        warnList.innerHTML = '';
+        if (plan.warnings && plan.warnings.length > 0) {
+          warnCard.style.display = 'block';
+          plan.warnings.forEach(w => {
+            const li = document.createElement('li');
+            li.textContent = w;
+            warnList.appendChild(li);
+          });
+        } else {
+          warnCard.style.display = 'none';
+        }
+
+        // Metrics (power, shards)
+        const metricsCard = document.getElementById('planner-metrics-card');
+        if (mode === 'late_game') {
+          metricsCard.style.display = 'block';
+          document.getElementById('plan-total-power').textContent = Math.round(plan.total_power_mw) + ' MW';
+          document.getElementById('plan-total-shards').textContent = plan.total_shards;
+          document.getElementById('plan-total-sloops').textContent = plan.total_sloops;
+        } else {
+          metricsCard.style.display = 'none';
+        }
+
+        // Steps
+        const stepsBody = document.querySelector('#plan-steps-table tbody');
+        stepsBody.innerHTML = '';
+        plan.steps.forEach(step => {
+          const row = document.createElement('tr');
+          const status = step.unlocked ? '' : ' <span style="color:#ff1744; font-size:10px;">[LOCKED]</span>';
+          row.innerHTML = `
+            <td><b>${step.item}</b>${status}</td>
+            <td>${step.recipe_name}</td>
+            <td>${step.machine} x${step.machine_count.toFixed(2)}</td>
+            <td>${step.rate.toFixed(1)}/min</td>
+          `;
+          stepsBody.appendChild(row);
+        });
+
+        // Raw materials
+        const rawBody = document.querySelector('#plan-raw-table tbody');
+        rawBody.innerHTML = '';
+        Object.entries(plan.raw_materials).forEach(([rawItem, rawRate]) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `<td><b>${rawItem}</b></td><td>${rawRate.toFixed(1)}/min</td>`;
+          rawBody.appendChild(row);
+        });
+
+        // Render flowchart visualizer dynamically using Mermaid
+        const container = document.getElementById('flowchart-container');
+        container.innerHTML = `<div class="mermaid">${data.flowchart}</div>`;
+        mermaid.init(undefined, container.querySelectorAll('.mermaid'));
+
+        showNotification('Factory layout plan optimized and visualised.');
+      } catch (e) {
+        showNotification('Connection error fetching planner results', false);
+      }
+    }
+
     function switchTab(tabId) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -832,7 +1128,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         'gallery': 'Screenshot',
         'map-view': 'Power Grid',
         'controls': 'Active Controls',
-        'calibration': 'Calibration'
+        'calibration': 'Calibration',
+        'planner-view': 'Factory Planner'
       };
       const clickedTab = tabs.find(t => t.textContent.includes(textMap[tabId]));
       if (clickedTab) clickedTab.classList.add('active');

@@ -260,6 +260,7 @@ def test_dashboard_watcher_thread():
 def test_update_config_value():
     """Verify that update_config_value correctly updates properties inside config.toml."""
     from tools.dashboard import update_config_value
+
     temp_config = Path("config.toml")
     backup = None
     if temp_config.exists():
@@ -282,6 +283,7 @@ def test_update_config_value():
 def test_dist_3d_calculation():
     """Verify 3D distance calculations in map_power."""
     from tools.map_power import dist_3d
+
     assert dist_3d([0, 0, 0], [300, 400, 0]) == 500.0
 
 
@@ -302,4 +304,11 @@ def test_async_workflow_and_schedule_triggers():
 
         handler._run_schedule_action_async(handler, "pause", "daily")
         mock_pause.assert_called_once()
+
+
+def test_dashboard_imports():
+    """Verify that dashboard module contains start_server and handler."""
+    from tools import dashboard
+    assert hasattr(dashboard, "start_server")
+    assert hasattr(dashboard, "DashboardHandler")
 
