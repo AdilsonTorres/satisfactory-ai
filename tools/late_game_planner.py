@@ -313,6 +313,8 @@ def generate_late_game_plan(
         total_shards += actual_machines * step["shards_per_machine"]
         total_sloops += actual_machines * step["sloops_per_machine"]
         total_power += step["power_mw"]
+        if not step["unlocked"]:
+            warnings.append(f"Recipe '{step['recipe_name']}' is locked in your save file (needs to be unlocked).")
 
     # Read Dimensional Depot quantities
     depot_status = {}

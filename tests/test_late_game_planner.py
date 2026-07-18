@@ -321,3 +321,25 @@ def test_generate_late_game_plan_ballistic_warp_drive(mock_save_class):
     assert dmc_step["machine"] == "Particle Accelerator"
 
 
+@patch("tools.late_game_planner.SatisfactorySave")
+def test_generate_late_game_plan_locked_recipe_warning(mock_save_class):
+    """Locked recipe warning should be added if the save file does not have the alternate recipe unlocked."""
+    mock_save = mock_save_class.return_value
+    # No alternate schematics unlocked
+    mock_save.schematics = []
+    mock_save.dimensional_depot = []
+
+    plan = generate_late_game_plan(
+        target_item="Ballistic Warp Drive",
+        target_rate=10.0,
+        overclock=True,
+        sloop_items=set(),
+        save_file_path="mock_save.sav",
+        recipe_multiplier=0.75,
+    )
+
+    # Alternate recipe "Dark Matter Trap" is used, but locked, so we should have a warning
+    assert any("Recipe 'Dark Matter Trap' is locked" in w for w in plan["warnings"])
+
+
+
