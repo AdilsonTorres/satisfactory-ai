@@ -6,13 +6,19 @@ Serves a Single Page Application with interactive tabs for:
 1. Telemetry stats and SQLite taming metrics.
 2. Visual calibration crop gallery.
 3. Live power grid and POI visualizer map.
+4. Active controls (triggering loops & schedules).
+5. Interactive calibration parameters configuration.
 """
 
+import contextlib
 import http.server
 import json
+import os
 import socketserver
 import sqlite3
 import sys
+import threading
+import time
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +31,81 @@ if str(project_root) not in sys.path:
 
 from tools.map_power import generate_power_map  # noqa: E402
 
+# Global version trackers for save file watching
+global_save_version = 0
+global_last_modified = ""
+global_watcher_active = True
+
+
+def watch_save_files():
+    global global_save_version, global_last_modified, global_watcher_active
+    from tools.cli import _find_latest_save_file
+
+    last_path = None
+    last_mtime = 0.0
+
+    # Ensure stats directory exists
+    stats_dir = Path("stats")
+    stats_dir.mkdir(exist_ok=True)
+
+    print("[Watcher] Background Save File Watcher thread started.")
+    while global_watcher_active:
+        try:
+            path = _find_latest_save_file()
+            if path:
+                mtime = os.path.getmtime(path)
+                if path != last_path or mtime != last_mtime:
+                    # Save changed!
+                    print(f"\n[Watcher] Detected changes to save file: {path}")
+                    # Re-run map generation
+                    generate_power_map()
+
+                    last_path = path
+                    last_mtime = mtime
+                    global_save_version += 1
+                    global_last_modified = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception as exc:
+            print(f"[Watcher Error] {exc}", file=sys.stderr)
+        time.sleep(2.0)
+
+
+def update_config_value(section_name: str, key_name: str, new_val: Any) -> bool:
+    """Updates config.toml value keeping existing comments and spacing formatting."""
+    try:
+        path = Path("config.toml")
+        if not path.exists():
+            return False
+        lines = path.read_text(encoding="utf-8").splitlines()
+        in_section = False
+        updated = False
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                current_section = stripped[1:-1].strip()
+                in_section = current_section == section_name
+            elif in_section and "=" in line:
+                parts = line.split("=", 1)
+                k = parts[0].strip()
+                if k == key_name:
+                    if isinstance(new_val, bool):
+                        v_str = "true" if new_val else "false"
+                    elif isinstance(new_val, str):
+                        v_str = f'"{new_val}"'
+                    else:
+                        v_str = str(new_val)
+                    lines[idx] = f"{k} = {v_str}"
+                    updated = True
+                    break
+        if updated:
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            from utils import config
+
+            config.reload()
+            return True
+    except Exception:
+        pass
+    return False
+
 
 class DashboardHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -32,6 +113,127 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        # Serve API: Watcher status (long-polling)
+        if self.path.startswith("/api/watch"):
+            query = self.path.split("?")[-1] if "?" in self.path else ""
+            client_version = 0
+            if "version=" in query:
+                with contextlib.suppress(ValueError):
+                    client_version = int(query.split("version=")[-1].split("&")[0])
+
+            # Wait up to 8 seconds for new save version
+            start_time = time.time()
+            while time.time() - start_time < 8.0:
+                if global_save_version > client_version:
+                    break
+                time.sleep(0.5)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            response = {
+                "version": global_save_version,
+                "modified": global_last_modified,
+            }
+            self.wfile.write(json.dumps(response).encode("utf-8"))
+            return
+
+        # Serve API: Get config options
+        if self.path == "/api/config/get":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            from utils import config
+
+            config.reload()
+            data = {
+                "vision": {
+                    "default_threshold": config.get("vision.default_threshold", 0.8),
+                },
+                "taming": {
+                    "feed_wait_seconds": config.get("taming.feed_wait_seconds", 30.0),
+                },
+                "combat": {
+                    "low_health_threshold": config.get("combat.low_health_threshold", 40),
+                },
+            }
+            self.wfile.write(json.dumps(data).encode("utf-8"))
+            return
+
+        # Serve API: Update config option
+        if self.path.startswith("/api/config/update"):
+            query = self.path.split("?")[-1] if "?" in self.path else ""
+            params = {}
+            for pair in query.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    params[k] = v
+
+            success = False
+            if "vision.default_threshold" in params:
+                success = update_config_value("vision", "default_threshold", float(params["vision.default_threshold"]))
+            if "taming.feed_wait_seconds" in params:
+                success = update_config_value("taming", "feed_wait_seconds", float(params["taming.feed_wait_seconds"]))
+            if "combat.low_health_threshold" in params:
+                success = update_config_value(
+                    "combat", "low_health_threshold", int(params["combat.low_health_threshold"])
+                )
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": success}).encode("utf-8"))
+            return
+
+        # Serve API: Trigger active workflows
+        if self.path.startswith("/api/workflow/trigger"):
+            query = self.path.split("?")[-1] if "?" in self.path else ""
+            params = {}
+            for pair in query.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    params[k] = v
+
+            wf_type = params.get("type", "")
+            success = False
+            message = ""
+
+            if wf_type:
+                threading.Thread(target=lambda: self._trigger_workflow_async(wf_type, params), daemon=True).start()
+                success = True
+                message = f"Asynchronously triggered loop for {wf_type}."
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": success, "message": message}).encode("utf-8"))
+            return
+
+        # Serve API: Manage schedules actions
+        if self.path.startswith("/api/schedules/action"):
+            query = self.path.split("?")[-1] if "?" in self.path else ""
+            params = {}
+            for pair in query.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    params[k] = v
+
+            action = params.get("action", "")
+            name = params.get("name", "daily")
+            success = False
+            message = ""
+
+            if action in ("pause", "unpause"):
+                threading.Thread(target=lambda: self._run_schedule_action_async(action, name), daemon=True).start()
+                success = True
+                message = f"Triggered schedule {action} for {name}."
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": success, "message": message}).encode("utf-8"))
+            return
+
         # Serve API: Stats & SQLite metrics
         if self.path == "/api/stats":
             self.send_response(200)
@@ -80,6 +282,72 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         html = self._get_dashboard_html()
         self.wfile.write(html.encode("utf-8"))
 
+    def _trigger_workflow_async(self, wf_type: str, params: dict):
+        import asyncio
+
+        from temporalio.client import Client
+
+        from workflows.depot_coal import DepotCoalToStorageWorkflow
+        from workflows.exploration import ExplorationWorkflow
+        from workflows.gift_farm import GiftFarmWorkflow
+        from workflows.template_orchestration import TemplateOrchestrationWorkflow
+
+        async def run():
+            try:
+                client = await Client.connect("localhost:7233")
+                if wf_type == "calibration":
+                    target = params.get("target", "hud")
+                    res = params.get("resolution", "2560x1440")
+                    await client.start_workflow(
+                        TemplateOrchestrationWorkflow.run,
+                        args=[target, res],
+                        id="calibration-workflow-run",
+                        task_queue="satisfactory-bot",
+                    )
+                elif wf_type == "exploration":
+                    await client.start_workflow(
+                        ExplorationWorkflow.run,
+                        args=[None, False, False],
+                        id="exploration-run",
+                        task_queue="satisfactory-bot",
+                    )
+                elif wf_type == "depot_coal":
+                    await client.start_workflow(
+                        DepotCoalToStorageWorkflow.run,
+                        args=[15.0, None, 5],
+                        id="depot-coal-run",
+                        task_queue="satisfactory-bot",
+                    )
+                elif wf_type == "gift_farm":
+                    await client.start_workflow(
+                        GiftFarmWorkflow.run,
+                        args=[200, 50, 10, 50.0],
+                        id="gift-farm-run",
+                        task_queue="satisfactory-bot",
+                    )
+            except Exception as e:
+                print(f"[Dashboard Async Workflow Error] {e}", file=sys.stderr)
+
+        asyncio.run(run())
+
+    def _run_schedule_action_async(self, action: str, name: str):
+        import argparse
+        import asyncio
+
+        import schedule_gift_farm
+
+        async def run():
+            try:
+                args = argparse.Namespace(name=name)
+                if action == "pause":
+                    await schedule_gift_farm.pause(args)
+                elif action == "unpause":
+                    await schedule_gift_farm.unpause(args)
+            except Exception as e:
+                print(f"[Dashboard Async Schedule Error] {e}", file=sys.stderr)
+
+        asyncio.run(run())
+
     def _get_stats_data(self) -> dict:
         db_path = Path("stats") / "gift_history.db"
         gift_summary: dict[str, Any] = {"total_checks": 0, "collected_count": 0, "by_doggo": {}}
@@ -127,13 +395,11 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             return []
 
     def _get_map_html(self) -> str:
-        # Dynamically trigger fresh map power grid reconstruction on load
         try:
             result = generate_power_map()
             if not result:
                 return "<h3>Error: Power map generation returned no data. Ensure a save file exists.</h3>"
 
-            # Re-read stats/reachable_power_map.html produced by visualizer
             html_path = Path("stats") / "reachable_power_map.html"
             if html_path.exists():
                 return html_path.read_text(encoding="utf-8")
@@ -217,6 +483,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       border-radius: 8px;
       padding: 20px;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      margin-bottom: 20px;
     }
     .card h2 {
       margin-top: 0;
@@ -283,6 +550,50 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       border-radius: 8px;
       background-color: #0d0d0d;
     }
+    .btn {
+      background-color: #ff9800;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      margin-right: 10px;
+      transition: background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: #ffd54f;
+    }
+    .btn-secondary {
+      background-color: #37474f;
+      color: #fff;
+    }
+    .btn-secondary:hover {
+      background-color: #455a64;
+    }
+    .control-group {
+      margin-bottom: 20px;
+    }
+    .control-label {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #b0bec5;
+    }
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .slider-container input[type="range"] {
+      flex: 1;
+    }
+    .slider-value {
+      font-weight: bold;
+      color: #00e5ff;
+      width: 50px;
+    }
   </style>
 </head>
 <body>
@@ -295,6 +606,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     <div class="tab active" onclick="switchTab('telemetry')">📊 Telemetry & Stats</div>
     <div class="tab" onclick="switchTab('gallery')">🖼️ Screenshot Gallery</div>
     <div class="tab" onclick="switchTab('map-view')">🗺️ Live Power Grid Map</div>
+    <div class="tab" onclick="switchTab('controls')">🎮 Active Controls</div>
+    <div class="tab" onclick="switchTab('calibration')">🎛️ Calibration Wizard</div>
   </div>
 
   <div class="content-area">
@@ -363,15 +676,165 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     <div id="map-view" class="tab-content">
       <iframe src="" id="map-iframe"></iframe>
     </div>
+
+    <!-- Active Controls Tab -->
+    <div id="controls" class="tab-content">
+      <div class="card">
+        <h2>Temporal Loops & Workflows Controls</h2>
+        <div class="control-group">
+          <div class="control-label">Visual Calibration Loop</div>
+          <button class="btn" onclick="triggerWorkflow('calibration')">Trigger Calibration Run</button>
+        </div>
+        <div class="control-group">
+          <div class="control-label">Exploration Loop (Movement Budget)</div>
+          <button class="btn" onclick="triggerWorkflow('exploration')">Start Exploration loop</button>
+        </div>
+        <div class="control-group">
+          <div class="control-label">Dimensional Depot Coal Loop</div>
+          <button class="btn" onclick="triggerWorkflow('depot_coal')">Start Depot Coal loop</button>
+        </div>
+        <div class="control-group">
+          <div class="control-label">Autonomous Gift Farm Loop</div>
+          <button class="btn" onclick="triggerWorkflow('gift_farm')">Start Gift Farm Loop</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Schedule Actions Management (Always-On Windows)</h2>
+        <div class="control-group">
+          <div class="control-label">Taming Window Schedule [daily]</div>
+          <button class="btn" onclick="triggerScheduleAction('pause')">Pause Schedule</button>
+          <button class="btn btn-secondary" onclick="triggerScheduleAction('unpause')">Resume/Unpause Schedule</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calibration Wizard Tab -->
+    <div id="calibration" class="tab-content">
+      <div class="card">
+        <h2>Interactive Configuration parameters Adjustments</h2>
+        <div class="control-group">
+          <div class="control-label">Vision Default Threshold (confidence matching)</div>
+          <div class="slider-container">
+            <input type="range" id="threshold-slider" min="0.5" max="0.99" step="0.01" onchange="updateConfigOption('vision.default_threshold', this.value)">
+            <span class="slider-value" id="threshold-val">0.80</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <div class="control-label">Wait duration between taming feeds (seconds)</div>
+          <div class="slider-container">
+            <input type="range" id="feed-slider" min="5" max="120" step="5" onchange="updateConfigOption('taming.feed_wait_seconds', this.value)">
+            <span class="slider-value" id="feed-val">30</span>
+          </div>
+        </div>
+        <div class="control-group">
+          <div class="control-label">Retreat Low Health Threshold (HP)</div>
+          <div class="slider-container">
+            <input type="range" id="health-slider" min="10" max="90" step="5" onchange="updateConfigOption('combat.low_health_threshold', this.value)">
+            <span class="slider-value" id="health-val">40</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
+    function showNotification(text, success=true) {
+      const banner = document.createElement('div');
+      banner.style.position = 'fixed';
+      banner.style.bottom = '20px';
+      banner.style.right = '20px';
+      banner.style.backgroundColor = success ? '#00e676' : '#ff1744';
+      banner.style.color = '#000';
+      banner.style.padding = '10px 20px';
+      banner.style.borderRadius = '4px';
+      banner.style.fontWeight = 'bold';
+      banner.style.zIndex = '1000';
+      banner.style.fontFamily = 'sans-serif';
+      banner.textContent = text;
+      document.body.appendChild(banner);
+      setTimeout(() => banner.remove(), 4000);
+    }
+
+    async function triggerWorkflow(type) {
+      try {
+        const res = await fetch(`/api/workflow/trigger?type=${type}`);
+        const data = await res.json();
+        if (data.success) {
+          showNotification(data.message);
+        } else {
+          showNotification('Failed to trigger workflow', false);
+        }
+      } catch(e) {
+        showNotification('Connection error', false);
+      }
+    }
+
+    async function triggerScheduleAction(action) {
+      try {
+        const res = await fetch(`/api/schedules/action?action=${action}&name=daily`);
+        const data = await res.json();
+        if (data.success) {
+          showNotification(data.message);
+        } else {
+          showNotification('Failed to perform schedule action', false);
+        }
+      } catch(e) {
+        showNotification('Connection error', false);
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config/get');
+        const data = await res.json();
+
+        // Populate sliders
+        document.getElementById('threshold-slider').value = data.vision.default_threshold;
+        document.getElementById('threshold-val').textContent = data.vision.default_threshold;
+
+        document.getElementById('feed-slider').value = data.taming.feed_wait_seconds;
+        document.getElementById('feed-val').textContent = data.taming.feed_wait_seconds;
+
+        document.getElementById('health-slider').value = data.combat.low_health_threshold;
+        document.getElementById('health-val').textContent = data.combat.low_health_threshold;
+      } catch (e) {
+        console.error('Failed to load config options:', e);
+      }
+    }
+
+    async function updateConfigOption(key, value) {
+      // Update label instantly
+      if (key === 'vision.default_threshold') document.getElementById('threshold-val').textContent = value;
+      if (key === 'taming.feed_wait_seconds') document.getElementById('feed-val').textContent = value;
+      if (key === 'combat.low_health_threshold') document.getElementById('health-val').textContent = value;
+
+      try {
+        const res = await fetch(`/api/config/update?${key}=${value}`);
+        const data = await res.json();
+        if (data.success) {
+          showNotification('Updated config.toml successfully.');
+        } else {
+          showNotification('Failed to update config.toml', false);
+        }
+      } catch (e) {
+        showNotification('Connection error updating config.toml', false);
+      }
+    }
+
     function switchTab(tabId) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
-      // Mark selected active
-      const clickedTab = Array.from(document.querySelectorAll('.tab')).find(t => t.textContent.includes(tabId === 'telemetry' ? 'Telemetry' : tabId === 'gallery' ? 'Screenshot' : 'Power Grid'));
+      const tabs = Array.from(document.querySelectorAll('.tab'));
+      const textMap = {
+        'telemetry': 'Telemetry',
+        'gallery': 'Screenshot',
+        'map-view': 'Power Grid',
+        'controls': 'Active Controls',
+        'calibration': 'Calibration'
+      };
+      const clickedTab = tabs.find(t => t.textContent.includes(textMap[tabId]));
       if (clickedTab) clickedTab.classList.add('active');
 
       const content = document.getElementById(tabId);
@@ -380,6 +843,9 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       if (tabId === 'map-view') {
         const iframe = document.getElementById('map-iframe');
         iframe.src = '/api/map';
+      }
+      if (tabId === 'calibration') {
+        loadConfig();
       }
     }
 
@@ -394,7 +860,6 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         const rate = summary.total_checks > 0 ? Math.round((summary.collected_count / summary.total_checks) * 100) : 0;
         document.getElementById('efficiency').textContent = rate + '%';
 
-        // Update doggo table
         const dBody = document.querySelector('#doggo-table tbody');
         dBody.innerHTML = '';
         const names = Object.keys(summary.by_doggo);
@@ -408,7 +873,6 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           });
         }
 
-        // Update runs table
         const rBody = document.querySelector('#runs-table tbody');
         rBody.innerHTML = '';
         if (data.recent_runs.length === 0) {
@@ -416,7 +880,6 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         } else {
           data.recent_runs.forEach(run => {
             const row = document.createElement('tr');
-            // Clean display of extra data fields
             const details = Object.entries(run)
               .filter(([k]) => !['workflow_type', 'saved_at'].includes(k))
               .map(([k, v]) => `${k}: <b>${typeof v === 'object' ? JSON.stringify(v) : v}</b>`)
@@ -459,10 +922,30 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       }
     }
 
-    // Auto-refresh stats
+    let currentVersion = 0;
+    async function watchSaveFile() {
+      try {
+        const res = await fetch(`/api/watch?version=${currentVersion}`);
+        const data = await res.json();
+        if (data.version > currentVersion) {
+          currentVersion = data.version;
+          loadTelemetry();
+          loadGallery();
+          const iframe = document.getElementById('map-iframe');
+          if (iframe && iframe.src) {
+            iframe.src = '/api/map';
+          }
+          showNotification('Save file updated! Auto-reloaded telemetry.');
+        }
+      } catch (e) {
+        // Retry
+      }
+      setTimeout(watchSaveFile, 1000);
+    }
+
     loadTelemetry();
     loadGallery();
-    setInterval(loadTelemetry, 5000);
+    watchSaveFile();
   </script>
 </body>
 </html>
@@ -472,6 +955,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 def start_server(port: int = 8080) -> None:
     class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
         daemon_threads = True
+
+    # Start the save watcher thread in background
+    watcher_thread = threading.Thread(target=watch_save_files, daemon=True)
+    watcher_thread.start()
 
     server_address = ("", port)
     try:
@@ -483,8 +970,6 @@ def start_server(port: int = 8080) -> None:
         print("Press Ctrl+C to stop the dashboard server.")
 
         # Open browser in a separate thread so it doesn't block the server loop start
-        import threading
-
         threading.Timer(0.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
 
         httpd.serve_forever()

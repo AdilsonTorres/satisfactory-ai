@@ -86,9 +86,40 @@ def generate_power_map():
                 {"id": name, "type": class_name.replace("BP_", "").replace("Parts", ""), "pos": pos}
             )
         elif class_name == "BP_ResourceNode" and "Geyser" not in t_path:
-            pois["resource_nodes"].append({"id": name, "purity": props.get("mPurityOverride", "RP_Normal"), "pos": pos})
+            res_item = props.get("mRepresentedItem", "") or props.get("mExtractableResource", "")
+            res_type = "Unknown"
+            if res_item:
+                res_type = res_item.split(".")[-1].removesuffix("_C").replace("Desc_", "").replace("Ore", "")
+            pois["resource_nodes"].append(
+                {"id": name, "purity": props.get("mPurityOverride", "RP_Normal"), "pos": pos, "type": res_type}
+            )
         elif class_name == "BP_ResourceNodeGeyser":
             pois["geysers"].append({"id": name, "pos": pos})
+
+    # Track extractors list from nodes
+    extractors = []
+    for name, node in nodes.items():
+        c_name = node["type"]
+        if "Miner" in c_name or "Extractor" in c_name or "WaterPump" in c_name or "GeneratorGeyser" in c_name:
+            extractors.append({"id": name, "type": c_name, "pos": node["pos"]})
+
+    for node in pois["resource_nodes"]:
+        node["extracted"] = False
+        node["extractor_type"] = ""
+        for ext in extractors:
+            if dist_3d(node["pos"], ext["pos"]) < 1000.0:
+                node["extracted"] = True
+                node["extractor_type"] = ext["type"]
+                break
+
+    for geyser in pois["geysers"]:
+        geyser["extracted"] = False
+        geyser["extractor_type"] = ""
+        for ext in extractors:
+            if dist_3d(geyser["pos"], ext["pos"]) < 1000.0:
+                geyser["extracted"] = True
+                geyser["extractor_type"] = ext["type"]
+                break
 
     print(f"Extracted {len(nodes)} candidate power structures.")
 

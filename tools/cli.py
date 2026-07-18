@@ -776,6 +776,26 @@ def _save_map_html(map_data: dict, pois: dict) -> str:
                 f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="poi-nest" data-tooltip="Fauna Nest (Hazard)" />'
             )
 
+    for _idx, res in enumerate(pois.get("resource_nodes", [])):
+        pos = res.get("pos") or res.get("position")
+        if pos:
+            cx, cy = map_x(pos[0]), map_y(pos[1])
+            purity = res.get("purity", "RP_Normal").replace("RP_", "")
+            extracted = "Extracted" if res.get("extracted") else "Unextracted"
+            res_type = res.get("type", "Unknown")
+            svg_elements.append(
+                f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="4.5" class="poi-resource res-{res_type.lower()}" data-extracted="{str(res.get("extracted")).lower()}" data-tooltip="{res_type} Node ({purity}) - {extracted}" />'
+            )
+
+    for _idx, g in enumerate(pois.get("geysers", [])):
+        pos = g.get("pos") or g.get("position")
+        if pos:
+            cx, cy = map_x(pos[0]), map_y(pos[1])
+            extracted = "Extracted" if g.get("extracted") else "Unextracted"
+            svg_elements.append(
+                f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" class="poi-geyser" data-extracted="{str(g.get("extracted")).lower()}" data-tooltip="Geyser - {extracted}" />'
+            )
+
     # Player position
     px = map_x(player_pos[0])
     py = map_y(player_pos[1])
@@ -865,6 +885,34 @@ def _save_map_html(map_data: dict, pois: dict) -> str:
       stroke-width: 1px;
       cursor: pointer;
     }}
+    .poi-resource {{
+      display: none;
+      stroke: #121212;
+      stroke-width: 1px;
+      cursor: pointer;
+      opacity: 0.85;
+    }}
+    .poi-geyser {{
+      display: none;
+      stroke: #121212;
+      stroke-width: 1px;
+      cursor: pointer;
+      opacity: 0.85;
+    }}
+    circle[data-extracted="true"] {{
+      stroke: #00e676 !important;
+      stroke-width: 2.5px !important;
+    }}
+    .res-iron {{ fill: #cfd8dc; }}
+    .res-copper {{ fill: #ff7043; }}
+    .res-coal {{ fill: #37474f; }}
+    .res-limestone {{ fill: #eceff1; }}
+    .res-caterium {{ fill: #ffd54f; }}
+    .res-bauxite {{ fill: #ef5350; }}
+    .res-quartz {{ fill: #80deea; }}
+    .res-sulfur {{ fill: #fff59d; }}
+    .res-uranium {{ fill: #a5d6a7; }}
+    .res-unknown {{ fill: #757575; }}
     .player-dot {{
       fill: #00e676;
       stroke: #ffffff;
@@ -924,6 +972,10 @@ def _save_map_html(map_data: dict, pois: dict) -> str:
     <div class="tooltip" id="map-tooltip"></div>
   </div>
 
+  <div style="margin-top: 15px; text-align: center;">
+    <button id="toggle-resources" style="background-color: #ff9800; border: none; padding: 8px 16px; border-radius: 4px; color: #000; font-weight: bold; cursor: pointer; font-family: sans-serif;">Toggle Resource Nodes Overlay</button>
+  </div>
+
   <div class="legend">
     <div class="legend-item"><div class="legend-color" style="background: #00e676;"></div>Player</div>
     <div class="legend-item"><div class="legend-color" style="background: #ffea00;"></div>Power Pole / Tower</div>
@@ -931,11 +983,22 @@ def _save_map_html(map_data: dict, pois: dict) -> str:
     <div class="legend-item"><div class="legend-color" style="background: #ffab00;"></div>Lizard Doggo</div>
     <div class="legend-item"><div class="legend-color" style="background: #ff1744;"></div>Fauna Nest (Hazard)</div>
     <div class="legend-item"><div class="legend-color" style="background: #00e676; border: 1px solid #121212;"></div>Crash Site (Drop Pod)</div>
+    <div class="legend-item"><div class="legend-color" style="background: #ef5350; border: 2px solid #00e676;"></div>Extracted Node (Green Outline)</div>
   </div>
 
   <script>
     const svg = document.getElementById('map-svg');
     const tooltip = document.getElementById('map-tooltip');
+
+    let showResources = false;
+    document.getElementById('toggle-resources').addEventListener('click', () => {{
+      showResources = !showResources;
+      const displayStyle = showResources ? 'block' : 'none';
+      document.querySelectorAll('.poi-resource').forEach(el => el.style.display = displayStyle);
+      document.querySelectorAll('.poi-geyser').forEach(el => el.style.display = displayStyle);
+      const btn = document.getElementById('toggle-resources');
+      btn.style.backgroundColor = showResources ? '#00e676' : '#ff9800';
+    }});
 
     svg.addEventListener('mouseover', (e) => {{
       const text = e.target.getAttribute('data-tooltip');

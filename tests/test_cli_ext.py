@@ -246,3 +246,12 @@ def test_dashboard_handler_endpoints():
 
     screenshots = handler._get_screenshots_list(handler)
     assert isinstance(screenshots, list)
+
+
+def test_dashboard_watcher_thread():
+    """Verify watcher globals are present and initialized."""
+    import tools.dashboard as db
+
+    assert hasattr(db, "global_save_version")
+    assert hasattr(db, "global_last_modified")
+    assert hasattr(db, "global_watcher_active")
