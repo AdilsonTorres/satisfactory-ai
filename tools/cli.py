@@ -20,7 +20,7 @@ import argparse
 import sys
 
 
-def main() -> None:
+def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sbot",
         description="Satisfactory Bot — CLI tools",
@@ -169,6 +169,11 @@ def main() -> None:
     c_p.add_argument("--screenshot-every-cycles", type=int, default=10)
     c_p.add_argument("--interval", type=float, default=50.0)
 
+    return parser
+
+
+def main() -> None:
+    parser = create_parser()
     args = parser.parse_args()
 
     if args.command is None:
@@ -184,7 +189,7 @@ def main() -> None:
     elif args.command == "passive":
         _run_passive(args)
     elif args.command == "trigger":
-        _run_trigger(args, trigger_parser)
+        _run_trigger(args, parser)
     elif args.command == "save":
         _run_save_info(args)
     elif args.command == "plan":
