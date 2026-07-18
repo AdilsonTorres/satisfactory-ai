@@ -426,3 +426,38 @@ def test_dashboard_map_generation_and_planner_resolution():
                 html_file.unlink()
 
 
+def test_dashboard_planner_sloop_acronym_resolution():
+    """Verify that Somersloop items are successfully resolved to full names before planning."""
+    from tools.dashboard import DashboardHandler
+
+    handler = MagicMock(spec=DashboardHandler)
+    handler.path = "/api/planner?item=Modular+Frame&rate=10&mode=late_game&sloops=BWD"
+    handler.wfile = MagicMock()
+    handler.send_response = MagicMock()
+    handler.send_header = MagicMock()
+    handler.end_headers = MagicMock()
+
+    with (
+        patch("tools.cli._find_latest_save_file") as mock_find_save,
+        patch("tools.late_game_planner.generate_late_game_plan") as mock_plan_lg,
+        patch("tools.late_game_planner.generate_mermaid_flowchart") as mock_chart_lg,
+    ):
+        mock_find_save.return_value = "mock_save.sav"
+        mock_plan_lg.return_value = {
+            "steps": [],
+            "raw_materials": {},
+            "total_power_mw": 0,
+            "total_shards": 0,
+            "total_sloops": 0,
+            "warnings": [],
+        }
+        mock_chart_lg.return_value = "flowchart TD"
+
+        DashboardHandler._handle_get(handler)
+
+        mock_plan_lg.assert_called_once_with(
+            "Modular Frame", 10.0, True, {"Ballistic Warp Drive"}, "mock_save.sav", 0.75
+        )
+
+
+

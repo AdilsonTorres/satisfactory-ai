@@ -151,14 +151,13 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             for pair in query.split("&"):
                 if "=" in pair:
                     k, v = pair.split("=", 1)
-                    params[k] = urllib.parse.unquote(v)
+                    params[k] = urllib.parse.unquote_plus(v)
 
             raw_item = params.get("item", "Modular Frame")
             rate = float(params.get("rate", "10.0"))
             mode = params.get("mode", "standard")
             overclock = params.get("overclock", "true") == "true"
             sloops_str = params.get("sloops", "")
-            sloops = [s.strip() for s in sloops_str.split(",") if s.strip()]
             recipe_multiplier = float(params.get("recipe_multiplier", "0.75"))
 
             # Resolve item name case-insensitively and handle acronyms
@@ -183,6 +182,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 return name
 
             item = resolve_item(raw_item)
+            sloops = [resolve_item(s.strip()) for s in sloops_str.split(",") if s.strip()]
 
             # Auto-upgrade to late_game if the item is not in standard recipes
             if item not in RECIPES and item in ALL_RECIPES:
