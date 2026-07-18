@@ -375,3 +375,54 @@ def test_dashboard_audit_log():
         assert logs[0]["id"] == "test-id"
         assert logs[0]["principal"] == "test-principal"
 
+
+def test_dashboard_map_generation_and_planner_resolution():
+    """Verify that _get_map_html generates the file and the planner handles acronyms."""
+    from tools.dashboard import DashboardHandler
+    handler = MagicMock(spec=DashboardHandler)
+    handler._get_map_html = DashboardHandler._get_map_html
+
+    with (
+        patch("tools.dashboard.generate_power_map") as mock_generate_power_map,
+        patch("tools.cli._save_map_html") as mock_save_map_html,
+    ):
+        mock_generate_power_map.return_value = {
+            "map": {
+                "stats": {
+                    "player_position": [0, 0, 0],
+                    "is_currently_powered": True,
+                    "total_active_nodes": 1,
+                    "total_wires": 1,
+                    "reachable_nodes_count": 1,
+                    "reachable_wires_count": 0,
+                    "reachable_network_length_meters": 0.0,
+                },
+                "reachable_nodes": [],
+            },
+            "pois": {
+                "lizard_doggos": [],
+                "drop_pods": [],
+                "enemy_nests": [],
+                "enemy_remains": [],
+                "resource_nodes": [],
+                "geysers": [],
+            },
+        }
+        stats_dir = Path("stats")
+        stats_dir.mkdir(exist_ok=True)
+        html_file = stats_dir / "reachable_power_map.html"
+        html_file.write_text("dummy map content", encoding="utf-8")
+
+        try:
+            content = handler._get_map_html(handler)
+            assert content == "dummy map content"
+            mock_save_map_html.assert_called_once_with(
+                mock_generate_power_map.return_value["map"],
+                mock_generate_power_map.return_value["pois"],
+                open_browser=False,
+            )
+        finally:
+            if html_file.exists():
+                html_file.unlink()
+
+

@@ -153,12 +153,39 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     k, v = pair.split("=", 1)
                     params[k] = urllib.parse.unquote(v)
 
-            item = params.get("item", "Modular Frame")
+            raw_item = params.get("item", "Modular Frame")
             rate = float(params.get("rate", "10.0"))
             mode = params.get("mode", "standard")
             overclock = params.get("overclock", "true") == "true"
             sloops_str = params.get("sloops", "")
             sloops = [s.strip() for s in sloops_str.split(",") if s.strip()]
+
+            # Resolve item name case-insensitively and handle acronyms
+            from tools.late_game_planner import ALL_RECIPES
+            from utils.recipe_db import RECIPES
+
+            def resolve_item(name: str) -> str:
+                if name in ALL_RECIPES:
+                    return name
+                for r in ALL_RECIPES:
+                    if r.lower() == name.lower():
+                        return r
+                mapping = {}
+                for r in ALL_RECIPES:
+                    words = [w for w in r.split() if w]
+                    if len(words) >= 2:
+                        acronym = "".join(w[0].upper() for w in words if w[0].isalnum())
+                        if acronym:
+                            mapping[acronym] = r
+                if name.upper() in mapping:
+                    return mapping[name.upper()]
+                return name
+
+            item = resolve_item(raw_item)
+
+            # Auto-upgrade to late_game if the item is not in standard recipes
+            if item not in RECIPES and item in ALL_RECIPES:
+                mode = "late_game"
 
             from tools.cli import _find_latest_save_file
 
@@ -506,6 +533,9 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             result = generate_power_map()
             if not result:
                 return "<h3>Error: Power map generation returned no data. Ensure a save file exists.</h3>"
+
+            from tools.cli import _save_map_html
+            _save_map_html(result["map"], result["pois"], open_browser=False)
 
             html_path = Path("stats") / "reachable_power_map.html"
             if html_path.exists():

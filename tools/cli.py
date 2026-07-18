@@ -672,7 +672,7 @@ def _run_plan(args: argparse.Namespace) -> None:
         _track_save_progress(save)
 
 
-def _save_map_html(map_data: dict, pois: dict) -> str:
+def _save_map_html(map_data: dict, pois: dict, open_browser: bool = True) -> str:
     import contextlib
     import os
     import webbrowser
@@ -1037,8 +1037,9 @@ def _save_map_html(map_data: dict, pois: dict) -> str:
         f.write(html_content)
 
     abs_path = os.path.abspath(html_file)
-    with contextlib.suppress(Exception):
-        webbrowser.open(f"file://{abs_path}")
+    if open_browser:
+        with contextlib.suppress(Exception):
+            webbrowser.open(f"file://{abs_path}")
     return str(html_file)
 
 
