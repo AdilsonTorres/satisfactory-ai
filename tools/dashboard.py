@@ -204,7 +204,9 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     from tools.late_game_planner import generate_mermaid_flowchart as gen_flowchart_lg
 
                     plan = generate_late_game_plan(item, rate, overclock, set(sloops), save_path, recipe_multiplier)
-                    chart_result = gen_flowchart_lg(item, rate, set(), set(sloops), overclock, recipe_multiplier, return_dict=True)
+                    chart_result = gen_flowchart_lg(
+                        item, rate, set(), set(sloops), overclock, recipe_multiplier, return_dict=True
+                    )
                 else:
                     from tools.factory_planner import generate_mermaid_flowchart as gen_flowchart_std
                     from tools.factory_planner import generate_production_plan
@@ -575,6 +577,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     });
   </script>
   <style>
+    #flowchart-container svg {
+      max-width: none !important;
+      max-height: none !important;
+    }
     body {
       background-color: #121212;
       color: #ffffff;
@@ -1085,7 +1091,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <!-- Phase switcher tabs -->
           <div id="flowchart-tabs" style="display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px;"></div>
           <div id="flowchart-wrapper" style="width: 100%; height: 600px; overflow: auto; border: 1px solid #333; background: #151515; border-radius: 4px; position: relative; cursor: grab;">
-            <div id="flowchart-container" style="transform-origin: top left; padding: 20px;"></div>
+            <div id="flowchart-container" style="transform-origin: top left; padding: 20px; display: inline-block; width: max-content; height: max-content;"></div>
           </div>
         </div>
       </div>
