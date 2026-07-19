@@ -385,3 +385,39 @@ def test_byproduct_overflow_and_disposal(mock_save_class):
     assert len(dmc_steps) == 1
     assert abs(dmc_steps[0]["rate"] - 88.0) < 1e-4
 
+
+@patch("tools.late_game_planner.SatisfactorySave")
+def test_bwd_byproduct_overflow_and_disposal(mock_save_class):
+    """Verify that under BWD @ 10/min, sloop BWD, multiplier 0.75, with empty unlocks, Heavy Oil Residue overflows and is converted to Petroleum Coke."""
+    mock_save = mock_save_class.return_value
+    mock_save.schematics = []
+    mock_save.recipes = []
+    mock_save.dimensional_depot = []
+
+    plan = generate_late_game_plan(
+        target_item="Ballistic Warp Drive",
+        target_rate=10.0,
+        overclock=True,
+        sloop_items={"Ballistic Warp Drive"},
+        save_file_path="mock_save.sav",
+        recipe_multiplier=0.75,
+    )
+
+    # Petroleum Coke disposal step should be present
+    coke_steps = [s for s in plan["steps"] if s["item"] == "Petroleum Coke"]
+    assert len(coke_steps) == 1
+    # Check that rate of coke is greater than 0
+    assert coke_steps[0]["rate"] > 0.0
+
+    # Check that Petroleum Coke is in the build guide phases
+    phases = plan["build_guide"]["phases"]
+    found_coke = False
+    for phase in phases:
+        phase_num = phase["depth"]
+        for item in phase["items"]:
+            if item["item"] == "Petroleum Coke":
+                found_coke = True
+                assert phase_num == 3
+    assert found_coke is True
+
+

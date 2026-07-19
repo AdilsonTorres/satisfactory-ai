@@ -459,3 +459,83 @@ def test_dashboard_planner_sloop_acronym_resolution():
         mock_plan_lg.assert_called_once_with(
             "Modular Frame", 10.0, True, {"Ballistic Warp Drive"}, "mock_save.sav", 0.75
         )
+
+
+@patch("tools.cli._find_latest_save_file")
+@patch("tools.late_game_planner.SatisfactorySave")
+def test_cli_plan_late_game_bwd_disposal(mock_save_class, mock_find_save):
+    """Test that sbot plan-late-game output prints the disposal items (like Petroleum Coke)."""
+    mock_find_save.return_value = "mock_save.sav"
+    mock_save = mock_save_class.return_value
+    mock_save.schematics = []
+    mock_save.recipes = []
+    mock_save.dimensional_depot = []
+
+    parser = cli.create_parser()
+    args = parser.parse_args([
+        "plan-late-game",
+        "--item", "Ballistic Warp Drive",
+        "--rate", "10",
+        "--sloops", "BWD",
+        "--recipe-multiplier", "0.75"
+    ])
+
+    import io
+    import sys
+    captured_stdout = io.StringIO()
+    original_stdout = sys.stdout
+    sys.stdout = captured_stdout
+
+    with patch("os.path.exists", return_value=True):
+        try:
+            cli._run_plan_late_game(args)
+        finally:
+            sys.stdout = original_stdout
+
+    output = captured_stdout.getvalue()
+    # Check that Petroleum Coke is listed in the output table and build guide
+    assert "Petroleum Coke" in output
+    raw_extraction_section = output.split("Phase 8 · Raw Extraction")[-1].split("Co-locate")[0]
+    assert "Heavy Oil Residue" not in raw_extraction_section
+
+
+def test_dashboard_api_planner_bwd_disposal():
+    """Verify that the dashboard api planner response includes the disposal items."""
+    import json
+    from tools.dashboard import DashboardHandler
+
+    handler = MagicMock(spec=DashboardHandler)
+    handler.path = "/api/planner?item=Ballistic+Warp+Drive&rate=10&mode=late_game&sloops=BWD&recipe-multiplier=0.75"
+    handler.wfile = MagicMock()
+    handler.send_response = MagicMock()
+    handler.send_header = MagicMock()
+    handler.end_headers = MagicMock()
+
+    with (
+        patch("tools.cli._find_latest_save_file") as mock_find_save,
+        patch("tools.late_game_planner.SatisfactorySave") as mock_save_lg,
+        patch("tools.factory_planner.SatisfactorySave") as mock_save_std,
+    ):
+        mock_find_save.return_value = "mock_save.sav"
+        
+        mock_save = MagicMock()
+        mock_save.schematics = []
+        mock_save.recipes = []
+        mock_save.dimensional_depot = []
+        mock_save_lg.return_value = mock_save
+        mock_save_std.return_value = mock_save
+
+        DashboardHandler._handle_get(handler)
+
+        written_bytes = b"".join(call.args[0] for call in handler.wfile.write.call_args_list)
+        response_dict = json.loads(written_bytes.decode("utf-8"))
+
+        assert "plan" in response_dict
+        plan_data = response_dict["plan"]
+        assert "steps" in plan_data
+        steps = plan_data["steps"]
+        coke_step = next((s for s in steps if s["item"] == "Petroleum Coke"), None)
+        assert coke_step is not None
+        assert coke_step["rate"] > 0.0
+
+
