@@ -531,19 +531,28 @@ def generate_mermaid_flowchart(
     overclock: bool,
     recipe_multiplier: float = 1.0,
 ) -> str:
-    """Generates a Mermaid TD flowchart of the late-game factory production tree."""
-    lines = ["flowchart TD"]
+    lines = [
+        "flowchart TD",
+        "    classDef raw fill:#212529,stroke:#495057,stroke-width:2px,color:#fff;",
+        "    classDef smelting fill:#e65100,stroke:#ffb74d,stroke-width:2px,color:#fff;",
+        "    classDef processing fill:#0d47a1,stroke:#64b5f6,stroke-width:2px,color:#fff;",
+        "    classDef manufacturing fill:#4a148c,stroke:#ba68c8,stroke-width:2px,color:#fff;",
+        "    classDef target fill:#ffb300,stroke:#ffe082,stroke-width:3px,color:#000;",
+    ]
     node_counter = 0
     edges = []
+    subgraph_nodes = {}
+    node_classes = {}
 
-    def trace(item: str, rate: float, parent_node_id: str | None = None):
+    def trace(item: str, rate: float, parent_node_id: str | None = None, depth: int = 0):
         nonlocal node_counter
         node_counter += 1
         node_id = f"node{node_counter}"
 
         if item not in ALL_RECIPES:
             label = f'"{item}<br/>Raw Resource"'
-            lines.append(f"    {node_id}[{label}]")
+            subgraph_nodes.setdefault(-1, []).append(f"{node_id}[{label}]")
+            node_classes[node_id] = "raw"
             if parent_node_id:
                 edges.append(f"    {node_id} -->|{rate:.2f}/min| {parent_node_id}")
             return
@@ -564,15 +573,48 @@ def generate_mermaid_flowchart(
         sloop_suffix = " - Sloop 2x" if is_slopped else ""
         overclock_suffix = " - 250 Overclock" if overclock else ""
         label = f'"{machine} x{machine_count:.2f}<br/>{recipe_name}{sloop_suffix}{overclock_suffix}<br/>{rate:.2f}/min"'
-        lines.append(f"    {node_id}[{label}]")
+        subgraph_nodes.setdefault(depth, []).append(f"{node_id}[{label}]")
+
+        if depth == 0:
+            node_classes[node_id] = "target"
+        elif machine in ["Smelter", "Foundry", "Refinery"]:
+            node_classes[node_id] = "smelting"
+        elif machine in ["Constructor", "Assembler"]:
+            node_classes[node_id] = "processing"
+        else:
+            node_classes[node_id] = "manufacturing"
 
         if parent_node_id:
             edges.append(f"    {node_id} -->|{rate:.2f}/min| {parent_node_id}")
 
         for input_item, input_rate_per_machine in recipe["inputs"].items():
             required_input_rate = input_rate_per_machine * recipe_multiplier * (rate / (base_output * sloop_mult))
-            trace(input_item, required_input_rate, node_id)
+            trace(input_item, required_input_rate, node_id, depth + 1)
 
     trace(target_item, target_rate)
+
+    # Compile subgraphs
+    _PHASE_NAMES = {
+        -1: "Raw Extraction",
+        0: "Final Assembly",
+        1: "Primary Components",
+        2: "Sub-Components",
+    }
+    _DEFAULT_NAME = "Basic Processing"
+
+    for d in sorted(subgraph_nodes.keys(), key=lambda x: 999 if x == -1 else x, reverse=True):
+        phase_name = _PHASE_NAMES.get(d, _DEFAULT_NAME)
+        if d >= 3:
+            phase_name = f"{phase_name} (Tier {d - 2})"
+        lines.append(f'    subgraph Phase_{d} ["{phase_name}"]')
+        for node_def in subgraph_nodes[d]:
+            lines.append(f"        {node_def}")
+        lines.append("    end")
+
+    # Add edges
     lines.extend(edges)
+
+    # Add styles
+    for node_id, cls in node_classes.items():
+        lines.append(f"    class {node_id} {cls};")
     return "\n".join(lines)
