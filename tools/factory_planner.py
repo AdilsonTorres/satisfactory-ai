@@ -29,11 +29,9 @@ def plan_factory_step(
 
     if best and best.get("alternate") and best.get("schematic"):
         schem_name = best["schematic"]
-        # Extra robustness for 1.0 diamond/aluminum renames
+        # Extra robustness for 1.0 diamond renames
         unlocked = schem_name in unlocked_schematics
-        if schem_name == "Schematic_Alternate_AluminumBeam":
-            unlocked = unlocked or "Schematic_Alternate_SteelBeam_Aluminum" in unlocked_schematics
-        elif schem_name == "Schematic_Alternate_Diamond_OilBased":
+        if schem_name == "Schematic_Alternate_Diamond_OilBased":
             unlocked = unlocked or "Schematic_Alternate_Diamond_Petroleum" in unlocked_schematics
         elif schem_name == "Schematic_Alternate_Diamond_Pink":
             unlocked = unlocked or "Schematic_Alternate_Diamond_Cloudy" in unlocked_schematics

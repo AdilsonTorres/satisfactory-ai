@@ -213,7 +213,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Caterium Ingot": 7.5, "Copper Ingot": 37.5},
             "outputs": {"Quickwire": 90.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_FusedQuickwire",
+            "schematic": "Schematic_Alternate_Quickwire",
         },
     },
     "Cable": {
@@ -267,7 +267,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Alclad Aluminum Sheet": 100.0, "Concrete": 125.0},
             "outputs": {"Steel Beam": 60.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_AluminumBeam",
+            "schematic": "Schematic_Alternate_SteelBeam_Aluminum",
         },
     },
     "Iron Rod": {
@@ -597,7 +597,7 @@ RECIPES: dict[str, dict[str, dict]] = {
             "inputs": {"Aluminum Casing": 30.0, "Rubber": 30.0},
             "outputs": {"Heat Sink": 10.0},
             "alternate": True,
-            "schematic": "Schematic_Alternate_HeatExchanger",
+            "schematic": "Schematic_Alternate_HeatSink1",
         },
     },
     "AI Limiter": {

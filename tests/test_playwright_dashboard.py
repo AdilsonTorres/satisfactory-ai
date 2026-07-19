@@ -27,6 +27,7 @@ def dashboard_server():
         "Schematic_Alternate_PureIronIngot",
         "Schematic_Alternate_SuperpositionOscillator",
     ]
+    mock_save.recipes = []
     mock_save.resource_sink = {"coupons_earned_items": 10}
     mock_save.dimensional_depot = []
 
@@ -109,5 +110,107 @@ def test_dashboard_factory_planner_flow(dashboard_server):
 
         # Verify Somersloops requirements metrics are visible
         assert page.locator("#plan-total-sloops").text_content() != "0"
+
+        browser.close()
+
+
+def test_plan_comparison_cli_vs_web(dashboard_server):
+    """Compare the results of generate_late_game_plan with what is shown in the web page results."""
+    from tools.late_game_planner import generate_late_game_plan
+
+    # Exact arguments of command:
+    # sbot plan-late-game --item 'BWD' --rate 10 --recipe-multiplier 0.75 --sloops BWD
+    target_item = "Ballistic Warp Drive"
+    target_rate = 10.0
+    sloop_items = {"Ballistic Warp Drive"}
+    overclock = True
+    recipe_multiplier = 0.75
+
+    # Run programmatic plan
+    plan = generate_late_game_plan(
+        target_item=target_item,
+        target_rate=target_rate,
+        overclock=overclock,
+        sloop_items=sloop_items,
+        save_file_path="dummy.sav",
+        recipe_multiplier=recipe_multiplier,
+    )
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        # 1. Navigate to dashboard planner
+        page.goto(dashboard_server)
+        page.locator(".tab", has_text="🏭 Factory Planner").click()
+
+        # 2. Fill in the identical inputs
+        page.locator("#plan-item").select_option("Ballistic Warp Drive")
+        page.locator("#plan-rate").fill("10")
+        page.locator("#plan-mode").select_option("late_game")
+
+        # Fill Somersloop input
+        page.locator("#plan-sloops").fill("BWD")
+
+        # Set recipe multiplier
+        page.locator("#plan-mult").fill("0.75")
+
+        # Set overclocking
+        overclock_checkbox = page.locator("#plan-overclock")
+        if not overclock_checkbox.is_checked():
+            overclock_checkbox.check()
+
+        # 3. Calculate Optimized Plan
+        page.locator("button", has_text="Calculate Optimized Plan").click()
+
+        # Wait for results card to be populated
+        page.wait_for_selector("#planner-results", state="visible")
+
+        # 4. Scrape calculated values from Web UI
+        ui_power_text = page.locator("#plan-total-power").text_content().strip()
+        ui_shards_text = page.locator("#plan-total-shards").text_content().strip()
+        ui_sloops_text = page.locator("#plan-total-sloops").text_content().strip()
+
+        # 5. Assert total metrics matches
+        expected_power = round(plan["total_power_mw"])
+        assert f"{expected_power} MW" == ui_power_text
+        assert str(plan["total_shards"]) == ui_shards_text
+        assert str(plan["total_sloops"]) == ui_sloops_text
+
+        # 6. Assert raw materials match
+        ui_raw_rows = page.locator("#plan-raw-table tbody tr")
+        ui_raw_materials = {}
+        for i in range(ui_raw_rows.count()):
+            row = ui_raw_rows.nth(i)
+            cells = row.locator("td")
+            item_name = cells.nth(0).text_content().strip()
+            rate_text = cells.nth(1).text_content().replace("/min", "").strip()
+            ui_raw_materials[item_name] = float(rate_text)
+
+        # Check raw materials match within tolerance
+        for item, rate in plan["raw_materials"].items():
+            assert item in ui_raw_materials
+            assert abs(ui_raw_materials[item] - rate) < 0.2
+
+        # 7. Assert steps match
+        ui_step_rows = page.locator("#plan-steps-table tbody tr")
+        ui_steps = []
+        for i in range(ui_step_rows.count()):
+            row = ui_step_rows.nth(i)
+            cells = row.locator("td")
+            item_name = cells.nth(0).text_content().replace("[LOCKED]", "").strip()
+            recipe_name = cells.nth(1).text_content().strip()
+            rate_text = cells.nth(3).text_content().replace("/min", "").strip()
+
+            ui_steps.append({"item": item_name, "recipe_name": recipe_name, "rate": float(rate_text)})
+
+        assert len(plan["steps"]) == len(ui_steps)
+        for expected_step in plan["steps"]:
+            matching = [s for s in ui_steps if s["item"] == expected_step["item"]]
+            assert len(matching) == 1
+            match = matching[0]
+            assert match["recipe_name"] == expected_step["recipe_name"]
+            assert abs(match["rate"] - expected_step["rate"]) < 0.2
 
         browser.close()
