@@ -40,7 +40,7 @@ def plan_specific_factory_step(
     for input_item, input_rate_per_machine in recipe["inputs"].items():
         required_input_rate = input_rate_per_machine * machine_count
         if input_item in ["Water", "Dark Matter Residue", "Heavy Oil Residue"]:
-            raw_materials[input_item] = raw_materials.get(input_item, 0.0) + required_input_rate
+            pass  # Do not add to raw_materials since it is satisfied by byproduct overflow
         else:
             plan_factory_step(input_item, required_input_rate, unlocked_schematics, steps, raw_materials)
 
@@ -318,10 +318,7 @@ def generate_mermaid_flowchart(
         for input_item, input_rate_per_machine in recipe["inputs"].items():
             required_input_rate = input_rate_per_machine * machine_count
             if input_item in terminal_byproducts:
-                node_counter += 1
-                raw_node_id = f"node{node_counter}"
-                nodes_list.append(Node(raw_node_id, f'"{input_item}<br/>Raw Resource"', -1, "raw"))
-                edges_list.append(Edge(raw_node_id, node_id, f"|{required_input_rate:.2f}/min|"))
+                pass  # Do not draw a raw resource node for the byproduct input of the disposal step
             else:
                 trace(input_item, required_input_rate, node_id, depth + 1)
 
