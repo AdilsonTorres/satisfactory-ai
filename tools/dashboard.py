@@ -210,7 +210,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     from tools.factory_planner import generate_production_plan
 
                     plan = generate_production_plan(item, rate, None, save_path)
-                    flowchart = gen_flowchart_std(plan["steps"], plan["raw_materials"])
+                    flowchart = gen_flowchart_std(item, rate)
 
                 if "sloop_items" in plan and isinstance(plan["sloop_items"], set):
                     plan["sloop_items"] = sorted(list(plan["sloop_items"]))
@@ -567,6 +567,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       theme: 'dark',
       securityLevel: 'loose',
       maxTextSize: 150000,
+      maxEdges: 2000,
       flowchart: { useMaxWidth: true, htmlLabels: true }
     });
   </script>

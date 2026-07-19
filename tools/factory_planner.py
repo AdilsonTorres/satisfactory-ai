@@ -175,25 +175,19 @@ def generate_mermaid_flowchart(
 ) -> str:
     """Generates a Mermaid TD flowchart of the factory production tree."""
     lines = ["flowchart TD"]
-    node_id_map = {}
     node_counter = 0
     edges = []
 
-    def get_node_id(item_name: str, recipe_name: str) -> str:
-        nonlocal node_counter
-        key = (item_name, recipe_name)
-        if key not in node_id_map:
-            node_counter += 1
-            node_id_map[key] = f"node{node_counter}"
-        return node_id_map[key]
-
     def trace(item: str, rate: float, parent_node_id: str | None = None):
+        nonlocal node_counter
+        node_counter += 1
+        node_id = f"node{node_counter}"
+
         if item not in RECIPES:
-            node_id = get_node_id(item, "Raw Extractor")
-            label = f'"{item}\\n(Raw Resource)"'
+            label = f'"{item}<br/>Raw Resource"'
             lines.append(f"    {node_id}[{label}]")
             if parent_node_id:
-                edges.append(f'    {node_id} -- "{rate:.2f}/min" --> {parent_node_id}')
+                edges.append(f"    {node_id} -->|{rate:.2f}/min| {parent_node_id}")
             return
 
         recipe_dict = RECIPES[item]
@@ -203,12 +197,11 @@ def generate_mermaid_flowchart(
         base_output = recipe["outputs"][item]
         machine_count = rate / base_output
 
-        node_id = get_node_id(item, recipe_name)
-        label = f'"{machine} x{machine_count:.2f}\\n{recipe_name}\\n({rate:.2f}/min)"'
+        label = f'"{machine} x{machine_count:.2f}<br/>{recipe_name}<br/>{rate:.2f}/min"'
         lines.append(f"    {node_id}[{label}]")
 
         if parent_node_id:
-            edges.append(f'    {node_id} -- "{rate:.2f}/min" --> {parent_node_id}')
+            edges.append(f"    {node_id} -->|{rate:.2f}/min| {parent_node_id}")
 
         for input_item, input_rate_per_machine in recipe["inputs"].items():
             required_input_rate = input_rate_per_machine * machine_count

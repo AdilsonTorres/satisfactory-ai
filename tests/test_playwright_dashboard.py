@@ -111,6 +111,11 @@ def test_dashboard_factory_planner_flow(dashboard_server):
         # Verify Somersloops requirements metrics are visible
         assert page.locator("#plan-total-sloops").text_content() != "0"
 
+        # Verify flowchart has no syntax errors
+        flowchart_content = page.locator("#flowchart-container").text_content()
+        assert "Syntax error" not in flowchart_content
+        assert "mermaid version" not in flowchart_content
+
         browser.close()
 
 
@@ -213,6 +218,11 @@ def test_plan_comparison_cli_vs_web(dashboard_server):
             assert match["recipe_name"] == expected_step["recipe_name"]
             assert abs(match["rate"] - expected_step["rate"]) < 0.2
 
+        # Verify flowchart has no syntax errors
+        flowchart_content = page.locator("#flowchart-container").text_content()
+        assert "Syntax error" not in flowchart_content
+        assert "mermaid version" not in flowchart_content
+
         browser.close()
 
 
@@ -246,9 +256,11 @@ def test_build_guide_phases_and_mermaid_limit(dashboard_server):
         # Verify it lists phase items (e.g. Phase 1, Phase 2, etc.)
         assert "Phase 1" in build_guide_container.text_content()
 
-        # 6. Verify flowchart rendering did not error out with Maximum text size exceeded
+        # 6. Verify flowchart rendering did not error out with Maximum text size exceeded or Syntax error
         flowchart_content = page.locator("#flowchart-container").text_content()
         assert "Maximum text size" not in flowchart_content
         assert "exceeded" not in flowchart_content
+        assert "Syntax error" not in flowchart_content
+        assert "mermaid version" not in flowchart_content
 
         browser.close()
