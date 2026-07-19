@@ -214,3 +214,41 @@ def test_plan_comparison_cli_vs_web(dashboard_server):
             assert abs(match["rate"] - expected_step["rate"]) < 0.2
 
         browser.close()
+
+
+def test_build_guide_phases_and_mermaid_limit(dashboard_server):
+    """Playwright test checking that the build guide phases are rendered and mermaid does not throw text size limit errors."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        # 1. Open dashboard page and go to Factory Planner
+        page.goto(dashboard_server)
+        page.locator(".tab", has_text="🏭 Factory Planner").click()
+
+        # 2. Fill in parameters for a large BWD plan to trigger heavy Mermaid rendering
+        page.locator("#plan-item").select_option("Ballistic Warp Drive")
+        page.locator("#plan-rate").fill("10")
+        page.locator("#plan-mode").select_option("late_game")
+        page.locator("#plan-sloops").fill("BWD")
+        page.locator("#plan-mult").fill("0.75")
+
+        # 3. Calculate Optimized Plan
+        page.locator("button", has_text="Calculate Optimized Plan").click()
+
+        # 4. Wait for results card
+        page.wait_for_selector("#planner-results", state="visible")
+
+        # 5. Verify Build Guide element exists and displays phase stages
+        build_guide_container = page.locator("#plan-build-guide")
+        assert build_guide_container.is_visible()
+        # Verify it lists phase items (e.g. Phase 1, Phase 2, etc.)
+        assert "Phase 1" in build_guide_container.text_content()
+
+        # 6. Verify flowchart rendering did not error out with Maximum text size exceeded
+        flowchart_content = page.locator("#flowchart-container").text_content()
+        assert "Maximum text size" not in flowchart_content
+        assert "exceeded" not in flowchart_content
+
+        browser.close()

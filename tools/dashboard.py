@@ -566,6 +566,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       startOnLoad: false,
       theme: 'dark',
       securityLevel: 'loose',
+      maxTextSize: 150000,
       flowchart: { useMaxWidth: true, htmlLabels: true }
     });
   </script>
@@ -1061,6 +1062,12 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           </div>
         </div>
 
+        <!-- Factory Build Guide (Phases) -->
+        <div class="card" id="plan-build-guide-card" style="display: none;">
+          <h2>🏭 Factory Build Guide (Phases)</h2>
+          <div id="plan-build-guide" style="margin-top: 15px;"></div>
+        </div>
+
         <!-- Mermaid Flowchart Visualizer -->
         <div class="card">
           <h2>Visual Production Layout Flowchart</h2>
@@ -1228,6 +1235,85 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           row.innerHTML = `<td><b>${rawItem}</b></td><td>${rawRate.toFixed(1)}/min</td>`;
           rawBody.appendChild(row);
         });
+
+        // Build Guide (Phases)
+        const buildGuideCard = document.getElementById('plan-build-guide-card');
+        const buildGuideContainer = document.getElementById('plan-build-guide');
+
+        if (plan.build_guide && plan.build_guide.phases && plan.build_guide.phases.length > 0) {
+          buildGuideCard.style.display = 'block';
+          let html = '';
+
+          plan.build_guide.phases.forEach(phase => {
+            html += `<div style="margin-bottom: 20px; padding: 15px; border-left: 4px solid #d500f9; background: #1c1c1c; border-radius: 4px;">`;
+            html += `<h3 style="margin-top: 0; color: #d500f9;">Phase ${phase.phase} · ${phase.name}</h3>`;
+            html += `<p style="color: #bbb; font-size: 14px;">${phase.description}</p>`;
+
+            if (phase.depth === -1) {
+              // Raw extraction
+              html += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">`;
+              html += `<thead><tr style="border-bottom: 1px solid #333;"><th style="text-align: left; padding: 8px 0;">Resource</th><th style="text-align: right; padding: 8px 0;">Required Rate</th></tr></thead>`;
+              html += `<tbody>`;
+              phase.items.forEach(item => {
+                html += `<tr style="border-bottom: 1px solid #252525;"><td style="padding: 8px 0;"><b>${item.item}</b></td><td style="text-align: right; padding: 8px 0;">${item.rate.toFixed(2)}/min</td></tr>`;
+              });
+              html += `</tbody></table>`;
+            } else {
+              // Standard production phase
+              html += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">`;
+              html += `<thead><tr style="border-bottom: 1px solid #333;"><th style="text-align: left; padding: 8px 0;">Item</th><th style="text-align: left; padding: 8px 0;">Machine</th><th style="text-align: center; padding: 8px 0;">Build</th><th style="text-align: right; padding: 8px 0;">Target Rate</th><th style="text-align: right; padding: 8px 0;">Max Output</th></tr></thead>`;
+              html += `<tbody>`;
+              phase.items.forEach(item => {
+                html += `<tr style="border-bottom: 1px solid #252525;">`;
+                html += `<td style="padding: 8px 0;"><b>${item.item}</b></td>`;
+                html += `<td style="padding: 8px 0; color: #00e5ff;">${item.machine}</td>`;
+                html += `<td style="text-align: center; padding: 8px 0; color: #ffd600;">${item.machine_count}</td>`;
+                html += `<td style="text-align: right; padding: 8px 0;">${item.rate.toFixed(2)}/min</td>`;
+                html += `<td style="text-align: right; padding: 8px 0; color: #00e676;">${item.max_output.toFixed(2)}/min</td>`;
+                html += `</tr>`;
+              });
+              html += `</tbody></table>`;
+            }
+            html += `</div>`;
+          });
+
+          // Co-locate groups
+          if (plan.build_guide.co_location_groups && plan.build_guide.co_location_groups.length > 0) {
+            html += `<div style="margin-top: 20px; padding: 15px; background: #251025; border-radius: 4px; border: 1px dashed #d500f9;">`;
+            html += `<h4 style="margin-top: 0; color: #d500f9;">🔗 Co-locate (Shared Inputs)</h4>`;
+            html += `<ul style="margin: 0; padding-left: 20px;">`;
+            plan.build_guide.co_location_groups.forEach(g => {
+              html += `<li style="margin-bottom: 5px;"><b>${g.items.join(' + ')}</b> — both consume <b>${g.shared_input}</b></li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          // Dedicated items
+          if (plan.build_guide.dedicated_items && plan.build_guide.dedicated_items.length > 0) {
+            html += `<div style="margin-top: 15px; padding: 15px; background: #1a1a2e; border-radius: 4px; border: 1px dashed #00e5ff;">`;
+            html += `<h4 style="margin-top: 0; color: #00e5ff;">⚙️ Dedicated Factory (Multiple Consumers)</h4>`;
+            html += `<ul style="margin: 0; padding-left: 20px;">`;
+            plan.build_guide.dedicated_items.forEach(d => {
+              html += `<li style="margin-bottom: 5px;"><b>${d.item}</b> &rarr; feeds <b>${d.consumers.join(', ')}</b></li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          // Inline items
+          if (plan.build_guide.inline_items && plan.build_guide.inline_items.length > 0) {
+            html += `<div style="margin-top: 15px; padding: 15px; background: #1a2e1a; border-radius: 4px; border: 1px dashed #00e676;">`;
+            html += `<h4 style="margin-top: 0; color: #00e676;">📦 Build In-Line (Single Consumer)</h4>`;
+            html += `<ul style="margin: 0; padding-left: 20px;">`;
+            plan.build_guide.inline_items.forEach(il => {
+              html += `<li style="margin-bottom: 5px;"><b>${il.item}</b> &rarr; only feeds <b>${il.consumer}</b></li>`;
+            });
+            html += `</ul></div>`;
+          }
+
+          buildGuideContainer.innerHTML = html;
+        } else {
+          buildGuideCard.style.display = 'none';
+        }
 
         // Render flowchart visualizer dynamically using Mermaid
         const container = document.getElementById('flowchart-container');
