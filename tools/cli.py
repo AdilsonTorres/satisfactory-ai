@@ -341,7 +341,11 @@ def _find_latest_save_file() -> str | None:
     all_files = []
     for p in paths:
         if os.path.exists(p):
-            all_files.extend(glob.glob(os.path.join(p, "**", "*.sav"), recursive=True))
+            candidates = glob.glob(os.path.join(p, "**", "*.sav"), recursive=True)
+            for f in candidates:
+                if os.path.basename(f).startswith("ServerManager"):
+                    continue
+                all_files.append(f)
     if not all_files:
         return None
     all_files.sort(key=os.path.getmtime, reverse=True)

@@ -473,6 +473,16 @@ def test_find_latest_save_file(tmp_path, monkeypatch):
     assert latest is not None
     assert os.path.basename(latest) == "new_save.sav"
 
+    # Write a ServerManager save and make it newer
+    file3 = save_dir / "ServerManager_V2.sav"
+    file3.write_text("dummy3")
+    os.utime(file3, (3000, 3000))
+
+    # It should still find new_save.sav because ServerManager files are ignored
+    latest = _find_latest_save_file()
+    assert latest is not None
+    assert os.path.basename(latest) == "new_save.sav"
+
 
 def test_track_save_progress(tmp_path, monkeypatch):
     import json
