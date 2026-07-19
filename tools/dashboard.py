@@ -581,6 +581,14 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       max-width: none !important;
       max-height: none !important;
     }
+    #flowchart-container foreignObject {
+      overflow: visible !important;
+    }
+    #flowchart-container .node * {
+      font-size: 11px !important;
+      line-height: 1.3 !important;
+      font-family: 'Inter', sans-serif !important;
+    }
     body {
       background-color: #121212;
       color: #ffffff;
