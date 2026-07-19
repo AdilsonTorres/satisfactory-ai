@@ -380,10 +380,10 @@ def test_byproduct_overflow_and_disposal(mock_save_class):
         recipe_multiplier=1.0,
     )
 
-    # Check that we have a Dark Matter Crystal step for disposal (total crystals rate includes 24.0 consumed + 64.0 disposed = 88.0)
+    # Check that we have a Dark Matter Crystal step for disposal (total crystals rate includes 24.0 consumed + 96.0 disposed = 120.0)
     dmc_steps = [s for s in plan["steps"] if s["item"] == "Dark Matter Crystal"]
     assert len(dmc_steps) == 1
-    assert abs(dmc_steps[0]["rate"] - 88.0) < 1e-4
+    assert abs(dmc_steps[0]["rate"] - 120.0) < 1e-4
 
 
 @patch("tools.late_game_planner.SatisfactorySave")

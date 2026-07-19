@@ -1215,7 +1215,7 @@ RECIPES: dict[str, dict[str, dict]] = {
     },
     "Superposition Oscillator": {
         "default": {
-            # Quantum Encoder, 12s cycle → 5 units (25/min)
+            # Quantum Encoder, 60s cycle → 5 units (5/min)
             "name": "Superposition Oscillator",
             "machine": "Quantum Encoder",
             "inputs": {
@@ -1224,7 +1224,7 @@ RECIPES: dict[str, dict[str, dict]] = {
                 "Alclad Aluminum Sheet": 45.0,
                 "Excited Photonic Matter": 125.0,
             },
-            "outputs": {"Superposition Oscillator": 5.0, "Dark Matter Residue": 25.0},
+            "outputs": {"Superposition Oscillator": 5.0, "Dark Matter Residue": 125.0},
             "alternate": False,
             "schematic": None,
         },
@@ -1237,7 +1237,7 @@ RECIPES: dict[str, dict[str, dict]] = {
                 "Alclad Aluminum Sheet": 45.0,
                 "Excited Photonic Matter": 125.0,
             },
-            "outputs": {"Superposition Oscillator": 5.0, "Dark Matter Residue": 25.0},
+            "outputs": {"Superposition Oscillator": 5.0, "Dark Matter Residue": 125.0},
             "alternate": False,
             "schematic": None,
         },

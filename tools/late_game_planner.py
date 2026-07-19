@@ -347,6 +347,16 @@ def plan_step(
         )
 
 
+def get_recipe_by_name(item: str, recipe_name: str) -> dict[str, Any] | None:
+    recipe_dict = ALL_RECIPES.get(item)
+    if not recipe_dict:
+        return None
+    for recipe in recipe_dict.values():
+        if isinstance(recipe, dict) and recipe.get("name") == recipe_name:
+            return recipe
+    return None
+
+
 def generate_late_game_plan(
     target_item: str,
     target_rate: float,
@@ -396,19 +406,26 @@ def generate_late_game_plan(
                 del raw_materials[bp]
             continue
 
+        consumer_depths = []
+        for step in steps:
+            recipe = get_recipe_by_name(step["item"], step["recipe_name"])
+            if recipe and bp in recipe["inputs"]:
+                consumer_depths.append(step["depth"])
+
+        disp_depth = min(byproduct_depths) if byproduct_depths else (max(consumer_depths) + 1 if consumer_depths else 1)
+
         if net_rate > 0:
             if bp in raw_materials:
                 del raw_materials[bp]
             plan_step(
                 bp, net_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
-                steps, raw_materials, depth=min(byproduct_depths) if byproduct_depths else 1,
+                steps, raw_materials, depth=disp_depth,
                 terminal_byproducts=None
             )
         else:
             if bp in raw_materials:
                 del raw_materials[bp]
             overflow_rate = -net_rate
-            disp_depth = min(byproduct_depths) if byproduct_depths else 1
 
             if bp == "Water":
                 disp_item = "Concrete"
@@ -599,12 +616,10 @@ def _compute_build_guide(
     produced_items = {s["item"] for s in steps_list}
     consumers: dict[str, set[str]] = {}  # item -> set of items that consume it
     for step in steps_list:
-        recipe_data = ALL_RECIPES.get(step["item"])
-        if recipe_data:
-            recipe = recipe_data.get("best") or recipe_data.get("default")
-            if recipe:
-                for input_item in recipe["inputs"]:
-                    consumers.setdefault(input_item, set()).add(step["item"])
+        recipe = get_recipe_by_name(step["item"], step["recipe_name"])
+        if recipe:
+            for input_item in recipe["inputs"]:
+                consumers.setdefault(input_item, set()).add(step["item"])
 
     inline_items: list[dict[str, str]] = []
     dedicated_items: list[dict[str, Any]] = []
@@ -697,11 +712,13 @@ def generate_mermaid_flowchart(
     terminal_byproducts = {"Water", "Dark Matter Residue", "Heavy Oil Residue"}
     byproduct_records = []
     byproduct_raw_needs = {}
+    item_depths = {}
 
     def trace_specific(item: str, rate: float, recipe: dict[str, Any], depth: int = 1):
         nonlocal node_counter
         node_counter += 1
         node_id = f"node{node_counter}"
+        item_depths[item] = min(item_depths.get(item, 999), depth)
 
         base_output = recipe["outputs"][item]
         is_slopped = item in sloop_items
@@ -735,6 +752,7 @@ def generate_mermaid_flowchart(
         nonlocal node_counter
         node_counter += 1
         node_id = f"node{node_counter}"
+        item_depths[item] = min(item_depths.get(item, 999), depth)
 
         if item in terminal_byproducts:
             byproduct_raw_needs[item] = byproduct_raw_needs.get(item, 0.0) + rate
@@ -804,12 +822,21 @@ def generate_mermaid_flowchart(
         if abs(net_rate) < 1e-4:
             continue
 
+        consumer_depths = []
+        for other_item in item_depths:
+            recipe_dict = ALL_RECIPES.get(other_item)
+            if recipe_dict:
+                for recipe in recipe_dict.values():
+                    if isinstance(recipe, dict) and bp in recipe.get("inputs", {}):
+                        consumer_depths.append(item_depths[other_item])
+                        break
+
+        disp_depth = min(byproduct_depths) if byproduct_depths else (max(consumer_depths) + 1 if consumer_depths else 1)
+
         if net_rate > 0:
-            disp_depth = min(byproduct_depths) if byproduct_depths else 1
             trace(bp, net_rate, depth=disp_depth)
         else:
             overflow_rate = -net_rate
-            disp_depth = min(byproduct_depths) if byproduct_depths else 1
 
             if bp == "Water":
                 disp_item = "Concrete"
