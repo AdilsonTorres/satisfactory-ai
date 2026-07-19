@@ -204,13 +204,16 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     from tools.late_game_planner import generate_mermaid_flowchart as gen_flowchart_lg
 
                     plan = generate_late_game_plan(item, rate, overclock, set(sloops), save_path, recipe_multiplier)
-                    flowchart = gen_flowchart_lg(item, rate, set(), set(sloops), overclock, recipe_multiplier)
+                    chart_result = gen_flowchart_lg(item, rate, set(), set(sloops), overclock, recipe_multiplier, return_dict=True)
                 else:
                     from tools.factory_planner import generate_mermaid_flowchart as gen_flowchart_std
                     from tools.factory_planner import generate_production_plan
 
                     plan = generate_production_plan(item, rate, None, save_path)
-                    flowchart = gen_flowchart_std(item, rate)
+                    chart_result = gen_flowchart_std(item, rate, return_dict=True)
+
+                flowchart = chart_result["full"]
+                phase_flowcharts = chart_result["phases"]
 
                 if "sloop_items" in plan and isinstance(plan["sloop_items"], set):
                     plan["sloop_items"] = sorted(list(plan["sloop_items"]))
@@ -218,7 +221,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                response = {"plan": plan, "flowchart": flowchart}
+                response = {"plan": plan, "flowchart": flowchart, "phase_flowcharts": phase_flowcharts}
                 self.wfile.write(json.dumps(response).encode("utf-8"))
             except Exception as e:
                 import traceback
@@ -1079,6 +1082,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
               <button onclick="zoomFlowchart(0)" style="padding: 4px 8px; font-size: 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">Reset</button>
             </div>
           </div>
+          <!-- Phase switcher tabs -->
+          <div id="flowchart-tabs" style="display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px;"></div>
           <div id="flowchart-wrapper" style="width: 100%; height: 600px; overflow: auto; border: 1px solid #333; background: #151515; border-radius: 4px; position: relative; cursor: grab;">
             <div id="flowchart-container" style="transform-origin: top left; padding: 20px;"></div>
           </div>
@@ -1327,15 +1332,72 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
         // Render flowchart visualizer dynamically using Mermaid
         const container = document.getElementById('flowchart-container');
-        container.innerHTML = `<div class="mermaid">${data.flowchart}</div>`;
+        const tabContainer = document.getElementById('flowchart-tabs');
 
-        // Reset zoom and pan for a fresh calculation
-        zoomScale = 0.55;
-        panX = 10;
-        panY = 10;
-        updateFlowchartTransform();
+        // Clean previous tabs
+        tabContainer.innerHTML = '';
 
-        mermaid.init(undefined, container.querySelectorAll('.mermaid'));
+        // Helper to update active tab state
+        function renderSelectedFlowchart(flowchartText, activeBtn) {
+          tabContainer.querySelectorAll('button').forEach(btn => {
+            btn.style.background = '#333';
+            btn.style.borderColor = '#555';
+            btn.style.color = '#fff';
+          });
+          activeBtn.style.background = '#00e676';
+          activeBtn.style.borderColor = '#00e676';
+          activeBtn.style.color = '#000';
+
+          container.innerHTML = `<div class="mermaid">${flowchartText}</div>`;
+          // Reset zoom and pan
+          zoomScale = 0.55;
+          panX = 10;
+          panY = 10;
+          updateFlowchartTransform();
+          mermaid.init(undefined, container.querySelectorAll('.mermaid'));
+        }
+
+        // Add Full Layout tab
+        const fullBtn = document.createElement('button');
+        fullBtn.textContent = '🌐 Full Layout';
+        fullBtn.style.cssText = 'padding: 6px 12px; font-size: 12px; background: #00e676; border: 1px solid #00e676; border-radius: 4px; cursor: pointer; font-weight: bold; color: #000;';
+        fullBtn.onclick = () => renderSelectedFlowchart(data.flowchart, fullBtn);
+        tabContainer.appendChild(fullBtn);
+
+        // Add phase tabs
+        const phaseNamesMap = {
+          "-1": "Raw Extraction",
+          "0": "Final Assembly",
+          "1": "Primary Components",
+          "2": "Sub-Components"
+        };
+        const defaultName = "Basic Processing";
+
+        if (data.phase_flowcharts) {
+          const sortedKeys = Object.keys(data.phase_flowcharts).sort((a, b) => {
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            if (numA === -1) return -1;
+            if (numB === -1) return 1;
+            return numB - numA;
+          });
+
+          sortedKeys.forEach(k => {
+            const btn = document.createElement('button');
+            const depth = parseInt(k);
+            let name = phaseNamesMap[k] || defaultName;
+            if (depth >= 3) {
+              name = `${name} (Tier ${depth - 2})`;
+            }
+            btn.textContent = `Phase ${k}: ${name}`;
+            btn.style.cssText = 'padding: 6px 12px; font-size: 12px; background: #333; border: 1px solid #555; border-radius: 4px; cursor: pointer; color: #fff; font-weight: bold;';
+            btn.onclick = () => renderSelectedFlowchart(data.phase_flowcharts[k], btn);
+            tabContainer.appendChild(btn);
+          });
+        }
+
+        // Render full flowchart initially
+        renderSelectedFlowchart(data.flowchart, fullBtn);
 
         showNotification('Factory layout plan optimized and visualised.');
       } catch (e) {

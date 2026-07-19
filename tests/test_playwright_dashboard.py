@@ -263,4 +263,23 @@ def test_build_guide_phases_and_mermaid_limit(dashboard_server):
         assert "Syntax error" not in flowchart_content
         assert "mermaid version" not in flowchart_content
 
+        # 7. Verify Phase Switcher Tabs are rendered and clickable
+        tabs_container = page.locator("#flowchart-tabs")
+        assert tabs_container.is_visible()
+
+        # Verify there is at least one tab button
+        tab_buttons = tabs_container.locator("button")
+        assert tab_buttons.count() > 1
+
+        # Click on a phase-specific tab button
+        second_tab = tab_buttons.nth(1)
+        assert second_tab.is_visible()
+        second_tab.click()
+
+        # Verify the new flowchart renders without errors
+        time.sleep(1.0)
+        flowchart_content = page.locator("#flowchart-container").text_content()
+        assert "Syntax error" not in flowchart_content
+        assert "mermaid version" not in flowchart_content
+
         browser.close()

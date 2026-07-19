@@ -530,19 +530,26 @@ def generate_mermaid_flowchart(
     sloop_items: set[str],
     overclock: bool,
     recipe_multiplier: float = 1.0,
-) -> str:
-    lines = [
-        "flowchart TD",
-        "    classDef raw fill:#212529,stroke:#495057,stroke-width:2px,color:#fff;",
-        "    classDef smelting fill:#e65100,stroke:#ffb74d,stroke-width:2px,color:#fff;",
-        "    classDef processing fill:#0d47a1,stroke:#64b5f6,stroke-width:2px,color:#fff;",
-        "    classDef manufacturing fill:#4a148c,stroke:#ba68c8,stroke-width:2px,color:#fff;",
-        "    classDef target fill:#ffb300,stroke:#ffe082,stroke-width:3px,color:#000;",
-    ]
+    return_dict: bool = False,
+) -> str | dict[str, Any]:
+    """Generates a Mermaid TD flowchart of the late-game factory production tree."""
+
+    class Node:
+        def __init__(self, node_id: str, label: str, depth: int, cls: str):
+            self.node_id = node_id
+            self.label = label
+            self.depth = depth
+            self.cls = cls
+
+    class Edge:
+        def __init__(self, from_node: str, to_node: str, label: str):
+            self.from_node = from_node
+            self.to_node = to_node
+            self.label = label
+
+    nodes_list = []
+    edges_list = []
     node_counter = 0
-    edges = []
-    subgraph_nodes = {}
-    node_classes = {}
 
     def trace(item: str, rate: float, parent_node_id: str | None = None, depth: int = 0):
         nonlocal node_counter
@@ -551,10 +558,9 @@ def generate_mermaid_flowchart(
 
         if item not in ALL_RECIPES:
             label = f'"{item}<br/>Raw Resource"'
-            subgraph_nodes.setdefault(-1, []).append(f"{node_id}[{label}]")
-            node_classes[node_id] = "raw"
+            nodes_list.append(Node(node_id, label, -1, "raw"))
             if parent_node_id:
-                edges.append(f"    {node_id} -->|{rate:.2f}/min| {parent_node_id}")
+                edges_list.append(Edge(node_id, parent_node_id, f"|{rate:.2f}/min|"))
             return
 
         recipe_dict = ALL_RECIPES[item]
@@ -573,19 +579,20 @@ def generate_mermaid_flowchart(
         sloop_suffix = " - Sloop 2x" if is_slopped else ""
         overclock_suffix = " - 250 Overclock" if overclock else ""
         label = f'"{machine} x{machine_count:.2f}<br/>{recipe_name}{sloop_suffix}{overclock_suffix}<br/>{rate:.2f}/min"'
-        subgraph_nodes.setdefault(depth, []).append(f"{node_id}[{label}]")
 
         if depth == 0:
-            node_classes[node_id] = "target"
+            cls = "target"
         elif machine in ["Smelter", "Foundry", "Refinery"]:
-            node_classes[node_id] = "smelting"
+            cls = "smelting"
         elif machine in ["Constructor", "Assembler"]:
-            node_classes[node_id] = "processing"
+            cls = "processing"
         else:
-            node_classes[node_id] = "manufacturing"
+            cls = "manufacturing"
+
+        nodes_list.append(Node(node_id, label, depth, cls))
 
         if parent_node_id:
-            edges.append(f"    {node_id} -->|{rate:.2f}/min| {parent_node_id}")
+            edges_list.append(Edge(node_id, parent_node_id, f"|{rate:.2f}/min|"))
 
         for input_item, input_rate_per_machine in recipe["inputs"].items():
             required_input_rate = input_rate_per_machine * recipe_multiplier * (rate / (base_output * sloop_mult))
@@ -593,7 +600,6 @@ def generate_mermaid_flowchart(
 
     trace(target_item, target_rate)
 
-    # Compile subgraphs
     _PHASE_NAMES = {
         -1: "Raw Extraction",
         0: "Final Assembly",
@@ -602,19 +608,54 @@ def generate_mermaid_flowchart(
     }
     _DEFAULT_NAME = "Basic Processing"
 
-    for d in sorted(subgraph_nodes.keys(), key=lambda x: 999 if x == -1 else x, reverse=True):
-        phase_name = _PHASE_NAMES.get(d, _DEFAULT_NAME)
-        if d >= 3:
-            phase_name = f"{phase_name} (Tier {d - 2})"
-        lines.append(f'    subgraph Phase_{d} ["{phase_name}"]')
-        for node_def in subgraph_nodes[d]:
-            lines.append(f"        {node_def}")
-        lines.append("    end")
+    def compile_flowchart(nodes, edges, core_depth=None):
+        lines = [
+            "flowchart TD",
+            "    classDef raw fill:#212529,stroke:#495057,stroke-width:2px,color:#fff;",
+            "    classDef smelting fill:#e65100,stroke:#ffb74d,stroke-width:2px,color:#fff;",
+            "    classDef processing fill:#0d47a1,stroke:#64b5f6,stroke-width:2px,color:#fff;",
+            "    classDef manufacturing fill:#4a148c,stroke:#ba68c8,stroke-width:2px,color:#fff;",
+            "    classDef target fill:#ffb300,stroke:#ffe082,stroke-width:3px,color:#000;",
+        ]
 
-    # Add edges
-    lines.extend(edges)
+        grouped = {}
+        for n in nodes:
+            grouped.setdefault(n.depth, []).append(n)
 
-    # Add styles
-    for node_id, cls in node_classes.items():
-        lines.append(f"    class {node_id} {cls};")
-    return "\n".join(lines)
+        for d in sorted(grouped.keys(), key=lambda x: 999 if x == -1 else x, reverse=True):
+            if core_depth is not None and d != core_depth:
+                for n in grouped[d]:
+                    lines.append(f"    {n.node_id}[{n.label}]")
+                continue
+
+            phase_name = _PHASE_NAMES.get(d, _DEFAULT_NAME)
+            if d >= 3:
+                phase_name = f"{phase_name} (Tier {d - 2})"
+            lines.append(f'    subgraph Phase_{d} ["{phase_name}"]')
+            for n in grouped[d]:
+                lines.append(f"        {n.node_id}[{n.label}]")
+            lines.append("    end")
+
+        for e in edges:
+            lines.append(f"    {e.from_node} -->{e.label} {e.to_node}")
+
+        for n in nodes:
+            lines.append(f"    class {n.node_id} {n.cls};")
+
+        return "\n".join(lines)
+
+    full_chart = compile_flowchart(nodes_list, edges_list)
+
+    if not return_dict:
+        return full_chart
+
+    phase_flowcharts = {}
+    depths = {n.depth for n in nodes_list if n.depth != -1}
+    for d in depths:
+        core_node_ids = {n.node_id for n in nodes_list if n.depth == d}
+        phase_edges = [e for e in edges_list if e.from_node in core_node_ids or e.to_node in core_node_ids]
+        connected_node_ids = {e.from_node for e in phase_edges} | {e.to_node for e in phase_edges} | core_node_ids
+        phase_nodes = [n for n in nodes_list if n.node_id in connected_node_ids]
+        phase_flowcharts[str(d)] = compile_flowchart(phase_nodes, phase_edges, core_depth=d)
+
+    return {"full": full_chart, "phases": phase_flowcharts}
