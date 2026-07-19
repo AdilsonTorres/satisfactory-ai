@@ -204,15 +204,17 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     from tools.late_game_planner import generate_mermaid_flowchart as gen_flowchart_lg
 
                     plan = generate_late_game_plan(item, rate, overclock, set(sloops), save_path, recipe_multiplier)
+                    unlocked_schematics = set(plan.get("unlocked_schematics", []))
                     chart_result = gen_flowchart_lg(
-                        item, rate, set(), set(sloops), overclock, recipe_multiplier, return_dict=True
+                        item, rate, unlocked_schematics, set(sloops), overclock, recipe_multiplier, return_dict=True
                     )
                 else:
                     from tools.factory_planner import generate_mermaid_flowchart as gen_flowchart_std
                     from tools.factory_planner import generate_production_plan
 
                     plan = generate_production_plan(item, rate, None, save_path)
-                    chart_result = gen_flowchart_std(item, rate, return_dict=True)
+                    unlocked_schematics = set(plan.get("unlocked_schematics", []))
+                    chart_result = gen_flowchart_std(item, rate, unlocked_schematics, return_dict=True)
 
                 flowchart = chart_result["full"]
                 phase_flowcharts = chart_result["phases"]

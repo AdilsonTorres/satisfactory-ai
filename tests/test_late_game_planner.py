@@ -358,3 +358,30 @@ def test_generate_mermaid_flowchart_late_game():
     assert "flowchart TD" in chart
     assert "Iron Ore" in chart
     assert "Sloop 2x" in chart
+
+
+@patch("tools.late_game_planner.SatisfactorySave")
+def test_byproduct_overflow_and_disposal(mock_save_class):
+    """Verify that byproduct overflow is balanced and converted to sinkable items."""
+    mock_save = mock_save_class.return_value
+    mock_save.schematics = ["Schematic_Alternate_DarkMatter_Trap"]
+    mock_save.recipes = []
+    mock_save.dimensional_depot = []
+
+    # AI Expansion Server generates a net overflow of Dark Matter Residue (220.0 produced, 60.0 consumed).
+    # Net overflow = 160.0 m3/min.
+    # This should trigger disposal of 160.0 m3/min Dark Matter Residue into Dark Matter Crystals.
+    plan = generate_late_game_plan(
+        target_item="AI Expansion Server",
+        target_rate=4.0,
+        overclock=True,
+        sloop_items=set(),
+        save_file_path="mock_save.sav",
+        recipe_multiplier=1.0,
+    )
+
+    # Check that we have a Dark Matter Crystal step for disposal (total crystals rate includes 24.0 consumed + 64.0 disposed = 88.0)
+    dmc_steps = [s for s in plan["steps"] if s["item"] == "Dark Matter Crystal"]
+    assert len(dmc_steps) == 1
+    assert abs(dmc_steps[0]["rate"] - 88.0) < 1e-4
+

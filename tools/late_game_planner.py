@@ -183,6 +183,75 @@ def validate_item_name(item: str, valid_items: set[str], label: str = "Item") ->
     raise ValueError(msg)
 
 
+def plan_specific_step(
+    item: str,
+    rate: float,
+    recipe: dict[str, Any],
+    unlocked_schematics: set[str],
+    sloop_items: set[str],
+    overclock: bool,
+    recipe_multiplier: float,
+    steps: list[dict[str, Any]],
+    raw_materials: dict[str, float],
+    depth: int,
+):
+    base_output = recipe["outputs"][item]
+    machine_name = recipe["machine"]
+
+    is_slopped = item in sloop_items
+    sloop_mult = 2.0 if is_slopped else 1.0
+    sloop_slots = MACHINE_SLOOPS.get(machine_name, 0) if is_slopped else 0
+    speed_mult = 2.5 if overclock else 1.0
+
+    output_per_machine = base_output * sloop_mult * speed_mult
+    machine_count = rate / output_per_machine
+
+    overclock_power_factor = (speed_mult**1.321928) if overclock else 1.0
+    sloop_power_factor = 4.0 if is_slopped else 1.0
+    base_mw = MACHINE_BASE_POWER.get(machine_name, 10.0)
+    power_per_machine = base_mw * overclock_power_factor * sloop_power_factor
+    total_mw = power_per_machine * machine_count
+
+    shards_used = 3 if overclock else 0
+    sloops_used = sloop_slots
+
+    steps.append(
+        {
+            "item": item,
+            "rate": rate,
+            "recipe_name": recipe["name"],
+            "machine": machine_name,
+            "machine_count": machine_count,
+            "unlocked": recipe.get("schematic") is None or recipe["schematic"] in unlocked_schematics,
+            "alternate": recipe.get("alternate", False),
+            "is_slopped": is_slopped,
+            "shards": shards_used,
+            "sloops": sloops_used,
+            "power_mw": total_mw,
+            "output_per_machine": output_per_machine,
+            "depth": depth,
+            "byproducts": {out_item: rate * (out_rate / base_output) for out_item, out_rate in recipe["outputs"].items() if out_item != item}
+        }
+    )
+
+    for input_item, input_rate_per_machine in recipe["inputs"].items():
+        required_input_rate = input_rate_per_machine * recipe_multiplier * (rate / (base_output * sloop_mult))
+        if input_item in ["Water", "Dark Matter Residue", "Heavy Oil Residue"]:
+            raw_materials[input_item] = raw_materials.get(input_item, 0.0) + required_input_rate
+        else:
+            plan_step(
+                input_item,
+                required_input_rate,
+                unlocked_schematics,
+                sloop_items,
+                overclock,
+                recipe_multiplier,
+                steps,
+                raw_materials,
+                depth=depth + 1,
+            )
+
+
 def plan_step(
     item: str,
     rate: float,
@@ -193,8 +262,9 @@ def plan_step(
     steps: list[dict[str, Any]],
     raw_materials: dict[str, float],
     depth: int = 0,
+    terminal_byproducts: set[str] = None,
 ):
-    if item not in ALL_RECIPES:
+    if item not in ALL_RECIPES or (terminal_byproducts and item in terminal_byproducts):
         raw_materials[item] = raw_materials.get(item, 0.0) + rate
         return
 
@@ -212,7 +282,7 @@ def plan_step(
         recipe = cast(dict[str, Any], default)
     assert recipe is not None  # every item in ALL_RECIPES has at least a best or default
 
-    is_unlocked = True  # recipe selected is always usable
+    is_unlocked = recipe.get("schematic") is None or recipe["schematic"] in unlocked_schematics
 
     base_output = recipe["outputs"][item]
     machine_name = recipe["machine"]
@@ -255,6 +325,7 @@ def plan_step(
             "power_mw": total_mw,
             "output_per_machine": output_per_machine,
             "depth": depth,
+            "byproducts": {out_item: rate * (out_rate / base_output) for out_item, out_rate in recipe["outputs"].items() if out_item != item}
         }
     )
 
@@ -272,6 +343,7 @@ def plan_step(
             steps,
             raw_materials,
             depth=depth + 1,
+            terminal_byproducts=terminal_byproducts,
         )
 
 
@@ -300,10 +372,80 @@ def generate_late_game_plan(
 
     steps: list[dict[str, Any]] = []
     raw_materials: dict[str, float] = {}
+    terminal_byproducts = {"Water", "Dark Matter Residue", "Heavy Oil Residue"}
 
     plan_step(
-        target_item, target_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier, steps, raw_materials
+        target_item, target_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier, steps, raw_materials,
+        terminal_byproducts=terminal_byproducts
     )
+
+    # Balance byproducts
+    for bp in ["Water", "Dark Matter Residue", "Heavy Oil Residue"]:
+        consumed = raw_materials.get(bp, 0.0)
+        produced = 0.0
+        byproduct_depths = []
+        for step in steps:
+            bp_rates = step.get("byproducts", {})
+            if bp in bp_rates:
+                produced += bp_rates[bp]
+                byproduct_depths.append(step.get("depth", 0))
+
+        net_rate = consumed - produced
+        if abs(net_rate) < 1e-4:
+            if bp in raw_materials:
+                del raw_materials[bp]
+            continue
+
+        if net_rate > 0:
+            if bp in raw_materials:
+                del raw_materials[bp]
+            plan_step(
+                bp, net_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
+                steps, raw_materials, depth=min(byproduct_depths) if byproduct_depths else 1,
+                terminal_byproducts=None
+            )
+        else:
+            if bp in raw_materials:
+                del raw_materials[bp]
+            overflow_rate = -net_rate
+            disp_depth = min(byproduct_depths) if byproduct_depths else 1
+
+            if bp == "Water":
+                disp_item = "Concrete"
+                recipe = ALL_RECIPES[disp_item]["best"]  # Wet Concrete
+                is_slopped = disp_item in sloop_items
+                sloop_mult = 2.0 if is_slopped else 1.0
+                concrete_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
+                plan_specific_step(
+                    disp_item, concrete_rate, recipe, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
+                    steps, raw_materials, depth=disp_depth
+                )
+            elif bp == "Dark Matter Residue":
+                disp_item = "Dark Matter Crystal"
+                recipe_dict = ALL_RECIPES[disp_item]
+                best = recipe_dict.get("best")
+                default = recipe_dict["default"]
+                if best and best.get("alternate") and best.get("schematic") and best["schematic"] in unlocked_schematics:
+                    recipe = best
+                else:
+                    recipe = default
+                is_slopped = disp_item in sloop_items
+                sloop_mult = 2.0 if is_slopped else 1.0
+                crystal_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
+                plan_specific_step(
+                    disp_item, crystal_rate, recipe, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
+                    steps, raw_materials, depth=disp_depth
+                )
+            elif bp == "Heavy Oil Residue":
+                disp_item = "Petroleum Coke"
+                recipe = ALL_RECIPES[disp_item]["default"]
+                is_slopped = disp_item in sloop_items
+                sloop_mult = 2.0 if is_slopped else 1.0
+                coke_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
+                plan_specific_step(
+                    disp_item, coke_rate, recipe, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
+                    steps, raw_materials, depth=disp_depth
+                )
 
     # Combine steps
     combined_steps = {}
@@ -386,6 +528,7 @@ def generate_late_game_plan(
             "ionized_fuel_m3_min": total_ionized_fuel_needed,
         },
         "build_guide": build_guide,
+        "unlocked_schematics": list(unlocked_schematics),
     }
 
 
@@ -551,10 +694,58 @@ def generate_mermaid_flowchart(
     edges_list = []
     node_counter = 0
 
+    terminal_byproducts = {"Water", "Dark Matter Residue", "Heavy Oil Residue"}
+    byproduct_records = []
+    byproduct_raw_needs = {}
+
+    def trace_specific(item: str, rate: float, recipe: dict[str, Any], depth: int = 1):
+        nonlocal node_counter
+        node_counter += 1
+        node_id = f"node{node_counter}"
+
+        base_output = recipe["outputs"][item]
+        is_slopped = item in sloop_items
+        sloop_mult = 2.0 if is_slopped else 1.0
+        speed_mult = 2.5 if overclock else 1.0
+        output_per_machine = base_output * sloop_mult * speed_mult
+        machine_count = rate / output_per_machine
+
+        sloop_suffix = " - Sloop 2x" if is_slopped else ""
+        overclock_suffix = " - 250 Overclock" if overclock else ""
+        label = f'"{recipe["machine"]} x{machine_count:.2f}<br/>{recipe["name"]}{sloop_suffix}{overclock_suffix}<br/>{rate:.2f}/min"'
+
+        if recipe["machine"] in ["Smelter", "Foundry", "Refinery"]:
+            cls = "smelting"
+        elif recipe["machine"] in ["Constructor", "Assembler"]:
+            cls = "processing"
+        else:
+            cls = "manufacturing"
+
+        nodes_list.append(Node(node_id, label, depth, cls))
+
+        # Recurse through inputs
+        for input_item, input_rate_per_machine in recipe["inputs"].items():
+            required_input_rate = input_rate_per_machine * recipe_multiplier * (rate / (base_output * sloop_mult))
+            if input_item in terminal_byproducts:
+                node_counter += 1
+                raw_node_id = f"node{node_counter}"
+                nodes_list.append(Node(raw_node_id, f'"{input_item}<br/>Raw Resource"', -1, "raw"))
+                edges_list.append(Edge(raw_node_id, node_id, f"|{required_input_rate:.2f}/min|"))
+            else:
+                trace(input_item, required_input_rate, node_id, depth + 1)
+
     def trace(item: str, rate: float, parent_node_id: str | None = None, depth: int = 0):
         nonlocal node_counter
         node_counter += 1
         node_id = f"node{node_counter}"
+
+        if item in terminal_byproducts:
+            byproduct_raw_needs[item] = byproduct_raw_needs.get(item, 0.0) + rate
+            label = f'"{item}<br/>Raw Resource"'
+            nodes_list.append(Node(node_id, label, -1, "raw"))
+            if parent_node_id:
+                edges_list.append(Edge(node_id, parent_node_id, f"|{rate:.2f}/min|"))
+            return
 
         if item not in ALL_RECIPES:
             label = f'"{item}<br/>Raw Resource"'
@@ -575,6 +766,12 @@ def generate_mermaid_flowchart(
 
         output_per_machine = base_output * sloop_mult * speed_mult
         machine_count = rate / output_per_machine
+
+        # Track byproducts
+        for out_item, out_rate in recipe["outputs"].items():
+            if out_item != item and out_item in terminal_byproducts:
+                bp_rate = rate * (out_rate / base_output)
+                byproduct_records.append({"item": out_item, "rate": bp_rate, "depth": depth})
 
         sloop_suffix = " - Sloop 2x" if is_slopped else ""
         overclock_suffix = " - 250 Overclock" if overclock else ""
@@ -599,6 +796,51 @@ def generate_mermaid_flowchart(
             trace(input_item, required_input_rate, node_id, depth + 1)
 
     trace(target_item, target_rate)
+
+    # Balance byproducts for flowchart
+    for bp in terminal_byproducts:
+        consumed = byproduct_raw_needs.get(bp, 0.0)
+        produced = sum(r["rate"] for r in byproduct_records if r["item"] == bp)
+        byproduct_depths = [r["depth"] for r in byproduct_records if r["item"] == bp]
+        net_rate = consumed - produced
+
+        if abs(net_rate) < 1e-4:
+            continue
+
+        if net_rate > 0:
+            disp_depth = min(byproduct_depths) if byproduct_depths else 1
+            trace(bp, net_rate, depth=disp_depth)
+        else:
+            overflow_rate = -net_rate
+            disp_depth = min(byproduct_depths) if byproduct_depths else 1
+
+            if bp == "Water":
+                disp_item = "Concrete"
+                recipe = ALL_RECIPES[disp_item]["best"]
+                is_slopped = disp_item in sloop_items
+                sloop_mult = 2.0 if is_slopped else 1.0
+                concrete_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
+                trace_specific(disp_item, concrete_rate, recipe, depth=disp_depth)
+            elif bp == "Dark Matter Residue":
+                disp_item = "Dark Matter Crystal"
+                recipe_dict = ALL_RECIPES[disp_item]
+                best = recipe_dict.get("best")
+                default = recipe_dict["default"]
+                if best and best.get("alternate") and best.get("schematic") and best["schematic"] in unlocked_schematics:
+                    recipe = best
+                else:
+                    recipe = default
+                is_slopped = disp_item in sloop_items
+                sloop_mult = 2.0 if is_slopped else 1.0
+                crystal_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
+                trace_specific(disp_item, crystal_rate, recipe, depth=disp_depth)
+            elif bp == "Heavy Oil Residue":
+                disp_item = "Petroleum Coke"
+                recipe = ALL_RECIPES[disp_item]["default"]
+                is_slopped = disp_item in sloop_items
+                sloop_mult = 2.0 if is_slopped else 1.0
+                coke_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
+                trace_specific(disp_item, coke_rate, recipe, depth=disp_depth)
 
     _PHASE_NAMES = {
         -1: "Raw Extraction",
