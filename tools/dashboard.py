@@ -568,7 +568,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       securityLevel: 'loose',
       maxTextSize: 150000,
       maxEdges: 2000,
-      flowchart: { useMaxWidth: true, htmlLabels: true }
+      flowchart: { useMaxWidth: false, htmlLabels: true }
     });
   </script>
   <style>
@@ -1071,8 +1071,17 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
         <!-- Mermaid Flowchart Visualizer -->
         <div class="card">
-          <h2>Visual Production Layout Flowchart</h2>
-          <div id="flowchart-container" style="margin-top: 15px;"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="margin: 0;">Visual Production Layout Flowchart</h2>
+            <div style="display: flex; gap: 5px;">
+              <button onclick="zoomFlowchart(0.15)" style="padding: 4px 8px; font-size: 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">🔍 Zoom In</button>
+              <button onclick="zoomFlowchart(-0.15)" style="padding: 4px 8px; font-size: 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">🔍 Zoom Out</button>
+              <button onclick="zoomFlowchart(0)" style="padding: 4px 8px; font-size: 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">Reset</button>
+            </div>
+          </div>
+          <div id="flowchart-wrapper" style="width: 100%; height: 600px; overflow: auto; border: 1px solid #333; background: #151515; border-radius: 4px; position: relative; cursor: grab;">
+            <div id="flowchart-container" style="transform-origin: top left; padding: 20px;"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1485,9 +1494,71 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       setTimeout(watchSaveFile, 1000);
     }
 
+    let zoomScale = 1.0;
+    function zoomFlowchart(factor) {
+      if (factor === 0) {
+        zoomScale = 1.0;
+      } else {
+        zoomScale = Math.max(0.15, Math.min(3.0, zoomScale + factor));
+      }
+      const container = document.getElementById('flowchart-container');
+      const svg = container.querySelector('svg');
+      if (svg) {
+        if (!svg.dataset.origWidth) {
+          svg.dataset.origWidth = svg.getAttribute('width') || svg.getBoundingClientRect().width;
+          svg.dataset.origHeight = svg.getAttribute('height') || svg.getBoundingClientRect().height;
+        }
+        const w = parseFloat(svg.dataset.origWidth);
+        const h = parseFloat(svg.dataset.origHeight);
+        svg.setAttribute('width', (w * zoomScale) + 'px');
+        svg.setAttribute('height', (h * zoomScale) + 'px');
+      }
+    }
+
+    let isPanning = false;
+    let startX = 0, startY = 0;
+    let scrollLeft = 0, scrollTop = 0;
+
+    function initFlowchartPan() {
+      const wrapper = document.getElementById('flowchart-wrapper');
+      if (!wrapper) return;
+
+      wrapper.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isPanning = true;
+        wrapper.style.cursor = 'grabbing';
+        startX = e.pageX - wrapper.offsetLeft;
+        startY = e.pageY - wrapper.offsetTop;
+        scrollLeft = wrapper.scrollLeft;
+        scrollTop = wrapper.scrollTop;
+      });
+
+      wrapper.addEventListener('mouseleave', () => {
+        isPanning = false;
+        wrapper.style.cursor = 'grab';
+      });
+
+      wrapper.addEventListener('mouseup', () => {
+        isPanning = false;
+        wrapper.style.cursor = 'grab';
+      });
+
+      wrapper.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+        e.preventDefault();
+        const x = e.pageX - wrapper.offsetLeft;
+        const y = e.pageY - wrapper.offsetTop;
+        const walkX = (x - startX);
+        const walkY = (y - startY);
+        wrapper.scrollLeft = scrollLeft - walkX;
+        wrapper.scrollTop = scrollTop - walkY;
+      });
+    }
+
     loadTelemetry();
     loadGallery();
     watchSaveFile();
+    initFlowchartPan();
   </script>
 </body>
 </html>
