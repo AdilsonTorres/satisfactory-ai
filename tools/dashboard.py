@@ -1328,6 +1328,13 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         // Render flowchart visualizer dynamically using Mermaid
         const container = document.getElementById('flowchart-container');
         container.innerHTML = `<div class="mermaid">${data.flowchart}</div>`;
+
+        // Reset zoom and pan for a fresh calculation
+        zoomScale = 0.55;
+        panX = 10;
+        panY = 10;
+        updateFlowchartTransform();
+
         mermaid.init(undefined, container.querySelectorAll('.mermaid'));
 
         showNotification('Factory layout plan optimized and visualised.');
@@ -1494,51 +1501,47 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       setTimeout(watchSaveFile, 1000);
     }
 
-    let zoomScale = 1.0;
-    function zoomFlowchart(factor) {
-      if (factor === 0) {
-        zoomScale = 1.0;
-      } else {
-        zoomScale = Math.max(0.15, Math.min(3.0, zoomScale + factor));
-      }
+    let zoomScale = 0.55;
+    let panX = 10;
+    let panY = 10;
+    let isPanning = false;
+    let startX = 0, startY = 0;
+
+    function updateFlowchartTransform() {
       const container = document.getElementById('flowchart-container');
-      const svg = container.querySelector('svg');
-      if (svg) {
-        if (!svg.dataset.origWidth) {
-          svg.dataset.origWidth = svg.getAttribute('width') || svg.getBoundingClientRect().width;
-          svg.dataset.origHeight = svg.getAttribute('height') || svg.getBoundingClientRect().height;
-        }
-        const w = parseFloat(svg.dataset.origWidth);
-        const h = parseFloat(svg.dataset.origHeight);
-        svg.setAttribute('width', (w * zoomScale) + 'px');
-        svg.setAttribute('height', (h * zoomScale) + 'px');
+      if (container) {
+        container.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
       }
     }
 
-    let isPanning = false;
-    let startX = 0, startY = 0;
-    let scrollLeft = 0, scrollTop = 0;
+    function zoomFlowchart(factor) {
+      if (factor === 0) {
+        zoomScale = 0.55;
+        panX = 10;
+        panY = 10;
+      } else {
+        zoomScale = Math.max(0.05, Math.min(4.0, zoomScale + factor));
+      }
+      updateFlowchartTransform();
+    }
 
-    function initFlowchartPan() {
+    function initFlowchartInteractions() {
       const wrapper = document.getElementById('flowchart-wrapper');
-      if (!wrapper) return;
+      const container = document.getElementById('flowchart-container');
+      if (!wrapper || !container) return;
+
+      wrapper.style.overflow = 'hidden';
+      wrapper.style.cursor = 'grab';
 
       wrapper.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
         isPanning = true;
         wrapper.style.cursor = 'grabbing';
-        startX = e.pageX - wrapper.offsetLeft;
-        startY = e.pageY - wrapper.offsetTop;
-        scrollLeft = wrapper.scrollLeft;
-        scrollTop = wrapper.scrollTop;
+        startX = e.clientX - panX;
+        startY = e.clientY - panY;
       });
 
-      wrapper.addEventListener('mouseleave', () => {
-        isPanning = false;
-        wrapper.style.cursor = 'grab';
-      });
-
-      wrapper.addEventListener('mouseup', () => {
+      window.addEventListener('mouseup', () => {
         isPanning = false;
         wrapper.style.cursor = 'grab';
       });
@@ -1546,19 +1549,41 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       wrapper.addEventListener('mousemove', (e) => {
         if (!isPanning) return;
         e.preventDefault();
-        const x = e.pageX - wrapper.offsetLeft;
-        const y = e.pageY - wrapper.offsetTop;
-        const walkX = (x - startX);
-        const walkY = (y - startY);
-        wrapper.scrollLeft = scrollLeft - walkX;
-        wrapper.scrollTop = scrollTop - walkY;
+        panX = e.clientX - startX;
+        panY = e.clientY - startY;
+        updateFlowchartTransform();
+      });
+
+      wrapper.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomFactor = 0.08;
+        const direction = e.deltaY < 0 ? 1 : -1;
+
+        const rect = wrapper.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const nextScale = Math.max(0.05, Math.min(4.0, zoomScale + direction * zoomFactor));
+
+        const xs = (mouseX - panX) / zoomScale;
+        const ys = (mouseY - panY) / zoomScale;
+
+        zoomScale = nextScale;
+        panX = mouseX - xs * zoomScale;
+        panY = mouseY - ys * zoomScale;
+
+        updateFlowchartTransform();
+      }, { passive: false });
+
+      wrapper.addEventListener('dblclick', () => {
+        zoomFlowchart(0);
       });
     }
 
     loadTelemetry();
     loadGallery();
     watchSaveFile();
-    initFlowchartPan();
+    initFlowchartInteractions();
   </script>
 </body>
 </html>
