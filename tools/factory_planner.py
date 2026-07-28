@@ -1,5 +1,5 @@
 import math
-from typing import Any
+from typing import Any, cast
 
 from utils.recipe_db import RECIPES, SINK_POINTS
 from utils.save_parser import SatisfactorySave
@@ -20,6 +20,7 @@ def plan_specific_factory_step(
     unlocked_schematics: set[str],
     steps: list[dict[str, Any]],
     raw_materials: dict[str, float],
+    recipe_multiplier: float = 1.0,
 ):
     output_rate = recipe["outputs"][item]
     machine_count = rate / output_rate
@@ -38,11 +39,18 @@ def plan_specific_factory_step(
     )
 
     for input_item, input_rate_per_machine in recipe["inputs"].items():
-        required_input_rate = input_rate_per_machine * machine_count
+        required_input_rate = input_rate_per_machine * recipe_multiplier * machine_count
         if input_item in ["Water", "Dark Matter Residue", "Heavy Oil Residue"]:
             pass  # Do not add to raw_materials since it is satisfied by byproduct overflow
         else:
-            plan_factory_step(input_item, required_input_rate, unlocked_schematics, steps, raw_materials)
+            plan_factory_step(
+                input_item,
+                required_input_rate,
+                unlocked_schematics,
+                steps,
+                raw_materials,
+                recipe_multiplier=recipe_multiplier,
+            )
 
 
 def plan_factory_step(
@@ -51,7 +59,8 @@ def plan_factory_step(
     unlocked_schematics: set[str],
     steps: list[dict[str, Any]],
     raw_materials: dict[str, float],
-    terminal_byproducts: set[str] = None,
+    terminal_byproducts: set[str] | None = None,
+    recipe_multiplier: float = 1.0,
 ):
     """Recursively traces production tree using the best alternate recipes."""
     # If it is a raw resource (no recipes exist for it), add to raw materials and stop
@@ -95,12 +104,24 @@ def plan_factory_step(
 
     # Recursively trace inputs
     for input_item, input_rate_per_machine in recipe["inputs"].items():
-        required_input_rate = input_rate_per_machine * machine_count
-        plan_factory_step(input_item, required_input_rate, unlocked_schematics, steps, raw_materials, terminal_byproducts)
+        required_input_rate = input_rate_per_machine * recipe_multiplier * machine_count
+        plan_factory_step(
+            input_item,
+            required_input_rate,
+            unlocked_schematics,
+            steps,
+            raw_materials,
+            terminal_byproducts,
+            recipe_multiplier=recipe_multiplier,
+        )
 
 
 def generate_production_plan(
-    target_item: str | None, target_rate: float | None, coupons_per_minute: float | None, save_file_path: str
+    target_item: str | None,
+    target_rate: float | None,
+    coupons_per_minute: float | None,
+    save_file_path: str,
+    recipe_multiplier: float = 1.0,
 ) -> dict[str, Any]:
     """Generates the full factory production plan."""
     # 1. Parse save file to get unlocked schematics and coupon count
@@ -146,7 +167,15 @@ def generate_production_plan(
     raw_materials: dict[str, float] = {}
     terminal_byproducts = {"Water", "Dark Matter Residue", "Heavy Oil Residue"}
 
-    plan_factory_step(target_item, target_rate, unlocked_schematics, steps, raw_materials, terminal_byproducts=terminal_byproducts)
+    plan_factory_step(
+        target_item,
+        target_rate,
+        unlocked_schematics,
+        steps,
+        raw_materials,
+        terminal_byproducts=terminal_byproducts,
+        recipe_multiplier=recipe_multiplier,
+    )
 
     # Balance byproducts
     for bp in ["Water", "Dark Matter Residue", "Heavy Oil Residue"]:
@@ -159,17 +188,22 @@ def generate_production_plan(
 
         net_rate = consumed - produced
         if abs(net_rate) < 1e-4:
-            if bp in raw_materials:
-                del raw_materials[bp]
+            raw_materials.pop(bp, None)
             continue
 
         if net_rate > 0:
-            if bp in raw_materials:
-                del raw_materials[bp]
-            plan_factory_step(bp, net_rate, unlocked_schematics, steps, raw_materials, terminal_byproducts=None)
+            raw_materials.pop(bp, None)
+            plan_factory_step(
+                bp,
+                net_rate,
+                unlocked_schematics,
+                steps,
+                raw_materials,
+                terminal_byproducts=None,
+                recipe_multiplier=recipe_multiplier,
+            )
         else:
-            if bp in raw_materials:
-                del raw_materials[bp]
+            raw_materials.pop(bp, None)
             overflow_rate = -net_rate
 
             if bp == "Water":
@@ -177,7 +211,13 @@ def generate_production_plan(
                 recipe = RECIPES[disp_item]["best"]  # Wet Concrete
                 concrete_rate = overflow_rate * recipe["outputs"][disp_item] / recipe["inputs"][bp]
                 plan_specific_factory_step(
-                    disp_item, concrete_rate, recipe, unlocked_schematics, steps, raw_materials
+                    disp_item,
+                    concrete_rate,
+                    recipe,
+                    unlocked_schematics,
+                    steps,
+                    raw_materials,
+                    recipe_multiplier=recipe_multiplier,
                 )
             elif bp == "Dark Matter Residue":
                 disp_item = "Dark Matter Crystal"
@@ -190,14 +230,26 @@ def generate_production_plan(
                     recipe = default
                 crystal_rate = overflow_rate * recipe["outputs"][disp_item] / recipe["inputs"][bp]
                 plan_specific_factory_step(
-                    disp_item, crystal_rate, recipe, unlocked_schematics, steps, raw_materials
+                    disp_item,
+                    crystal_rate,
+                    recipe,
+                    unlocked_schematics,
+                    steps,
+                    raw_materials,
+                    recipe_multiplier=recipe_multiplier,
                 )
             elif bp == "Heavy Oil Residue":
                 disp_item = "Petroleum Coke"
                 recipe = RECIPES[disp_item]["default"]
                 coke_rate = overflow_rate * recipe["outputs"][disp_item] / recipe["inputs"][bp]
                 plan_specific_factory_step(
-                    disp_item, coke_rate, recipe, unlocked_schematics, steps, raw_materials
+                    disp_item,
+                    coke_rate,
+                    recipe,
+                    unlocked_schematics,
+                    steps,
+                    raw_materials,
+                    recipe_multiplier=recipe_multiplier,
                 )
 
     # Combine steps by item name and recipe to avoid duplicates in summary
@@ -265,8 +317,9 @@ def generate_production_plan(
 def generate_mermaid_flowchart(
     target_item: str,
     target_rate: float,
-    unlocked_schematics: set[str] = None,
+    unlocked_schematics: set[str] | None = None,
     return_dict: bool = False,
+    recipe_multiplier: float = 1.0,
 ) -> str | dict[str, Any]:
     """Generates a Mermaid TD flowchart of the factory production tree."""
     class Node:
@@ -291,7 +344,7 @@ def generate_mermaid_flowchart(
 
     terminal_byproducts = {"Water", "Dark Matter Residue", "Heavy Oil Residue"}
     byproduct_records = []
-    byproduct_raw_needs = {}
+    byproduct_raw_needs: dict[str, float] = {}
 
     def trace_specific(item: str, rate: float, recipe: dict[str, Any], depth: int = 1):
         nonlocal node_counter
@@ -316,7 +369,7 @@ def generate_mermaid_flowchart(
 
         # Recurse through inputs
         for input_item, input_rate_per_machine in recipe["inputs"].items():
-            required_input_rate = input_rate_per_machine * machine_count
+            required_input_rate = input_rate_per_machine * recipe_multiplier * machine_count
             if input_item in terminal_byproducts:
                 pass  # Do not draw a raw resource node for the byproduct input of the disposal step
             else:
@@ -329,14 +382,14 @@ def generate_mermaid_flowchart(
 
         if item in terminal_byproducts:
             byproduct_raw_needs[item] = byproduct_raw_needs.get(item, 0.0) + rate
-            label = f'"{item}<br/>Raw Resource"'
+            label = f'"<b>{item}</b><br/>Raw Resource<br/><b>{rate:.2f}/min</b>"'
             nodes_list.append(Node(node_id, label, -1, "raw"))
             if parent_node_id:
                 edges_list.append(Edge(node_id, parent_node_id, f"|{rate:.2f}/min|"))
             return
 
         if item not in RECIPES:
-            label = f'"{item}<br/>Raw Resource"'
+            label = f'"<b>{item}</b><br/>Raw Resource<br/><b>{rate:.2f}/min</b>"'
             nodes_list.append(Node(node_id, label, -1, "raw"))
             if parent_node_id:
                 edges_list.append(Edge(node_id, parent_node_id, f"|{rate:.2f}/min|"))
@@ -355,7 +408,7 @@ def generate_mermaid_flowchart(
                 bp_rate = rate * (out_rate / base_output)
                 byproduct_records.append({"item": out_item, "rate": bp_rate, "depth": depth})
 
-        label = f'"{machine} x{machine_count:.2f}<br/>{recipe_name}<br/>{rate:.2f}/min"'
+        label = f'"<b>{item}</b><br/>{machine} x{machine_count:.2f}<br/><i>{recipe_name}</i><br/><b>{rate:.2f}/min</b>"'
 
         if depth == 0:
             cls = "target"
@@ -372,7 +425,7 @@ def generate_mermaid_flowchart(
             edges_list.append(Edge(node_id, parent_node_id, f"|{rate:.2f}/min|"))
 
         for input_item, input_rate_per_machine in recipe["inputs"].items():
-            required_input_rate = input_rate_per_machine * machine_count
+            required_input_rate = input_rate_per_machine * recipe_multiplier * machine_count
             trace(input_item, required_input_rate, node_id, depth + 1)
 
     trace(target_item, target_rate)
@@ -463,7 +516,7 @@ def generate_mermaid_flowchart(
     full_chart = compile_flowchart(nodes_list, edges_list)
 
     if not return_dict:
-        return full_chart
+        return cast(str, full_chart)
 
     phase_flowcharts = {}
     depths = {n.depth for n in nodes_list if n.depth != -1}
@@ -477,7 +530,7 @@ def generate_mermaid_flowchart(
         phase_nodes = [n for n in nodes_list if n.node_id in connected_node_ids]
         phase_flowcharts[str(d)] = compile_flowchart(phase_nodes, phase_edges, core_depth=d)
 
-    return {
+    return cast(dict[str, Any], {
         "full": full_chart,
         "phases": phase_flowcharts
-    }
+    })

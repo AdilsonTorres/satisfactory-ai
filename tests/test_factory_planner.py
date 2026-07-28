@@ -68,3 +68,23 @@ def test_generate_mermaid_flowchart():
     assert "flowchart TD" in chart
     assert "Iron Ore" in chart
     assert "Smelter" in chart or "Refinery" in chart
+
+
+@patch("tools.factory_planner.SatisfactorySave")
+def test_generate_production_plan_with_recipe_multiplier(mock_save_class):
+    mock_save = mock_save_class.return_value
+    mock_save.schematics = []
+
+    from tools.factory_planner import generate_production_plan
+
+    # Standard Iron Ingot: 30 Iron Ore -> 30 Iron Ingot (1:1)
+    # At 60.0 Iron Ingot/min with recipe_multiplier=0.75:
+    # Requires 60.0 * 0.75 = 45.0 Iron Ore
+    plan = generate_production_plan(
+        target_item="Iron Ingot",
+        target_rate=60.0,
+        coupons_per_minute=None,
+        save_file_path="mock_save.sav",
+        recipe_multiplier=0.75,
+    )
+    assert plan["raw_materials"]["Iron Ore"] == 45.0

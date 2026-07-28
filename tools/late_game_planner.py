@@ -262,7 +262,7 @@ def plan_step(
     steps: list[dict[str, Any]],
     raw_materials: dict[str, float],
     depth: int = 0,
-    terminal_byproducts: set[str] = None,
+    terminal_byproducts: set[str] | None = None,
 ):
     if item not in ALL_RECIPES or (terminal_byproducts and item in terminal_byproducts):
         raw_materials[item] = raw_materials.get(item, 0.0) + rate
@@ -402,8 +402,7 @@ def generate_late_game_plan(
 
         net_rate = consumed - produced
         if abs(net_rate) < 1e-4:
-            if bp in raw_materials:
-                del raw_materials[bp]
+            raw_materials.pop(bp, None)
             continue
 
         consumer_depths = []
@@ -415,16 +414,14 @@ def generate_late_game_plan(
         disp_depth = min(byproduct_depths) if byproduct_depths else (max(consumer_depths) + 1 if consumer_depths else 1)
 
         if net_rate > 0:
-            if bp in raw_materials:
-                del raw_materials[bp]
+            raw_materials.pop(bp, None)
             plan_step(
                 bp, net_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
                 steps, raw_materials, depth=disp_depth,
                 terminal_byproducts=None
             )
         else:
-            if bp in raw_materials:
-                del raw_materials[bp]
+            raw_materials.pop(bp, None)
             overflow_rate = -net_rate
 
             if bp == "Water":
@@ -711,8 +708,8 @@ def generate_mermaid_flowchart(
 
     terminal_byproducts = {"Water", "Dark Matter Residue", "Heavy Oil Residue"}
     byproduct_records = []
-    byproduct_raw_needs = {}
-    item_depths = {}
+    byproduct_raw_needs: dict[str, float] = {}
+    item_depths: dict[str, int] = {}
 
     def trace_specific(item: str, rate: float, recipe: dict[str, Any], depth: int = 1):
         nonlocal node_counter
@@ -913,7 +910,7 @@ def generate_mermaid_flowchart(
     full_chart = compile_flowchart(nodes_list, edges_list)
 
     if not return_dict:
-        return full_chart
+        return cast(str, full_chart)
 
     phase_flowcharts = {}
     depths = {n.depth for n in nodes_list if n.depth != -1}
@@ -924,4 +921,4 @@ def generate_mermaid_flowchart(
         phase_nodes = [n for n in nodes_list if n.node_id in connected_node_ids]
         phase_flowcharts[str(d)] = compile_flowchart(phase_nodes, phase_edges, core_depth=d)
 
-    return {"full": full_chart, "phases": phase_flowcharts}
+    return cast(dict[str, Any], {"full": full_chart, "phases": phase_flowcharts})

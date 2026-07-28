@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import sys
+from typing import cast
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -1375,7 +1376,7 @@ def _run_plan_production(args: argparse.Namespace) -> None:
             print(chart)
             print("```")
         if args.draw_html:
-            path = _save_flowchart_html(chart, plan["target_item"])
+            path = _save_flowchart_html(cast(str, chart), plan["target_item"])
             print(f"\nFlowchart HTML exported to: {path}")
 
 
@@ -1546,7 +1547,7 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
             print(chart)
             print("```")
         if args.draw_html:
-            path = _save_flowchart_html(chart, plan["target_item"])
+            path = _save_flowchart_html(cast(str, chart), plan["target_item"])
             print(f"\nFlowchart HTML exported to: {path}")
 
 

@@ -1195,7 +1195,7 @@ RECIPES: dict[str, dict[str, dict]] = {
                 "Iron Plate": 100.0,
                 "Concrete": 200.0,
             },
-            "outputs": {"Singularity Cell": 10.0},
+            "outputs": {"Singularity Cell": 1.0},
             "alternate": False,
             "schematic": None,
         },
@@ -1208,7 +1208,7 @@ RECIPES: dict[str, dict[str, dict]] = {
                 "Iron Plate": 100.0,
                 "Concrete": 200.0,
             },
-            "outputs": {"Singularity Cell": 10.0},
+            "outputs": {"Singularity Cell": 1.0},
             "alternate": False,
             "schematic": None,
         },
@@ -1329,29 +1329,37 @@ RECIPES: dict[str, dict[str, dict]] = {
     },
     "Ballistic Warp Drive": {
         "default": {
-            # Manufacturer, 60s cycle → 1 unit (1/min)
+            # Quantum Encoder, 60s cycle → 1 unit (1/min)
             "name": "Ballistic Warp Drive",
-            "machine": "Manufacturer",
+            "machine": "Quantum Encoder",
             "inputs": {
                 "Thermal Propulsion Rocket": 1.0,
                 "Singularity Cell": 5.0,
                 "Superposition Oscillator": 2.0,
                 "Dark Matter Crystal": 40.0,
+                "Excited Photonic Matter": 250.0,
             },
-            "outputs": {"Ballistic Warp Drive": 1.0},
+            "outputs": {
+                "Ballistic Warp Drive": 1.0,
+                "Dark Matter Residue": 250.0,
+            },
             "alternate": False,
             "schematic": None,
         },
         "best": {
             "name": "Ballistic Warp Drive",
-            "machine": "Manufacturer",
+            "machine": "Quantum Encoder",
             "inputs": {
                 "Thermal Propulsion Rocket": 1.0,
                 "Singularity Cell": 5.0,
                 "Superposition Oscillator": 2.0,
                 "Dark Matter Crystal": 40.0,
+                "Excited Photonic Matter": 250.0,
             },
-            "outputs": {"Ballistic Warp Drive": 1.0},
+            "outputs": {
+                "Ballistic Warp Drive": 1.0,
+                "Dark Matter Residue": 250.0,
+            },
             "alternate": False,
             "schematic": None,
         },
