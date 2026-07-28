@@ -1240,13 +1240,18 @@ def _save_flowchart_html(markup: str, target_name: str) -> str:
   <title>Satisfactory Factory Planner - {target_name}</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
   <script>
-    mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});
+    mermaid.initialize({{
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'loose',
+      flowchart: {{ useMaxWidth: false, htmlLabels: true, padding: 20, curve: 'basis' }}
+    }});
   </script>
   <style>
     body {{
       background-color: #121212;
       color: #ffffff;
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
       margin: 0;
       padding: 30px;
       display: flex;
@@ -1262,22 +1267,88 @@ def _save_flowchart_html(markup: str, target_name: str) -> str:
       color: #b0bec5;
       font-size: 14px;
       margin-top: 0;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
     }}
+    .planner-legend {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }}
+    .legend-item {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #d1d5db;
+      font-weight: 500;
+    }}
+    .legend-color {{
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      display: inline-block;
+    }}
+    .legend-color.target {{ background: #ffb300; border: 1px solid #ffe082; }}
+    .legend-color.manufacturing {{ background: #4a148c; border: 1px solid #ba68c8; }}
+    .legend-color.processing {{ background: #0d47a1; border: 1px solid #64b5f6; }}
+    .legend-color.smelting {{ background: #e65100; border: 1px solid #ffb74d; }}
+    .legend-color.raw {{ background: #212529; border: 1px solid #495057; }}
+
     .mermaid {{
       background: #1e1e1e;
       padding: 30px;
       border-radius: 12px;
       box-shadow: 0 8px 16px rgba(0,0,0,0.5);
       width: 100%;
-      max-width: 1200px;
+      max-width: 1300px;
       box-sizing: border-box;
+      overflow-x: auto;
+      text-align: center;
+    }}
+    .mermaid foreignObject {{
+      overflow: visible !important;
+    }}
+    .mermaid .node foreignObject div,
+    .mermaid .node label,
+    .mermaid .node text {{
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+      line-height: 1.35 !important;
+      font-size: 12px !important;
+      font-family: 'Inter', system-ui, sans-serif !important;
+      white-space: nowrap !important;
+      padding: 6px 12px !important;
+    }}
+    .mermaid .node rect,
+    .mermaid .node polygon {{
+      rx: 6px !important;
+      ry: 6px !important;
     }}
   </style>
 </head>
 <body>
   <h1>Factory Layout Flowchart</h1>
-  <p>Visual plan for producing {target_name}</p>
+  <p>Visual production tree for <strong>{target_name}</strong></p>
+
+  <div class="planner-legend">
+    <div class="legend-item"><span class="legend-color target"></span> Target Output</div>
+    <div class="legend-item"><span class="legend-color manufacturing"></span> Manufacturing</div>
+    <div class="legend-item"><span class="legend-color processing"></span> Primary Components</div>
+    <div class="legend-item"><span class="legend-color smelting"></span> Smelting & Refining</div>
+    <div class="legend-item"><span class="legend-color raw"></span> Raw Extraction</div>
+  </div>
+
   <div class="mermaid">
 {markup}
   </div>

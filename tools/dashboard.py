@@ -586,10 +586,24 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     #flowchart-container foreignObject {
       overflow: visible !important;
     }
-    #flowchart-container .node * {
-      font-size: 11px !important;
-      line-height: 1.3 !important;
-      font-family: 'Inter', sans-serif !important;
+    #flowchart-container .node foreignObject div,
+    #flowchart-container .node label,
+    #flowchart-container .node text {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+      line-height: 1.35 !important;
+      font-size: 12px !important;
+      font-family: 'Inter', system-ui, sans-serif !important;
+      white-space: nowrap !important;
+      padding: 6px 12px !important;
+    }
+    #flowchart-container .node rect,
+    #flowchart-container .node polygon {
+      rx: 6px !important;
+      ry: 6px !important;
     }
     body {
       background-color: #121212;
@@ -1097,6 +1111,14 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
               <button onclick="zoomFlowchart(-0.15)" style="padding: 4px 8px; font-size: 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">🔍 Zoom Out</button>
               <button onclick="zoomFlowchart(0)" style="padding: 4px 8px; font-size: 12px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer;">Reset</button>
             </div>
+          </div>
+          <!-- Global Flowchart Color Legend -->
+          <div class="planner-legend" style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; align-items: center; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 8px 16px; margin-bottom: 12px;">
+            <div class="legend-item" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #d1d5db; font-weight: 500;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #ffb300; border: 1px solid #ffe082; display: inline-block;"></span> Target Output</div>
+            <div class="legend-item" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #d1d5db; font-weight: 500;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #4a148c; border: 1px solid #ba68c8; display: inline-block;"></span> Manufacturing</div>
+            <div class="legend-item" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #d1d5db; font-weight: 500;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #0d47a1; border: 1px solid #64b5f6; display: inline-block;"></span> Primary Components</div>
+            <div class="legend-item" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #d1d5db; font-weight: 500;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #e65100; border: 1px solid #ffb74d; display: inline-block;"></span> Smelting & Refining</div>
+            <div class="legend-item" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #d1d5db; font-weight: 500;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #212529; border: 1px solid #495057; display: inline-block;"></span> Raw Extraction</div>
           </div>
           <!-- Phase switcher tabs -->
           <div id="flowchart-tabs" style="display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px;"></div>
