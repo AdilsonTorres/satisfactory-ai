@@ -62,9 +62,7 @@ def test_quantum_encoder_recipes():
     for item in quantum_items:
         assert item in RECIPES, f"Missing recipe for {item}"
         recipe = RECIPES[item]["default"]
-        assert (
-            recipe["machine"] == "Quantum Encoder"
-        ), f"{item} should use Quantum Encoder, got {recipe['machine']}"
+        assert recipe["machine"] == "Quantum Encoder", f"{item} should use Quantum Encoder, got {recipe['machine']}"
 
 
 def test_all_recipes_have_valid_machines():
@@ -72,9 +70,7 @@ def test_all_recipes_have_valid_machines():
     for item, variants in RECIPES.items():
         for variant_key, recipe in variants.items():
             machine = recipe.get("machine")
-            assert (
-                machine in VALID_MACHINES
-            ), f"Invalid machine '{machine}' for item '{item}' variant '{variant_key}'"
+            assert machine in VALID_MACHINES, f"Invalid machine '{machine}' for item '{item}' variant '{variant_key}'"
 
 
 def test_all_recipe_rates_positive():
@@ -82,10 +78,6 @@ def test_all_recipe_rates_positive():
     for item, variants in RECIPES.items():
         for variant_key, recipe in variants.items():
             for inp_name, rate in recipe.get("inputs", {}).items():
-                assert (
-                    rate > 0.0
-                ), f"Non-positive input rate {rate} for {inp_name} in {item} ({variant_key})"
+                assert rate > 0.0, f"Non-positive input rate {rate} for {inp_name} in {item} ({variant_key})"
             for out_name, rate in recipe.get("outputs", {}).items():
-                assert (
-                    rate > 0.0
-                ), f"Non-positive output rate {rate} for {out_name} in {item} ({variant_key})"
+                assert rate > 0.0, f"Non-positive output rate {rate} for {out_name} in {item} ({variant_key})"

@@ -419,5 +419,3 @@ def test_bwd_byproduct_overflow_and_disposal(mock_save_class):
                 found_coke = True
                 assert phase_num == 3
     assert found_coke is True
-
-

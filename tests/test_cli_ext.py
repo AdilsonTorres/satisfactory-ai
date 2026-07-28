@@ -472,16 +472,23 @@ def test_cli_plan_late_game_bwd_disposal(mock_save_class, mock_find_save):
     mock_save.dimensional_depot = []
 
     parser = cli.create_parser()
-    args = parser.parse_args([
-        "plan-late-game",
-        "--item", "Ballistic Warp Drive",
-        "--rate", "10",
-        "--sloops", "BWD",
-        "--recipe-multiplier", "0.75"
-    ])
+    args = parser.parse_args(
+        [
+            "plan-late-game",
+            "--item",
+            "Ballistic Warp Drive",
+            "--rate",
+            "10",
+            "--sloops",
+            "BWD",
+            "--recipe-multiplier",
+            "0.75",
+        ]
+    )
 
     import io
     import sys
+
     captured_stdout = io.StringIO()
     original_stdout = sys.stdout
     sys.stdout = captured_stdout
@@ -502,6 +509,7 @@ def test_cli_plan_late_game_bwd_disposal(mock_save_class, mock_find_save):
 def test_dashboard_api_planner_bwd_disposal():
     """Verify that the dashboard api planner response includes the disposal items."""
     import json
+
     from tools.dashboard import DashboardHandler
 
     handler = MagicMock(spec=DashboardHandler)
@@ -517,7 +525,7 @@ def test_dashboard_api_planner_bwd_disposal():
         patch("tools.factory_planner.SatisfactorySave") as mock_save_std,
     ):
         mock_find_save.return_value = "mock_save.sav"
-        
+
         mock_save = MagicMock()
         mock_save.schematics = []
         mock_save.recipes = []
@@ -537,5 +545,3 @@ def test_dashboard_api_planner_bwd_disposal():
         coke_step = next((s for s in steps if s["item"] == "Petroleum Coke"), None)
         assert coke_step is not None
         assert coke_step["rate"] > 0.0
-
-

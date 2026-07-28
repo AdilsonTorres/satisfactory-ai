@@ -34,7 +34,11 @@ def plan_specific_factory_step(
             "machine_count": machine_count,
             "unlocked": recipe.get("schematic") is None or recipe["schematic"] in unlocked_schematics,
             "alternate": recipe.get("alternate", False),
-            "byproducts": {out_item: rate * (out_rate / output_rate) for out_item, out_rate in recipe["outputs"].items() if out_item != item}
+            "byproducts": {
+                out_item: rate * (out_rate / output_rate)
+                for out_item, out_rate in recipe["outputs"].items()
+                if out_item != item
+            },
         }
     )
 
@@ -98,7 +102,11 @@ def plan_factory_step(
             "machine_count": machine_count,
             "unlocked": is_unlocked,
             "alternate": recipe.get("alternate", False),
-            "byproducts": {out_item: rate * (out_rate / output_rate) for out_item, out_rate in recipe["outputs"].items() if out_item != item}
+            "byproducts": {
+                out_item: rate * (out_rate / output_rate)
+                for out_item, out_rate in recipe["outputs"].items()
+                if out_item != item
+            },
         }
     )
 
@@ -224,7 +232,12 @@ def generate_production_plan(
                 recipe_dict = RECIPES[disp_item]
                 best = recipe_dict.get("best")
                 default = recipe_dict["default"]
-                if best and best.get("alternate") and best.get("schematic") and best["schematic"] in unlocked_schematics:
+                if (
+                    best
+                    and best.get("alternate")
+                    and best.get("schematic")
+                    and best["schematic"] in unlocked_schematics
+                ):
                     recipe = best
                 else:
                     recipe = default
@@ -322,6 +335,7 @@ def generate_mermaid_flowchart(
     recipe_multiplier: float = 1.0,
 ) -> str | dict[str, Any]:
     """Generates a Mermaid TD flowchart of the factory production tree."""
+
     class Node:
         def __init__(self, node_id: str, label: str, depth: int, cls: str):
             self.node_id = node_id
@@ -457,7 +471,12 @@ def generate_mermaid_flowchart(
                 recipe_dict = RECIPES[disp_item]
                 best = recipe_dict.get("best")
                 default = recipe_dict["default"]
-                if best and best.get("alternate") and best.get("schematic") and best["schematic"] in unlocked_schematics:
+                if (
+                    best
+                    and best.get("alternate")
+                    and best.get("schematic")
+                    and best["schematic"] in unlocked_schematics
+                ):
                     recipe = best
                 else:
                     recipe = default
@@ -484,7 +503,7 @@ def generate_mermaid_flowchart(
             "    classDef smelting fill:#e65100,stroke:#ffb74d,stroke-width:2px,color:#fff;",
             "    classDef processing fill:#0d47a1,stroke:#64b5f6,stroke-width:2px,color:#fff;",
             "    classDef manufacturing fill:#4a148c,stroke:#ba68c8,stroke-width:2px,color:#fff;",
-            "    classDef target fill:#ffb300,stroke:#ffe082,stroke-width:3px,color:#000;"
+            "    classDef target fill:#ffb300,stroke:#ffe082,stroke-width:3px,color:#000;",
         ]
 
         grouped = {}
@@ -499,8 +518,8 @@ def generate_mermaid_flowchart(
 
             phase_name = _PHASE_NAMES.get(d, _DEFAULT_NAME)
             if d >= 3:
-                phase_name = f"{phase_name} (Tier {d-2})"
-            lines.append(f"    subgraph Phase_{d} [\"{phase_name}\"]")
+                phase_name = f"{phase_name} (Tier {d - 2})"
+            lines.append(f'    subgraph Phase_{d} ["{phase_name}"]')
             for n in grouped[d]:
                 lines.append(f"        {n.node_id}[{n.label}]")
             lines.append("    end")
@@ -522,15 +541,9 @@ def generate_mermaid_flowchart(
     depths = {n.depth for n in nodes_list if n.depth != -1}
     for d in depths:
         core_node_ids = {n.node_id for n in nodes_list if n.depth == d}
-        phase_edges = [
-            e for e in edges_list
-            if e.from_node in core_node_ids or e.to_node in core_node_ids
-        ]
+        phase_edges = [e for e in edges_list if e.from_node in core_node_ids or e.to_node in core_node_ids]
         connected_node_ids = {e.from_node for e in phase_edges} | {e.to_node for e in phase_edges} | core_node_ids
         phase_nodes = [n for n in nodes_list if n.node_id in connected_node_ids]
         phase_flowcharts[str(d)] = compile_flowchart(phase_nodes, phase_edges, core_depth=d)
 
-    return cast(dict[str, Any], {
-        "full": full_chart,
-        "phases": phase_flowcharts
-    })
+    return cast(dict[str, Any], {"full": full_chart, "phases": phase_flowcharts})

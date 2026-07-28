@@ -230,7 +230,11 @@ def plan_specific_step(
             "power_mw": total_mw,
             "output_per_machine": output_per_machine,
             "depth": depth,
-            "byproducts": {out_item: rate * (out_rate / base_output) for out_item, out_rate in recipe["outputs"].items() if out_item != item}
+            "byproducts": {
+                out_item: rate * (out_rate / base_output)
+                for out_item, out_rate in recipe["outputs"].items()
+                if out_item != item
+            },
         }
     )
 
@@ -325,7 +329,11 @@ def plan_step(
             "power_mw": total_mw,
             "output_per_machine": output_per_machine,
             "depth": depth,
-            "byproducts": {out_item: rate * (out_rate / base_output) for out_item, out_rate in recipe["outputs"].items() if out_item != item}
+            "byproducts": {
+                out_item: rate * (out_rate / base_output)
+                for out_item, out_rate in recipe["outputs"].items()
+                if out_item != item
+            },
         }
     )
 
@@ -385,8 +393,15 @@ def generate_late_game_plan(
     terminal_byproducts = {"Water", "Dark Matter Residue", "Heavy Oil Residue"}
 
     plan_step(
-        target_item, target_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier, steps, raw_materials,
-        terminal_byproducts=terminal_byproducts
+        target_item,
+        target_rate,
+        unlocked_schematics,
+        sloop_items,
+        overclock,
+        recipe_multiplier,
+        steps,
+        raw_materials,
+        terminal_byproducts=terminal_byproducts,
     )
 
     # Balance byproducts
@@ -416,9 +431,16 @@ def generate_late_game_plan(
         if net_rate > 0:
             raw_materials.pop(bp, None)
             plan_step(
-                bp, net_rate, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
-                steps, raw_materials, depth=disp_depth,
-                terminal_byproducts=None
+                bp,
+                net_rate,
+                unlocked_schematics,
+                sloop_items,
+                overclock,
+                recipe_multiplier,
+                steps,
+                raw_materials,
+                depth=disp_depth,
+                terminal_byproducts=None,
             )
         else:
             raw_materials.pop(bp, None)
@@ -431,15 +453,28 @@ def generate_late_game_plan(
                 sloop_mult = 2.0 if is_slopped else 1.0
                 concrete_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
                 plan_specific_step(
-                    disp_item, concrete_rate, recipe, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
-                    steps, raw_materials, depth=disp_depth
+                    disp_item,
+                    concrete_rate,
+                    recipe,
+                    unlocked_schematics,
+                    sloop_items,
+                    overclock,
+                    recipe_multiplier,
+                    steps,
+                    raw_materials,
+                    depth=disp_depth,
                 )
             elif bp == "Dark Matter Residue":
                 disp_item = "Dark Matter Crystal"
                 recipe_dict = ALL_RECIPES[disp_item]
                 best = recipe_dict.get("best")
                 default = recipe_dict["default"]
-                if best and best.get("alternate") and best.get("schematic") and best["schematic"] in unlocked_schematics:
+                if (
+                    best
+                    and best.get("alternate")
+                    and best.get("schematic")
+                    and best["schematic"] in unlocked_schematics
+                ):
                     recipe = best
                 else:
                     recipe = default
@@ -447,8 +482,16 @@ def generate_late_game_plan(
                 sloop_mult = 2.0 if is_slopped else 1.0
                 crystal_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
                 plan_specific_step(
-                    disp_item, crystal_rate, recipe, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
-                    steps, raw_materials, depth=disp_depth
+                    disp_item,
+                    crystal_rate,
+                    recipe,
+                    unlocked_schematics,
+                    sloop_items,
+                    overclock,
+                    recipe_multiplier,
+                    steps,
+                    raw_materials,
+                    depth=disp_depth,
                 )
             elif bp == "Heavy Oil Residue":
                 disp_item = "Petroleum Coke"
@@ -457,8 +500,16 @@ def generate_late_game_plan(
                 sloop_mult = 2.0 if is_slopped else 1.0
                 coke_rate = overflow_rate * (recipe["outputs"][disp_item] * sloop_mult) / recipe["inputs"][bp]
                 plan_specific_step(
-                    disp_item, coke_rate, recipe, unlocked_schematics, sloop_items, overclock, recipe_multiplier,
-                    steps, raw_materials, depth=disp_depth
+                    disp_item,
+                    coke_rate,
+                    recipe,
+                    unlocked_schematics,
+                    sloop_items,
+                    overclock,
+                    recipe_multiplier,
+                    steps,
+                    raw_materials,
+                    depth=disp_depth,
                 )
 
     # Combine steps
@@ -847,7 +898,12 @@ def generate_mermaid_flowchart(
                 recipe_dict = ALL_RECIPES[disp_item]
                 best = recipe_dict.get("best")
                 default = recipe_dict["default"]
-                if best and best.get("alternate") and best.get("schematic") and best["schematic"] in unlocked_schematics:
+                if (
+                    best
+                    and best.get("alternate")
+                    and best.get("schematic")
+                    and best["schematic"] in unlocked_schematics
+                ):
                     recipe = best
                 else:
                     recipe = default
