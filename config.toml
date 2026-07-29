@@ -2,7 +2,8 @@
 # Adjust here without touching Python code.
 
 [temporal]
-address    = "localhost:7233"
+address    = "172.28.125.187:7233"
+namespace  = "satisfactory-ai"            # personal cluster namespace
 task_queue = "satisfactory-bot"          # workflows (Docker orchestrator) + game activities (host worker)
 persist_task_queue = "satisfactory-persist"  # persistence activities (Docker orchestrator)
 

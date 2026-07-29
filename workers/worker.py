@@ -128,11 +128,12 @@ def start_fail_safe_listener(client: Client, loop: asyncio.AbstractEventLoop) ->
 async def main() -> None:
     log.setup(cfg.get("logging.level", "INFO"))
 
-    address = cfg.get("temporal.address", "localhost:7233")
+    address   = os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233")
+    namespace = os.environ.get("TEMPORAL_NAMESPACE") or cfg.get("temporal.namespace", "default")
     task_queue = cfg.get("temporal.task_queue", "satisfactory-bot")
 
-    _logger.info("Connecting to Temporal at %s ...", address)
-    client = await Client.connect(address)
+    _logger.info("Connecting to Temporal at %s (ns=%s) ...", address, namespace)
+    client = await Client.connect(address, namespace=namespace)
     _logger.info("Connected. Game-activity queue: '%s'", task_queue)
 
     loop = asyncio.get_running_loop()

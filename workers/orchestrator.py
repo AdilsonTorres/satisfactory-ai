@@ -37,8 +37,9 @@ _logger = logging.getLogger(__name__)
 async def main() -> None:
     log.setup(cfg.get("logging.level", "INFO"))
 
-    address = os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233")
-    wf_queue = cfg.get("temporal.task_queue", "satisfactory-bot")
+    address   = os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233")
+    namespace = os.environ.get("TEMPORAL_NAMESPACE") or cfg.get("temporal.namespace", "default")
+    wf_queue  = cfg.get("temporal.task_queue", "satisfactory-bot")
     persist_queue = cfg.get("temporal.persist_task_queue", "satisfactory-persist")
 
     # Retry connecting: in compose this container often starts before the
@@ -46,12 +47,12 @@ async def main() -> None:
     while True:
         try:
             _logger.info("Connecting to Temporal at %s ...", address)
-            client = await Client.connect(address)
+            client = await Client.connect(address, namespace=namespace)
             break
         except RuntimeError as exc:
             _logger.warning("Temporal not reachable yet (%s) — retrying in 5s.", exc)
             await asyncio.sleep(5)
-    _logger.info("Connected. Workflow queue: '%s' | persist queue: '%s'", wf_queue, persist_queue)
+    _logger.info("Connected. ns=%s | wf_queue='%s' | persist_queue='%s'", namespace, wf_queue, persist_queue)
 
     hostname = socket.gethostname()
     with ThreadPoolExecutor(max_workers=4, thread_name_prefix="persist") as persist_executor:
