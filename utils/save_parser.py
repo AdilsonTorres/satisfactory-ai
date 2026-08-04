@@ -149,7 +149,7 @@ class SatisfactorySave:
     without executing any unsafe code.
     """
 
-    def __init__(self, filepath: str):
+    def __init__(self, filepath: str) -> None:
         self.filepath = filepath
         self.header: dict[str, Any] = {}
         self.players: list[dict[str, Any]] = []
@@ -172,7 +172,7 @@ class SatisfactorySave:
 
         self._load_and_parse()
 
-    def _load_and_parse(self):
+    def _load_and_parse(self) -> Any:
         with open(self.filepath, "rb") as f:
             raw_data = f.read()
 
@@ -273,7 +273,7 @@ class SatisfactorySave:
             decompressed.extend(d_chunk)
         return bytes(decompressed)
 
-    def _parse_payload(self):
+    def _parse_payload(self) -> Any:
         data = self._decompressed_data
         offset = 0
 
@@ -746,7 +746,9 @@ class SatisfactorySave:
 
         return properties, offset
 
-    def _extract_players_and_inventories(self, headers: list[dict[str, Any]], objects: dict[str, dict[str, Any]]):
+    def _extract_players_and_inventories(
+        self, headers: list[dict[str, Any]], objects: dict[str, dict[str, Any]]
+    ) -> Any:
         # 1. Locate BP_PlayerState instances to get usernames and owned pawns
         player_states: dict[str, dict[str, Any]] = {}
         # Decode the default name from map options
@@ -820,7 +822,7 @@ class SatisfactorySave:
                     }
                 )
 
-    def _extract_schematics(self, objects: dict[str, dict[str, Any]]):
+    def _extract_schematics(self, objects: dict[str, dict[str, Any]]) -> Any:
         self.hard_drives_unlocked = 0
         # Extract purchased schematics (milestones)
         for obj_name, obj in objects.items():
@@ -842,7 +844,7 @@ class SatisfactorySave:
                     self.metadata["active_schematic"] = active_name
                 break
 
-    def _extract_dimensional_depot(self, objects: dict[str, dict[str, Any]]):
+    def _extract_dimensional_depot(self, objects: dict[str, dict[str, Any]]) -> Any:
         self.dimensional_depot = []
         for obj_name, obj in objects.items():
             if "CentralStorageSubsystem" in obj_name or "CentralStorageSubsystem" in obj.get("type_path", ""):
@@ -862,7 +864,7 @@ class SatisfactorySave:
                         )
                 break
 
-    def _extract_game_phase(self, objects: dict[str, dict[str, Any]]):
+    def _extract_game_phase(self, objects: dict[str, dict[str, Any]]) -> Any:
         self.game_phase = "Unknown"
         for obj_name, obj in objects.items():
             if "GamePhaseManager" in obj_name or "GamePhaseManager" in obj.get("type_path", ""):
@@ -895,7 +897,7 @@ class SatisfactorySave:
                     summary["power_slug_blue"] += 1
         return summary
 
-    def _extract_recipes(self, objects: dict[str, dict[str, Any]]):
+    def _extract_recipes(self, objects: dict[str, dict[str, Any]]) -> Any:
         self.recipes = []
         self.alternate_recipes_unlocked = 0
         for obj_name, obj in objects.items():
@@ -912,7 +914,7 @@ class SatisfactorySave:
                             self.alternate_recipes_unlocked += 1
                 break
 
-    def _extract_mam_research(self, objects: dict[str, dict[str, Any]]):
+    def _extract_mam_research(self, objects: dict[str, dict[str, Any]]) -> Any:
         self.unlocked_research_trees = []
         for obj_name, obj in objects.items():
             if "researchManager" in obj_name.lower() or "ResearchManager" in obj.get("type_path", ""):
@@ -926,7 +928,7 @@ class SatisfactorySave:
                         self.unlocked_research_trees.append(tree_name)
                 break
 
-    def _extract_resource_sink(self, objects: dict[str, dict[str, Any]]):
+    def _extract_resource_sink(self, objects: dict[str, dict[str, Any]]) -> Any:
         self.resource_sink = {
             "total_points_items": 0,
             "total_points_dna": 0,
@@ -953,7 +955,7 @@ class SatisfactorySave:
                 self.resource_sink["coupons_available"] = props.get("mNumResourceSinkCoupons") or 0
                 break
 
-    def _extract_vehicles(self, headers: list[dict[str, Any]]):
+    def _extract_vehicles(self, headers: list[dict[str, Any]]) -> Any:
         self.vehicles = {}
         for h in headers:
             type_path = h.get("type_path", "")
@@ -965,7 +967,7 @@ class SatisfactorySave:
                 readable = mapping.get(readable, readable)
                 self.vehicles[readable] = self.vehicles.get(readable, 0) + 1
 
-    def _extract_factory_buildings(self, headers: list[dict[str, Any]], objects: dict[str, dict[str, Any]]):
+    def _extract_factory_buildings(self, headers: list[dict[str, Any]], objects: dict[str, dict[str, Any]]) -> Any:
         self.factory_producers = {}
         self.factory_extractors = {}
         self.factory_generators = {}

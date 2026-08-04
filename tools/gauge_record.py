@@ -11,6 +11,7 @@ import argparse
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -18,7 +19,7 @@ import numpy as np
 from utils.vision import Vision
 
 
-def main():
+def main() -> Any:
     parser = argparse.ArgumentParser(description="Hover Pack gauge recorder")
     parser.add_argument("--duration", type=float, default=45.0, help="Recording duration in seconds (default: 45)")
     parser.add_argument(
@@ -69,24 +70,24 @@ def main():
     n = len(samples)
     if n > 1:
 
-        def X(i):
+        def X(i: Any) -> Any:
             return int(pad + (W - 2 * pad) * i / (n - 1))
 
-        def Y(frac):
+        def Y(frac: Any) -> Any:
             return int((H - pad) - (H - 2 * pad) * frac)
 
         # gridlines + labels
-        for f in (0, 0.25, 0.5, 0.75, 1.0):
-            yy = Y(f)
+        for frac in (0, 0.25, 0.5, 0.75, 1.0):
+            yy = Y(frac)
             cv2.line(img, (pad, yy), (W - pad, yy), (60, 60, 60), 1)
-            cv2.putText(img, f"{f:.2f}", (8, yy + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+            cv2.putText(img, f"{frac:.2f}", (8, yy + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
         # series
         for key, color, _default in (
             ("health", (0, 220, 0), 0.0),
             ("gauge", (0, 165, 255), None),
             ("dmg", (0, 0, 230), 0.0),
         ):
-            pts = []
+            pts: list[Any] = []
             for i, s in enumerate(samples):
                 val = s[key]
                 if val is None:
@@ -107,11 +108,11 @@ def main():
     cv2.imwrite(f"{output_dir}/gauge_timeline.png", img)
 
     # --- summary ---
-    flying = [s for s in samples if s["gauge"] is not None]
+    flying_samples = [s for s in samples if s["gauge"] is not None]
     print("\n[rec] === summary ===", flush=True)
-    print(f"[rec] samples={n}  flying={len(flying)}  grounded={n - len(flying)}", flush=True)
-    if flying:
-        gs = [s["gauge"] for s in flying]
+    print(f"[rec] samples={n}  flying={len(flying_samples)}  grounded={n - len(flying_samples)}", flush=True)
+    if flying_samples:
+        gs = [s["gauge"] for s in flying_samples]
         print(f"[rec] gauge while flying: min={min(gs):.2f} max={max(gs):.2f}", flush=True)
     hmin = min(s["health"] for s in samples)
     print(f"[rec] health min={hmin:.1f}  any-death={any(s['died'] for s in samples)}", flush=True)

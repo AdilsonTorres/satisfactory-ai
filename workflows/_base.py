@@ -6,6 +6,7 @@ Shared workflow infrastructure, mixins, and common helpers.
 
 import logging
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -54,7 +55,7 @@ async def _screenshot(label: str) -> None:
     )
 
 
-async def _save_stats(workflow_type: str, stats: dict) -> None:
+async def _save_stats(workflow_type: str, stats: dict[str, Any]) -> None:
     await workflow.execute_activity(
         persist_session_stats,
         args=[workflow_type, stats],
@@ -106,7 +107,7 @@ class _ControlMixin:
     def __init__(self) -> None:
         self._paused = False
         self._stop_requested = False
-        self._stats: dict = {"status": "running"}
+        self._stats: dict[str, Any] = {"status": "running"}
 
     @workflow.signal
     async def pause(self) -> None:
@@ -128,7 +129,7 @@ class _ControlMixin:
         workflow.logger.info("Shutdown requested.")
 
     @workflow.query
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, Any]:
         return self._stats
 
     async def _wait_if_paused(self) -> None:

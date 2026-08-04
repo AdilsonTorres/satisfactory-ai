@@ -1,4 +1,4 @@
-# Satisfactory 1.0+ Recipe Database
+from typing import Any
 
 # Each item maps to a dict:
 #   "default": The base game standard recipe
@@ -12,7 +12,7 @@
 #       "alternate": bool,
 #       "schematic": str or None      # Schematic class name to check unlock status
 #   }
-RECIPES: dict[str, dict[str, dict]] = {
+RECIPES: dict[str, dict[str, dict[str, Any]]] = {
     # --- Raw Ores & Basic Inputs ---
     # These represent base raw extractors/miners.
     # To keep recursion clean, if a node requires raw ore/liquid, it stops there.

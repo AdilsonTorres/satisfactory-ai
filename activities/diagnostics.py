@@ -5,6 +5,7 @@ Debug and diagnostic activities.
 """
 
 import logging
+from typing import Any
 
 from temporalio import activity
 
@@ -26,7 +27,7 @@ def take_debug_screenshot(label: str = "manual") -> str:
 
 
 @activity.defn
-def persist_session_stats(workflow_type: str, stats: dict) -> str:
+def persist_session_stats(workflow_type: str, stats: dict[str, Any]) -> str:
     """Saves session stats to stats/ at the end of the workflow."""
     path = stats_module.save(workflow_type, stats)
     logger.info("Stats saved: %s", path)
@@ -58,7 +59,9 @@ def capture_template_screen(screen_name: str, key_to_open: str = "", key_to_clos
 
 
 @activity.defn
-def extract_templates_from_screen(screenshot_path: str, target: str = "hud", resolution: str = "2560x1440") -> dict:
+def extract_templates_from_screen(
+    screenshot_path: str, target: str = "hud", resolution: str = "2560x1440"
+) -> dict[str, Any]:
     """Extracts regions of interest from the capture and saves them as new PNG templates."""
     from pathlib import Path
 
@@ -123,7 +126,7 @@ def extract_templates_from_screen(screenshot_path: str, target: str = "hud", res
 
 
 @activity.defn
-def verify_matching_templates(template_names: list[str]) -> dict:
+def verify_matching_templates(template_names: list[str]) -> dict[str, Any]:
     """Scans the current screen for the templates and returns the confidence status."""
     v = get_vision()
     results = v.scan_all(template_names)

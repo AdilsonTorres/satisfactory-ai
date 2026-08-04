@@ -1,9 +1,11 @@
 """Tests for utils/gift_db.py (per-doggo gift history)."""
 
+from typing import Any
+
 from utils import gift_db
 
 
-def test_record_and_summary(tmp_path):
+def test_record_and_summary(tmp_path: Any) -> None:
     db = tmp_path / "gift_history.db"
     gift_db.record_check(
         "rex", collected=True, item="Power Slug", slot_diff=95.3, ts="2026-07-04T10:00:00+00:00", db_path=db
@@ -24,7 +26,7 @@ def test_record_and_summary(tmp_path):
     assert s["first_check"] == "2026-07-04T10:00:00+00:00"
 
 
-def test_gift_intervals_per_doggo(tmp_path):
+def test_gift_intervals_per_doggo(tmp_path: Any) -> None:
     db = tmp_path / "gift_history.db"
     gift_db.record_check("rex", collected=True, ts="2026-07-04T10:00:00+00:00", db_path=db)
     gift_db.record_check("luna", collected=True, ts="2026-07-04T10:03:00+00:00", db_path=db)
@@ -34,7 +36,7 @@ def test_gift_intervals_per_doggo(tmp_path):
     assert gift_db.gift_intervals("luna", db_path=db) == []
 
 
-def test_empty_db_summary(tmp_path):
+def test_empty_db_summary(tmp_path: Any) -> None:
     s = gift_db.summary(db_path=tmp_path / "empty.db")
     assert s["total_checks"] == 0
     assert s["total_gifts"] == 0

@@ -1,3 +1,4 @@
+
 """
 label_captures.py
 
@@ -17,11 +18,11 @@ Usage:
     uv run python label_captures.py
     uv run python label_captures.py --dir captures
 """
-
 import argparse
 import os
 import shutil
 from pathlib import Path
+from typing import Any
 
 # The Qt bundled with cv2 only ships the "xcb" plugin — under Wayland
 # sessions it tries "wayland" by default and the window ends up unable to
@@ -43,7 +44,7 @@ _MAX_WINDOW_W = 1600
 _MAX_WINDOW_H = 900
 
 
-def _show_resizable(window: str, frame) -> None:
+def _show_resizable(window: str, frame: Any) -> None:
     h, w = frame.shape[:2]
     scale = min(_MAX_WINDOW_W / w, _MAX_WINDOW_H / h, 1.0)
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
@@ -51,7 +52,7 @@ def _show_resizable(window: str, frame) -> None:
     cv2.imshow(window, frame)
 
 
-def _crop_and_save(frame, name: str) -> None:
+def _crop_and_save(frame: Any, name: str) -> None:
     window = f"Crop: {name}"
     _show_resizable(window, frame)
     roi = cv2.selectROI(window, frame, fromCenter=False, showCrosshair=True)

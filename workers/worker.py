@@ -1,3 +1,4 @@
+
 """
 workers/worker.py
 
@@ -22,13 +23,13 @@ Runtime workflow control:
     temporal workflow signal --workflow-id <id> --name stop
     temporal workflow query  --workflow-id <id> --query-type get_stats
 """
-
 import asyncio
 import logging
 import os
 import socket
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from typing import Any
 
 from opentelemetry import _logs as otel_logs
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
@@ -58,7 +59,7 @@ def setup_opentelemetry() -> None:
         _logger.debug("OTLP logging setup skipped: %s", exc)
 
 
-def _is_fail_safe_key(key, configured_key_str: str) -> bool:
+def _is_fail_safe_key(key: Any, configured_key_str: str) -> bool:
     try:
         from pynput import keyboard
     except ImportError:
@@ -132,7 +133,7 @@ def start_fail_safe_listener(client: Client, loop: asyncio.AbstractEventLoop) ->
 
     fail_safe_key_str = cfg.get("input.fail_safe_key", "F9")
 
-    def on_press(key) -> None:
+    def on_press(key: Any) -> None:
         if _is_fail_safe_key(key, fail_safe_key_str):
             _logger.warning("!!! [FAIL-SAFE] Fail-safe hotkey detected!")
             asyncio.run_coroutine_threadsafe(emergency_stop(client), loop)

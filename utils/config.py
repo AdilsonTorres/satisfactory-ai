@@ -10,7 +10,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 _CONFIG_PATH = Path(__file__).parent.parent / "config.toml"
-_cache: dict | None = None
+_cache: dict[str, Any] | None = None
 
 
 # --- Pydantic Models for Validation ---
@@ -190,7 +190,7 @@ class AppConfig(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
 
-def load() -> dict:
+def load() -> dict[str, Any]:
     global _cache
     if _cache is None:
         if not _CONFIG_PATH.exists():

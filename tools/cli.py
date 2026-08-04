@@ -18,7 +18,7 @@ Usage:
 
 import argparse
 import sys
-from typing import cast
+from typing import Any, cast
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -353,7 +353,7 @@ def _find_latest_save_file() -> str | None:
     return all_files[0]
 
 
-def _track_save_progress(save) -> None:
+def _track_save_progress(save: Any) -> None:
     import json
     import os
     from datetime import datetime
@@ -677,7 +677,7 @@ def _run_plan(args: argparse.Namespace) -> None:
         _track_save_progress(save)
 
 
-def _save_map_html(map_data: dict, pois: dict, open_browser: bool = True) -> str:
+def _save_map_html(map_data: dict[str, Any], pois: dict[str, Any], open_browser: bool = True) -> str:
     import contextlib
     import os
     import webbrowser
@@ -730,10 +730,10 @@ def _save_map_html(map_data: dict, pois: dict, open_browser: bool = True) -> str
     width = max_x - min_x
     height = max_y - min_y
 
-    def map_x(v):
+    def map_x(v: Any) -> Any:
         return (v - min_x) / width * 1000
 
-    def map_y(v):
+    def map_y(v: Any) -> Any:
         return 1000 - ((v - min_y) / height * 1000)
 
     # 2. Render SVG elements

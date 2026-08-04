@@ -6,6 +6,7 @@ Lizard Doggo taming workflow.
 
 import asyncio
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 
@@ -52,7 +53,7 @@ class TameDoggoWorkflow(_ControlMixin):
         self._stats = {"attempts": 0, "fed": 0, "status": "running"}
 
     @workflow.run
-    async def run(self, max_attempts: int = 5, seconds_between_attempts: int = 15) -> dict:
+    async def run(self, max_attempts: int = 5, seconds_between_attempts: int = 15) -> dict[str, Any]:
         params = TameDoggoParams(
             max_attempts=max_attempts,
             seconds_between_attempts=seconds_between_attempts,

@@ -6,6 +6,7 @@ Depot Coal → Storage transfer workflow.
 
 import asyncio
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 
@@ -54,8 +55,8 @@ class DepotCoalToStorageWorkflow(_ControlMixin):
         interval_seconds: float = 15.0,
         max_cycles: int | None = None,
         stacks_per_cycle: int = 5,
-        _resume_stats: dict | None = None,
-    ) -> dict:
+        _resume_stats: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         params = DepotCoalParams(
             interval_seconds=interval_seconds,
             max_cycles=max_cycles,

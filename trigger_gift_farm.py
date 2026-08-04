@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+from typing import Any
 
 from temporalio.client import Client
 
@@ -7,7 +8,7 @@ from utils import config as cfg
 from workflows.gift_farm import GiftFarmWorkflow
 
 
-async def main():
+async def main() -> Any:
     parser = argparse.ArgumentParser(description="Starts the GiftFarmWorkflow (non-blocking).")
     parser.add_argument("--id", default="gift-farm-run", help="Workflow id.")
     parser.add_argument("--ammo-per-craft", type=int, default=50, help="Rifle Ammo per craft cycle.")

@@ -1,3 +1,4 @@
+
 """
 tests/test_doggo_position.py
 
@@ -6,8 +7,8 @@ Unit tests for the two-phase doggo position learning system:
 - _record_miss_or_reset / _clear_miss_count
 - Backwards compatibility with old yaw-only format
 """
-
 import json
+from typing import Any
 
 import pytest
 
@@ -21,7 +22,7 @@ from activities.inventory import (
 
 
 @pytest.fixture(autouse=True)
-def _patch_paths(tmp_path, monkeypatch):
+def _patch_paths(tmp_path: Any, monkeypatch: Any) -> Any:
     """Route all JSON persistence to a temp directory."""
     monkeypatch.setattr(
         "activities.inventory._TURN_OFFSET_PATH",
@@ -36,47 +37,47 @@ def _patch_paths(tmp_path, monkeypatch):
 # ── Position persistence ────────────────────────────────────────────────
 
 
-def test_save_and_load_position():
+def test_save_and_load_position() -> None:
     _save_doggo_position("dogginho", yaw=120, pitch=40)
     pos = _load_doggo_position("dogginho")
     assert pos == {"yaw": 120, "pitch": 40}
 
 
-def test_load_returns_none_when_no_file():
+def test_load_returns_none_when_no_file() -> None:
     assert _load_doggo_position("unknown") is None
 
 
-def test_load_returns_none_for_missing_name():
+def test_load_returns_none_for_missing_name() -> None:
     _save_doggo_position("dogginho", 100, 50)
     assert _load_doggo_position("dogginha") is None
 
 
-def test_save_overwrites_previous():
+def test_save_overwrites_previous() -> None:
     _save_doggo_position("dogginho", 100, 50)
     _save_doggo_position("dogginho", 200, 80)
     pos = _load_doggo_position("dogginho")
     assert pos == {"yaw": 200, "pitch": 80}
 
 
-def test_save_multiple_doggos():
+def test_save_multiple_doggos() -> None:
     _save_doggo_position("dogginho", 100, 50)
     _save_doggo_position("dogginha", -80, 30)
     assert _load_doggo_position("dogginho") == {"yaw": 100, "pitch": 50}
     assert _load_doggo_position("dogginha") == {"yaw": -80, "pitch": 30}
 
 
-def test_reset_removes_position():
+def test_reset_removes_position() -> None:
     _save_doggo_position("dogginho", 100, 50)
     _reset_doggo_position("dogginho")
     assert _load_doggo_position("dogginho") is None
 
 
-def test_reset_nonexistent_is_noop():
+def test_reset_nonexistent_is_noop() -> None:
     """Resetting a name that doesn't exist should not raise."""
     _reset_doggo_position("nobody")
 
 
-def test_reset_preserves_other_doggos():
+def test_reset_preserves_other_doggos() -> None:
     _save_doggo_position("dogginho", 100, 50)
     _save_doggo_position("dogginha", -80, 30)
     _reset_doggo_position("dogginho")
@@ -87,7 +88,7 @@ def test_reset_preserves_other_doggos():
 # ── Backwards compatibility with old yaw-only format ────────────────────
 
 
-def test_load_old_yaw_only_format(tmp_path):
+def test_load_old_yaw_only_format(tmp_path: Any) -> None:
     """Old format stored a bare int. New loader should read it as {yaw: N, pitch: 0}."""
     path = tmp_path / "doggo_turn_offsets.json"
     path.write_text(json.dumps({"dogginho": 150}))
@@ -98,12 +99,12 @@ def test_load_old_yaw_only_format(tmp_path):
 # ── Miss tracking ───────────────────────────────────────────────────────
 
 
-def test_miss_counter_increments():
+def test_miss_counter_increments() -> None:
     """First miss should not trigger a reset."""
     assert _record_miss_or_reset("dogginho", max_misses=3) is False
 
 
-def test_miss_counter_resets_after_max(tmp_path):
+def test_miss_counter_resets_after_max(tmp_path: Any) -> None:
     """After max_misses consecutive misses, position should be wiped."""
     _save_doggo_position("dogginho", 100, 50)
 
@@ -117,7 +118,7 @@ def test_miss_counter_resets_after_max(tmp_path):
     assert _load_doggo_position("dogginho") is None
 
 
-def test_clear_miss_count_resets_counter():
+def test_clear_miss_count_resets_counter() -> None:
     """After clearing, the next misses should start from 0."""
     _record_miss_or_reset("dogginho", max_misses=3)
     _record_miss_or_reset("dogginho", max_misses=3)
@@ -129,7 +130,7 @@ def test_clear_miss_count_resets_counter():
     assert _record_miss_or_reset("dogginho", max_misses=3) is True
 
 
-def test_miss_counter_per_doggo():
+def test_miss_counter_per_doggo() -> None:
     """Miss counters are independent per doggo."""
     _record_miss_or_reset("dogginho", max_misses=2)
     _record_miss_or_reset("dogginha", max_misses=2)

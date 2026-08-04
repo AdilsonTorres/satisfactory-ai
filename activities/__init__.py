@@ -71,3 +71,10 @@ PERSIST_ACTIVITIES: Sequence[Callable[..., Any]] = [
 ]
 
 ALL_ACTIVITIES: Sequence[Callable[..., Any]] = [*GAME_ACTIVITIES, *PERSIST_ACTIVITIES]
+__all__ = [
+    "ALL_ACTIVITIES",
+    "GAME_ACTIVITIES",
+    "PERSIST_ACTIVITIES",
+    "deposit_coal_to_storage",
+    "download_coal_from_depot",
+]

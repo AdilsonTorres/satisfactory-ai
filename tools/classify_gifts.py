@@ -10,6 +10,7 @@ import sqlite3
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -20,7 +21,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 
-def classify_gifts():
+def classify_gifts() -> Any:
     db_path = Path("stats") / "gift_history.db"
     if not db_path.exists():
         print(f"Error: Database not found at {db_path.absolute()}")
@@ -70,7 +71,7 @@ def classify_gifts():
     # Cluster images using Mean Absolute Difference (MAD)
     # If MAD < 8.0, they represent the exact same item
     threshold = 8.0
-    clusters = []  # List of dicts: {"rep": image, "records": [record_dict, ...]}
+    clusters: list[Any] = []  # List of dicts: {"rep": image, "records": [record_dict, ...]}
 
     for idx, img in enumerate(loaded_images):
         rec = records[idx]

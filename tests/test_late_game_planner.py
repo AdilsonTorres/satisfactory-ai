@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -12,7 +13,7 @@ from tools.late_game_planner import (
 )
 
 
-def test_get_readable_name():
+def test_get_readable_name() -> None:
     assert get_readable_name("Desc_SteelPipe") == "Steel Pipe"
     assert get_readable_name("Desc_Motor") == "Motor"
     assert get_readable_name("Desc_Cement") == "Concrete"
@@ -21,7 +22,7 @@ def test_get_readable_name():
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_generate_late_game_plan_simple(mock_save_class):
+def test_generate_late_game_plan_simple(mock_save_class: Any) -> None:
     # Setup mock save object
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_PureIronIngot"]
@@ -55,7 +56,7 @@ def test_generate_late_game_plan_simple(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_generate_late_game_plan_with_sloops(mock_save_class):
+def test_generate_late_game_plan_with_sloops(mock_save_class: Any) -> None:
     # Setup mock save object
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_PureIronIngot"]
@@ -94,32 +95,32 @@ def test_generate_late_game_plan_with_sloops(mock_save_class):
 VALID_ITEMS = set(ALL_RECIPES.keys())
 
 
-def test_validate_item_name_exact_match():
+def test_validate_item_name_exact_match() -> None:
     """Exact match should pass without raising."""
     validate_item_name("Ballistic Warp Drive", VALID_ITEMS)
     validate_item_name("Iron Ingot", VALID_ITEMS)
 
 
-def test_validate_item_name_typo_suggests_correction():
+def test_validate_item_name_typo_suggests_correction() -> None:
     """A close typo should raise ValueError with suggestions."""
     with pytest.raises(ValueError, match=r"Did you mean.*Ballistic Warp Drive"):
         validate_item_name("Ballist Warp Drive", VALID_ITEMS)
 
 
-def test_validate_item_name_completely_unknown():
+def test_validate_item_name_completely_unknown() -> None:
     """A completely unrelated string should raise ValueError without suggestions."""
     with pytest.raises(ValueError, match="is not recognised"):
         validate_item_name("ZZZZZZZZZZZZZ", VALID_ITEMS)
 
 
-def test_validate_item_name_custom_label():
+def test_validate_item_name_custom_label() -> None:
     """The label parameter should appear in the error message."""
     with pytest.raises(ValueError, match="Somersloop item 'Bad Name'"):
         validate_item_name("Bad Name", VALID_ITEMS, label="Somersloop item")
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_generate_late_game_plan_rejects_typo(mock_save_class):
+def test_generate_late_game_plan_rejects_typo(mock_save_class: Any) -> None:
     """generate_late_game_plan should reject a typo before parsing the save."""
     with pytest.raises(ValueError, match="Did you mean"):
         generate_late_game_plan(
@@ -134,7 +135,7 @@ def test_generate_late_game_plan_rejects_typo(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_generate_late_game_plan_rejects_bad_sloop(mock_save_class):
+def test_generate_late_game_plan_rejects_bad_sloop(mock_save_class: Any) -> None:
     """generate_late_game_plan should validate sloop item names too."""
     with pytest.raises(ValueError, match="Somersloop item"):
         generate_late_game_plan(
@@ -150,14 +151,14 @@ def test_generate_late_game_plan_rejects_bad_sloop(mock_save_class):
 # --- _resolve_item_interactive tests ---
 
 
-def test_resolve_interactive_exact_match():
+def test_resolve_interactive_exact_match() -> None:
     """Exact match should return immediately without prompting."""
     result = _resolve_item_interactive("Iron Ingot", VALID_ITEMS)
     assert result == "Iron Ingot"
 
 
 @patch("builtins.input", return_value="y")
-def test_resolve_interactive_single_suggestion_accept(mock_input):
+def test_resolve_interactive_single_suggestion_accept(mock_input: Any) -> None:
     """Single fuzzy match accepted by user should return the suggestion."""
     result = _resolve_item_interactive("Ballist Warp Drive", VALID_ITEMS)
     assert result == "Ballistic Warp Drive"
@@ -165,27 +166,27 @@ def test_resolve_interactive_single_suggestion_accept(mock_input):
 
 
 @patch("builtins.input", return_value="n")
-def test_resolve_interactive_single_suggestion_decline(mock_input):
+def test_resolve_interactive_single_suggestion_decline(mock_input: Any) -> None:
     """User declining a single suggestion should exit."""
     with pytest.raises(SystemExit):
         _resolve_item_interactive("Ballist Warp Drive", VALID_ITEMS)
 
 
 @patch("builtins.input", return_value="")
-def test_resolve_interactive_single_suggestion_default_accept(mock_input):
+def test_resolve_interactive_single_suggestion_default_accept(mock_input: Any) -> None:
     """Pressing Enter (empty input) on a single suggestion should accept it."""
     result = _resolve_item_interactive("Ballist Warp Drive", VALID_ITEMS)
     assert result == "Ballistic Warp Drive"
 
 
-def test_resolve_interactive_no_suggestions():
+def test_resolve_interactive_no_suggestions() -> None:
     """Completely unknown item with no fuzzy matches should exit."""
     with pytest.raises(SystemExit):
         _resolve_item_interactive("ZZZZZZZZZZZZZ", VALID_ITEMS)
 
 
 @patch("builtins.input", return_value="1")
-def test_resolve_interactive_multiple_suggestions_pick(mock_input):
+def test_resolve_interactive_multiple_suggestions_pick(mock_input: Any) -> None:
     """User picking from multiple suggestions should return the selected one."""
     # Use a small valid set that will produce multiple matches
     small_set = {"Iron Ingot", "Iron Rod", "Iron Plate", "Iron Ore"}
@@ -194,14 +195,14 @@ def test_resolve_interactive_multiple_suggestions_pick(mock_input):
 
 
 @patch("builtins.input", return_value="0")
-def test_resolve_interactive_multiple_suggestions_abort(mock_input):
+def test_resolve_interactive_multiple_suggestions_abort(mock_input: Any) -> None:
     """User picking 0 (abort) from multiple suggestions should exit."""
     small_set = {"Iron Ingot", "Iron Rod", "Iron Plate", "Iron Ore"}
     with pytest.raises(SystemExit):
         _resolve_item_interactive("Iron", small_set)
 
 
-def test_resolve_interactive_acronym_match():
+def test_resolve_interactive_acronym_match() -> None:
     """Exact uppercase acronym match should resolve directly without prompt."""
     assert _resolve_item_interactive("BWD", VALID_ITEMS) == "Ballistic Warp Drive"
     assert _resolve_item_interactive("SO", VALID_ITEMS) == "Superposition Oscillator"
@@ -213,7 +214,7 @@ def test_resolve_interactive_acronym_match():
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_build_guide_exists_in_plan(mock_save_class):
+def test_build_guide_exists_in_plan(mock_save_class: Any) -> None:
     """Plan output should include a build_guide key with phases."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = []
@@ -237,7 +238,7 @@ def test_build_guide_exists_in_plan(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_build_guide_phase_ordering(mock_save_class):
+def test_build_guide_phase_ordering(mock_save_class: Any) -> None:
     """Phases should be ordered by depth, with raw extraction last."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_PureIronIngot"]
@@ -262,7 +263,7 @@ def test_build_guide_phase_ordering(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_build_guide_depth_tracking(mock_save_class):
+def test_build_guide_depth_tracking(mock_save_class: Any) -> None:
     """Steps should carry depth metadata; target item should be depth 0."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = []
@@ -288,7 +289,7 @@ def test_build_guide_depth_tracking(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_generate_late_game_plan_ballistic_warp_drive(mock_save_class):
+def test_generate_late_game_plan_ballistic_warp_drive(mock_save_class: Any) -> None:
     """Test full Ballistic Warp Drive planning, verifying Superposition Oscillator rates and Dark Matter Crystal machine type."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_DarkMatter_Trap"]
@@ -324,7 +325,7 @@ def test_generate_late_game_plan_ballistic_warp_drive(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_generate_late_game_plan_locked_recipe_fallback(mock_save_class):
+def test_generate_late_game_plan_locked_recipe_fallback(mock_save_class: Any) -> None:
     """When the best alternate is locked, the planner falls back to the default recipe silently (no warning)."""
     mock_save = mock_save_class.return_value
     # No alternate schematics or recipes unlocked
@@ -352,7 +353,7 @@ def test_generate_late_game_plan_locked_recipe_fallback(mock_save_class):
     assert dmc_steps[0]["recipe_name"] != "Dark Matter Trap"  # best was locked; default used
 
 
-def test_generate_mermaid_flowchart_late_game():
+def test_generate_mermaid_flowchart_late_game() -> None:
 
     chart = generate_mermaid_flowchart(
         target_item="Iron Ingot",
@@ -368,7 +369,7 @@ def test_generate_mermaid_flowchart_late_game():
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_byproduct_overflow_and_disposal(mock_save_class):
+def test_byproduct_overflow_and_disposal(mock_save_class: Any) -> None:
     """Verify that byproduct overflow is balanced and converted to sinkable items."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_DarkMatter_Trap"]
@@ -394,7 +395,7 @@ def test_byproduct_overflow_and_disposal(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_bwd_byproduct_overflow_and_disposal(mock_save_class):
+def test_bwd_byproduct_overflow_and_disposal(mock_save_class: Any) -> None:
     """Verify that under BWD @ 10/min, sloop BWD, multiplier 0.75, with empty unlocks, Heavy Oil Residue overflows and is converted to Petroleum Coke."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = []
@@ -429,7 +430,7 @@ def test_bwd_byproduct_overflow_and_disposal(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_bwd_planner_exact_machine_counts_and_phase_isolation(mock_save_class):
+def test_bwd_planner_exact_machine_counts_and_phase_isolation(mock_save_class: Any) -> None:
     """Verify exact machine counts and phase depth isolation for Ballistic Warp Drive (10/min, 0.75 mult, overclock, slopped BWD)."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = []
@@ -473,7 +474,7 @@ def test_bwd_planner_exact_machine_counts_and_phase_isolation(mock_save_class):
 
 
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_unsinkable_fluid_capacity_warnings(mock_save_class):
+def test_unsinkable_fluid_capacity_warnings(mock_save_class: Any) -> None:
     """Verify that ONLY primary liquid items get clock speed capacity warnings."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_DarkMatter_Trap"]

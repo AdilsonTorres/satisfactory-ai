@@ -7,6 +7,7 @@ Applies the visual item identifications to the SQLite gift database.
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -40,7 +41,7 @@ CLUSTER_MAP = {
 }
 
 
-def apply_labels():
+def apply_labels() -> Any:
     db_path = Path("stats") / "gift_history.db"
     if not db_path.exists():
         print(f"Error: Database not found at {db_path.absolute()}")
@@ -83,7 +84,7 @@ def apply_labels():
 
     # Reconstruct the clusters
     threshold = 8.0
-    clusters = []  # List of dicts: {"rep": image, "records": [record_dict, ...]}
+    clusters: list[Any] = []  # List of dicts: {"rep": image, "records": [record_dict, ...]}
 
     for idx, img in enumerate(loaded_images):
         rec = records[idx]

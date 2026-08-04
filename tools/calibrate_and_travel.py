@@ -1,3 +1,4 @@
+
 """
 tools/calibrate_and_travel.py
 
@@ -5,11 +6,11 @@ Automatically calibrates camera turn sensitivity in degrees-per-pixel,
 faces the nearest main power grid pole, walks the character in range,
 and triggers sbot map to generate the powered routes.
 """
-
 import math
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -23,7 +24,7 @@ from utils.input import focus_game, hold_keys, move_mouse_relative, press  # noq
 from utils.save_parser import SatisfactorySave  # noqa: E402
 
 
-def get_player_state():
+def get_player_state() -> Any:
     save_path = _find_latest_save_file()
     if not save_path:
         raise RuntimeError("No save file found.")
@@ -48,14 +49,14 @@ def get_player_state():
     return pos, yaw, save_path
 
 
-def trigger_quicksave():
+def trigger_quicksave() -> Any:
     print("Sending Quicksave command (F5)...")
     press("f5")
     print("Waiting 5 seconds for save to write to disk...")
     time.sleep(5.0)
 
 
-def calibrate_and_travel():
+def calibrate_and_travel() -> Any:
     # 0. Focus game using D-Bus scripting
     print("Activating game window focus...")
     if not focus_game("Satisfactory"):

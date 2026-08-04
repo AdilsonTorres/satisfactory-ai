@@ -16,6 +16,7 @@ import sqlite3
 from datetime import UTC, datetime
 from itertools import pairwise
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -96,7 +97,7 @@ def gift_intervals(doggo: str, db_path: Path | None = None) -> list[float]:
     return [(b - a).total_seconds() for a, b in pairwise(times)]
 
 
-def summary(db_path: Path | None = None) -> dict:
+def summary(db_path: Path | None = None) -> dict[str, Any]:
     """Totals per doggo and per item — the raw material for reports."""
     with _connect(db_path) as conn:
         per_doggo = dict(conn.execute("SELECT doggo, SUM(collected) FROM gift_checks GROUP BY doggo").fetchall())

@@ -14,7 +14,7 @@ from workflows.exploration import ExplorationWorkflow
 
 
 @activity.defn(name="get_exploration_route")
-async def mock_get_exploration_route() -> dict:
+async def mock_get_exploration_route() -> dict[str, Any]:
     return {
         "route": [{"keys": ["w"], "duration": 2.0, "turn_dx": 0}, {"keys": ["w", "d"], "duration": 1.5, "turn_dx": 0}],
         "max_total_duration_seconds": 10.0,
@@ -44,7 +44,7 @@ async def mock_explore_leg(
     ascend_every: int,
     ascend_pulse: float,
     gauge_low_abort: float,
-) -> dict:
+) -> dict[str, Any]:
     explore_leg_calls.append({"keys": keys, "duration": duration, "turn_dx": turn_dx, "leg_idx": leg_idx})
 
     # Simulate a gauge abort on leg index 1 if requested by test
@@ -60,7 +60,7 @@ async def mock_explore_leg(
 
 
 @activity.defn(name="return_via_reverse_route")
-async def mock_return_via_reverse_route(legs_taken: list) -> None:
+async def mock_return_via_reverse_route(legs_taken: list[Any]) -> None:
     pass
 
 
@@ -97,7 +97,7 @@ async def mock_retreat_from_hazard() -> bool:
 
 # Persistence activities (run on PERSIST_TASK_QUEUE)
 @activity.defn(name="persist_session_stats")
-async def mock_persist_session_stats(workflow_type: str, stats: dict) -> None:
+async def mock_persist_session_stats(workflow_type: str, stats: dict[str, Any]) -> None:
     pass
 
 
@@ -111,11 +111,11 @@ async def mock_take_debug_screenshot(label: str) -> None:
 # =/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=/=
 
 
-def test_exploration_workflow_success():
+def test_exploration_workflow_success() -> None:
     global explore_leg_calls
     explore_leg_calls.clear()
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             # Start game activities worker and secondary persistence worker concurrently
@@ -156,11 +156,11 @@ def test_exploration_workflow_success():
     asyncio.run(run_test())
 
 
-def test_exploration_workflow_no_return():
+def test_exploration_workflow_no_return() -> None:
     global explore_leg_calls
     explore_leg_calls.clear()
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             async with (
@@ -198,11 +198,11 @@ def test_exploration_workflow_no_return():
     asyncio.run(run_test())
 
 
-def test_exploration_workflow_gauge_abort():
+def test_exploration_workflow_gauge_abort() -> None:
     global explore_leg_calls
     explore_leg_calls.clear()
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             async with (
@@ -242,7 +242,7 @@ def test_exploration_workflow_gauge_abort():
     asyncio.run(run_test())
 
 
-def test_combat_patrol_workflow():
+def test_combat_patrol_workflow() -> None:
     global combat_enemy_queue, combat_engagement_results, engage_enemy_calls
     engage_enemy_calls.clear()
 
@@ -272,7 +272,7 @@ def test_combat_patrol_workflow():
     # 1. Hog killed, 2. Spitter killed, 3. (Nuclear hog bypassed), 4. Player dies
     combat_engagement_results = ["killed", "killed", "died"]
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             async with (

@@ -9,6 +9,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import cv2
 import mss
@@ -86,7 +87,7 @@ class Vision:
     Default per-template thresholds come from config.toml[vision.thresholds].
     """
 
-    def __init__(self, monitor_index: int | None = None, threshold: float | None = None):
+    def __init__(self, monitor_index: int | None = None, threshold: float | None = None) -> None:
         idx = monitor_index if monitor_index is not None else cfg.get("vision.monitor_index", 1)
         self.sct = mss.mss()
         self.monitor = self.sct.monitors[idx]
@@ -171,7 +172,7 @@ class Vision:
             return frame
         return self.capture()[y : y + h, x : x + w]
 
-    def assess(self) -> tuple[dict, np.ndarray]:
+    def assess(self) -> tuple[dict[str, Any], np.ndarray]:
         """
         Reads the live player HUD from the bottom-left in one fast grab and
         the death overlay from a second small center grab. Returns the status
@@ -222,7 +223,7 @@ class Vision:
         }
         return status, region
 
-    def read_player_status(self) -> dict:
+    def read_player_status(self) -> dict[str, Any]:
         """Status-only wrapper around assess() (drops the HUD image)."""
         status, _ = self.assess()
         return status
@@ -252,7 +253,7 @@ class Vision:
         cos_a = np.cos(angles)
         sin_a = np.sin(angles)
 
-        def _sample_ring(radius: int):
+        def _sample_ring(radius: int) -> Any:
             """Returns (V_means, S_means, H_means) arrays of shape (_N,) for ring at given radius."""
             xs = np.clip(np.round(cx + radius * cos_a).astype(int), 1, w_max - 2)
             ys = np.clip(np.round(cy + radius * sin_a).astype(int), 1, h_max - 2)

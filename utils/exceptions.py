@@ -12,7 +12,7 @@ class SatisfactoryBotError(Exception):
 class VisionError(SatisfactoryBotError):
     """Template not found on screen with enough confidence."""
 
-    def __init__(self, template: str, confidence: float, threshold: float):
+    def __init__(self, template: str, confidence: float, threshold: float) -> None:
         self.template = template
         self.confidence = confidence
         self.threshold = threshold

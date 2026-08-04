@@ -1,9 +1,10 @@
+from typing import Any
 from unittest.mock import patch
 
 from tools.factory_planner import generate_production_plan, get_coupon_point_cost
 
 
-def test_get_coupon_point_cost():
+def test_get_coupon_point_cost() -> None:
     # Test coupon costs for different milestones
     assert get_coupon_point_cost(0) == 1000  # First coupon
     assert get_coupon_point_cost(1) == 1000  # Second
@@ -13,7 +14,7 @@ def test_get_coupon_point_cost():
 
 
 @patch("tools.factory_planner.SatisfactorySave")
-def test_generate_production_plan_item(mock_save_class):
+def test_generate_production_plan_item(mock_save_class: Any) -> None:
     # Setup mock save object
     mock_save = mock_save_class.return_value
     mock_save.schematics = ["Schematic_Alternate_PureIronIngot"]
@@ -42,7 +43,7 @@ def test_generate_production_plan_item(mock_save_class):
 
 
 @patch("tools.factory_planner.SatisfactorySave")
-def test_generate_production_plan_coupons(mock_save_class):
+def test_generate_production_plan_coupons(mock_save_class: Any) -> None:
     mock_save = mock_save_class.return_value
     # Set high coupon count to test points scaling
     mock_save.schematics = []
@@ -61,7 +62,7 @@ def test_generate_production_plan_coupons(mock_save_class):
     assert abs(plan["target_rate"] - (0.001 * 262813500 / 732956)) < 1e-4
 
 
-def test_generate_mermaid_flowchart():
+def test_generate_mermaid_flowchart() -> None:
     from tools.factory_planner import generate_mermaid_flowchart
 
     chart = generate_mermaid_flowchart("Iron Ingot", 65.0)
@@ -71,7 +72,7 @@ def test_generate_mermaid_flowchart():
 
 
 @patch("tools.factory_planner.SatisfactorySave")
-def test_generate_production_plan_with_recipe_multiplier(mock_save_class):
+def test_generate_production_plan_with_recipe_multiplier(mock_save_class: Any) -> None:
     mock_save = mock_save_class.return_value
     mock_save.schematics = []
 
@@ -91,7 +92,7 @@ def test_generate_production_plan_with_recipe_multiplier(mock_save_class):
 
 
 @patch("tools.factory_planner.SatisfactorySave")
-def test_multi_phase_recipe_multiplier_no_exponential_compounding(mock_save_class):
+def test_multi_phase_recipe_multiplier_no_exponential_compounding(mock_save_class: Any) -> None:
     """Verify recipe_multiplier does not compound exponentially (m^depth) across multi-phase trees."""
     mock_save = mock_save_class.return_value
     mock_save.schematics = []

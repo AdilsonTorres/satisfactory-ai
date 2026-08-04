@@ -1,3 +1,4 @@
+
 """
 fly_calibrate.py  (one-off, scratch)
 
@@ -13,11 +14,11 @@ here. So the user must click the game window first. This script:
   3. otherwise flies (hold Space), captures the HUD densely, descends (hold C),
      exits hover (double-tap C), and lands.
 """
-
 import argparse
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -29,22 +30,22 @@ REGION = (0, 1050, 900, 390)  # generous bottom-left corner (x, y, w, h)
 WIN_HEX = "0x06000001"
 
 
-def _win():
+def _win() -> Any:
     return subprocess.run(
         ["xdotool", "search", "--name", "Satisfactory"], capture_output=True, text=True
     ).stdout.split()[0]
 
 
-def full_frame(win):
+def full_frame(win: Any) -> Any:
     p = subprocess.run(["import", "-window", win, "png:-"], capture_output=True)
     return cv2.imdecode(np.frombuffer(p.stdout, np.uint8), cv2.IMREAD_COLOR)
 
 
-def _diff(a, b):
+def _diff(a: Any, b: Any) -> Any:
     return float(np.abs(a.astype(int) - b.astype(int)).mean())
 
 
-def main():
+def main() -> Any:
     parser = argparse.ArgumentParser(description="Hover Pack flight calibration script")
     parser.add_argument("--delay", type=float, default=12.0, help="Seconds to wait before starting (default: 12)")
     parser.add_argument(
@@ -91,7 +92,7 @@ def main():
 
     print("[fly] focus OK -- proceeding to fly.", flush=True)
 
-    def snap(tag, full=False):
+    def snap(tag: Any, full: Any = False) -> Any:
         g = v.grab_region(*REGION)
         cv2.imwrite(f"{output_dir}/cal_{tag}.png", g)
         if full:

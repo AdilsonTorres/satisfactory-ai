@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from utils.alternate_advisor import get_recipe_recommendations
 from utils.gameplay_plan import (
@@ -11,10 +12,10 @@ from utils.gameplay_plan import (
     get_guide_section_pointers,
     load_save_history,
 )
-from utils.save_parser import SatisfactorySave
+from utils.save_parser import DimensionalDepotItem, SatisfactorySave
 
 
-def _base_save():
+def _base_save() -> Any:
     save = object.__new__(SatisfactorySave)
     save.header = {"session_name": "Chilling", "play_duration_seconds": 3600}
     save.game_phase = "GP_Project_Assembly_Phase_3"
@@ -28,7 +29,7 @@ def _base_save():
         "coupons_earned_items": 10,
         "coupons_earned_dna": 1,
     }
-    save.dimensional_depot = [{"name": "Desc_IronPlate", "quantity": 42}]
+    save.dimensional_depot = [DimensionalDepotItem(item_id="Desc_IronPlate", name="Iron Plate", quantity=42)]
     save.factory_producers = {"Build_AssemblerMk1_C": 5}
     save.factory_extractors = {"Build_MinerMk1_C": 3}
     save.factory_generators = {"Build_GeneratorCoal_C": 2}
@@ -36,7 +37,7 @@ def _base_save():
     return save
 
 
-def test_build_milestone_summary():
+def test_build_milestone_summary() -> None:
     save = _base_save()
     result = build_milestone_summary(save)
     assert result == {
@@ -47,12 +48,12 @@ def test_build_milestone_summary():
     }
 
 
-def test_build_recipe_recommendations_delegates():
+def test_build_recipe_recommendations_delegates() -> None:
     save = _base_save()
     assert build_recipe_recommendations(save) == get_recipe_recommendations(save.schematics + save.recipes)
 
 
-def test_build_resource_status_with_sink():
+def test_build_resource_status_with_sink() -> None:
     save = _base_save()
     result = build_resource_status(save)
     assert result == {
@@ -62,7 +63,7 @@ def test_build_resource_status_with_sink():
     }
 
 
-def test_build_resource_status_no_sink():
+def test_build_resource_status_no_sink() -> None:
     save = _base_save()
     save.resource_sink = None
     save.dimensional_depot = []
@@ -74,7 +75,7 @@ def test_build_resource_status_no_sink():
     }
 
 
-def test_build_factory_snapshot():
+def test_build_factory_snapshot() -> None:
     save = _base_save()
     assert build_factory_snapshot(save) == {
         "producers": 5,
@@ -84,22 +85,22 @@ def test_build_factory_snapshot():
     }
 
 
-def test_load_save_history_missing_file(tmp_path):
+def test_load_save_history_missing_file(tmp_path: Any) -> None:
     assert load_save_history(str(tmp_path / "nope.json")) == []
 
 
-def test_load_save_history_corrupt_json(tmp_path):
+def test_load_save_history_corrupt_json(tmp_path: Any) -> None:
     path = tmp_path / "history.json"
     path.write_text("not json", encoding="utf-8")
     assert load_save_history(str(path)) == []
 
 
-def test_build_progress_delta_no_history():
+def test_build_progress_delta_no_history() -> None:
     save = _base_save()
     assert build_progress_delta(save, []) is None
 
 
-def test_build_progress_delta_only_self_entry():
+def test_build_progress_delta_only_self_entry() -> None:
     save = _base_save()
     history = [
         {
@@ -110,7 +111,7 @@ def test_build_progress_delta_only_self_entry():
     assert build_progress_delta(save, history) is None
 
 
-def test_build_progress_delta_with_prior():
+def test_build_progress_delta_with_prior() -> None:
     save = _base_save()
     history = [
         {
@@ -134,17 +135,17 @@ def test_build_progress_delta_with_prior():
     }
 
 
-def test_get_guide_section_pointers_reads_real_doc():
+def test_get_guide_section_pointers_reads_real_doc() -> None:
     headings = get_guide_section_pointers()
     assert len(headings) == 3
     assert not any("alternate recipe" in h.lower() for h in headings)
 
 
-def test_get_guide_section_pointers_missing_doc(tmp_path):
+def test_get_guide_section_pointers_missing_doc(tmp_path: Any) -> None:
     assert get_guide_section_pointers(str(tmp_path / "nope.md")) == []
 
 
-def test_build_gameplay_plan_aggregates():
+def test_build_gameplay_plan_aggregates() -> None:
     save = _base_save()
     history = [
         {
@@ -170,7 +171,7 @@ def test_build_gameplay_plan_aggregates():
     assert plan["delta"] is not None
 
 
-def test_load_save_history_roundtrip(tmp_path):
+def test_load_save_history_roundtrip(tmp_path: Any) -> None:
     path = tmp_path / "history.json"
     data = [{"session_name": "X", "play_duration_seconds": 10}]
     path.write_text(json.dumps(data), encoding="utf-8")

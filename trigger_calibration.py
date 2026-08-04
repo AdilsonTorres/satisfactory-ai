@@ -1,13 +1,14 @@
 import argparse
 import asyncio
 import json
+from typing import Any
 
 from temporalio.client import Client
 
 from workflows.template_orchestration import TemplateOrchestrationWorkflow
 
 
-async def main():
+async def main() -> Any:
     parser = argparse.ArgumentParser(description="Triggers the visual calibration workflow.")
     parser.add_argument(
         "--target",

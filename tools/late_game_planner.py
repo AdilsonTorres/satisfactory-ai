@@ -194,7 +194,7 @@ def plan_specific_step(
     steps: list[dict[str, Any]],
     raw_materials: dict[str, float],
     depth: int,
-):
+) -> Any:
     base_output = recipe["outputs"][item]
     machine_name = recipe["machine"]
 
@@ -267,7 +267,7 @@ def plan_step(
     raw_materials: dict[str, float],
     depth: int = 0,
     terminal_byproducts: set[str] | None = None,
-):
+) -> Any:
     if item not in ALL_RECIPES or (terminal_byproducts and item in terminal_byproducts):
         raw_materials[item] = raw_materials.get(item, 0.0) + rate
         return
@@ -783,14 +783,14 @@ def generate_mermaid_flowchart(
     """Generates a Mermaid TD flowchart of the late-game factory production tree."""
 
     class Node:
-        def __init__(self, node_id: str, label: str, depth: int, cls: str):
+        def __init__(self, node_id: str, label: str, depth: int, cls: str) -> None:
             self.node_id = node_id
             self.label = label
             self.depth = depth
             self.cls = cls
 
     class Edge:
-        def __init__(self, from_node: str, to_node: str, label: str):
+        def __init__(self, from_node: str, to_node: str, label: str) -> None:
             self.from_node = from_node
             self.to_node = to_node
             self.label = label
@@ -804,7 +804,7 @@ def generate_mermaid_flowchart(
     byproduct_raw_needs: dict[str, float] = {}
     item_depths: dict[str, int] = {}
 
-    def trace_specific(item: str, rate: float, recipe: dict[str, Any], depth: int = 1):
+    def trace_specific(item: str, rate: float, recipe: dict[str, Any], depth: int = 1) -> Any:
         nonlocal node_counter
         node_counter += 1
         node_id = f"node{node_counter}"
@@ -838,7 +838,7 @@ def generate_mermaid_flowchart(
             else:
                 trace(input_item, required_input_rate, node_id, depth + 1)
 
-    def trace(item: str, rate: float, parent_node_id: str | None = None, depth: int = 0):
+    def trace(item: str, rate: float, parent_node_id: str | None = None, depth: int = 0) -> Any:
         nonlocal node_counter
         node_counter += 1
         node_id = f"node{node_counter}"
@@ -975,7 +975,7 @@ def generate_mermaid_flowchart(
     }
     _DEFAULT_NAME = "Basic Processing"
 
-    def compile_flowchart(nodes, edges, core_depth=None):
+    def compile_flowchart(nodes: Any, edges: Any, core_depth: Any = None) -> Any:
         lines = [
             "flowchart TD",
             "    classDef raw fill:#212529,stroke:#495057,stroke-width:2px,color:#fff;",
@@ -985,7 +985,7 @@ def generate_mermaid_flowchart(
             "    classDef target fill:#ffb300,stroke:#ffe082,stroke-width:3px,color:#000;",
         ]
 
-        grouped = {}
+        grouped: dict[int, list[Any]] = {}
         for n in nodes:
             grouped.setdefault(n.depth, []).append(n)
 

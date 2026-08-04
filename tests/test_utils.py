@@ -1,10 +1,11 @@
 import json
 import logging
+from typing import Any
 
 from utils import exceptions, logger, stats
 
 
-def test_exceptions():
+def test_exceptions() -> None:
     # Test inheritance
     assert issubclass(exceptions.VisionError, exceptions.SatisfactoryBotError)
     assert issubclass(exceptions.NavigationError, exceptions.SatisfactoryBotError)
@@ -22,7 +23,7 @@ def test_exceptions():
     assert err.threshold == 0.8
 
 
-def test_stats_save(tmp_path, monkeypatch):
+def test_stats_save(tmp_path: Any, monkeypatch: Any) -> None:
     # Mock STATS_DIR with pytest's tmp_path
     monkeypatch.setattr(stats, "STATS_DIR", tmp_path)
 
@@ -45,7 +46,7 @@ def test_stats_save(tmp_path, monkeypatch):
     assert payload["mercer_spheres_collected"] == 7
 
 
-def test_logger_setup(tmp_path, monkeypatch):
+def test_logger_setup(tmp_path: Any, monkeypatch: Any) -> None:
     # Mock LOGS_DIR with pytest's tmp_path
     monkeypatch.setattr(logger, "LOGS_DIR", tmp_path)
 

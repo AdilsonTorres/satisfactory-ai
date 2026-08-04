@@ -6,6 +6,7 @@ Full Combat Expedition workflow.
 
 import asyncio
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 
@@ -87,8 +88,8 @@ class CombatExpeditionWorkflow(_ControlMixin):
         screenshot_every_kills: int = 5,
         base_location: str = "base",
         nav_timeout_seconds: int = 45,
-        _resume_stats: dict | None = None,
-    ) -> dict:
+        _resume_stats: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         params = CombatExpeditionParams(
             location=location,
             max_kills=max_kills,

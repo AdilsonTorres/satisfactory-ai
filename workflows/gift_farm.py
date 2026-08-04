@@ -78,7 +78,7 @@ class GiftFarmWorkflow(_ControlMixin):
             "status": "running",
         }
 
-    async def _check_any_doggo(self, unchecked_doggos: list[dict]) -> dict:
+    async def _check_any_doggo(self, unchecked_doggos: list[dict[str, Any]]) -> dict[str, Any]:
         try:
             result = await workflow.execute_activity(
                 collect_doggo_gift,
@@ -123,12 +123,12 @@ class GiftFarmWorkflow(_ControlMixin):
     @workflow.run
     async def run(
         self,
-        doggos: list[dict] | None = None,
+        doggos: list[dict[str, Any]] | None = None,
         ammo_per_craft: int = 50,
         screenshot_every_cycles: int = 10,
         cycle_interval_seconds: float = 75.0,
-        _resume_stats: dict | None = None,
-    ) -> dict:
+        _resume_stats: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         roster_raw: list[Any] = doggos if doggos is not None else [{"name": "doggo", "turn_dx": 0}]
         params = GiftFarmParams(
             doggos=roster_raw,

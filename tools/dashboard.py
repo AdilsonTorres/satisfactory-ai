@@ -24,7 +24,7 @@ import urllib.parse
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Add project root to sys.path
 project_root = Path(__file__).resolve().parent.parent
@@ -39,7 +39,7 @@ global_last_modified = ""
 global_watcher_active = True
 
 
-def watch_save_files():
+def watch_save_files() -> Any:
     global global_save_version, global_last_modified, global_watcher_active
     from tools.cli import _find_latest_save_file
 
@@ -110,15 +110,15 @@ def update_config_value(section_name: str, key_name: str, new_val: Any) -> bool:
 
 
 class DashboardHandler(http.server.BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
+    def log_message(self, format: Any, *args: Any) -> Any:
         # Suppress logging to stdout to keep CLI clean
         pass
 
-    def do_GET(self):
+    def do_GET(self) -> Any:
         with contextlib.suppress(ConnectionError):
             self._handle_get()
 
-    def _handle_get(self):
+    def _handle_get(self) -> Any:
         # Serve API: Watcher status (long-polling)
         if self.path.startswith("/api/watch"):
             query = self.path.split("?")[-1] if "?" in self.path else ""
@@ -216,6 +216,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     unlocked_schematics = set(plan.get("unlocked_schematics", []))
                     chart_result = gen_flowchart_std(item, rate, unlocked_schematics, return_dict=True)
 
+                chart_result = cast(dict[str, Any], chart_result)
                 flowchart = chart_result["full"]
                 phase_flowcharts = chart_result["phases"]
 
@@ -339,8 +340,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            data = self._get_stats_data()
-            self.wfile.write(json.dumps(data).encode("utf-8"))
+            data_stats = self._get_stats_data()
+            self.wfile.write(json.dumps(data_stats).encode("utf-8"))
             return
 
         # Serve API: Live Temporal Audit Log
@@ -348,8 +349,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            data = self._get_temporal_audit_log()
-            self.wfile.write(json.dumps(data).encode("utf-8"))
+            data_audit = self._get_temporal_audit_log()
+            self.wfile.write(json.dumps(data_audit).encode("utf-8"))
             return
 
         # Serve API: Screenshots List
@@ -357,8 +358,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            data = self._get_screenshots_list()
-            self.wfile.write(json.dumps(data).encode("utf-8"))
+            data_shots = self._get_screenshots_list()
+            self.wfile.write(json.dumps(data_shots).encode("utf-8"))
             return
 
         # Serve API: Live Map HTML
@@ -391,7 +392,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         html = self._get_dashboard_html()
         self.wfile.write(html.encode("utf-8"))
 
-    def _trigger_workflow_async(self, wf_type: str, params: dict):
+    def _trigger_workflow_async(self, wf_type: str, params: dict[str, Any]) -> Any:
         import asyncio
 
         from temporalio.client import Client
@@ -401,7 +402,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         from workflows.gift_farm import GiftFarmWorkflow
         from workflows.template_orchestration import TemplateOrchestrationWorkflow
 
-        async def run():
+        async def run() -> Any:
             try:
                 client = await Client.connect("localhost:7233")
                 if wf_type == "calibration":
@@ -439,13 +440,13 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
         asyncio.run(run())
 
-    def _run_schedule_action_async(self, action: str, name: str):
+    def _run_schedule_action_async(self, action: str, name: str) -> Any:
         import argparse
         import asyncio
 
         import schedule_gift_farm
 
-        async def run():
+        async def run() -> Any:
             try:
                 args = argparse.Namespace(name=name)
                 if action == "pause":
@@ -457,7 +458,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
         asyncio.run(run())
 
-    def _get_stats_data(self) -> dict:
+    def _get_stats_data(self) -> dict[str, Any]:
         db_path = Path("stats") / "gift_history.db"
         gift_summary: dict[str, Any] = {"total_checks": 0, "collected_count": 0, "by_doggo": {}}
         if db_path.exists():
@@ -490,19 +491,19 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             "recent_runs": recent_runs,
         }
 
-    def _get_temporal_audit_log(self) -> list[dict]:
+    def _get_temporal_audit_log(self) -> list[dict[str, Any]]:
         import asyncio
 
         from temporalio.client import Client
 
-        async def run():
+        async def run() -> Any:
             items = []
             try:
                 client = await Client.connect("localhost:7233")
                 async for handle in client.list_workflows(limit=15):
                     try:
-                        desc = await handle.describe()
-                        status_str = desc.status.name if hasattr(desc.status, "name") else str(desc.status)
+                        desc = await client.get_workflow_handle(handle.id).describe()
+                        status_str = getattr(desc.status, "name", str(desc.status)) if desc.status else "UNKNOWN"
                         start_str = desc.start_time.strftime("%Y-%m-%d %H:%M:%S") if desc.start_time else ""
                         close_str = desc.close_time.strftime("%Y-%m-%d %H:%M:%S") if desc.close_time else "Active"
 
@@ -530,7 +531,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
         return asyncio.run(run())
 
-    def _get_screenshots_list(self) -> list[dict]:
+    def _get_screenshots_list(self) -> list[dict[str, Any]]:
         screenshot_dir = Path("debug_screenshots")
         if not screenshot_dir.exists():
             return []

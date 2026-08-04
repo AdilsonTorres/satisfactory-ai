@@ -10,6 +10,7 @@ import json
 import math
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -22,17 +23,17 @@ from tools.cli import _find_latest_save_file  # noqa: E402
 from utils.save_parser import SatisfactorySave  # noqa: E402
 
 
-def dist_3d(p1, p2):
+def dist_3d(p1: Any, p2: Any) -> Any:
     return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2)
 
 
-def get_node_range(type_path):
+def get_node_range(type_path: Any) -> Any:
     if "PowerTower" in type_path:
         return 15000.0  # 150m for Power Towers
     return 3000.0  # 30m standard Hover Pack range
 
 
-def generate_power_map():
+def generate_power_map() -> Any:
     save_path = _find_latest_save_file()
     if not save_path:
         print("Error: No save file found.")
@@ -53,7 +54,7 @@ def generate_power_map():
 
     # Extract all Build_ objects as potential power nodes
     nodes = {}
-    pois = {
+    pois: Any = {
         "lizard_doggos": [],
         "drop_pods": [],
         "enemy_nests": [],
@@ -136,7 +137,7 @@ def generate_power_map():
     node_list = list(nodes.values())
     node_positions = np.array([n["pos"] for n in node_list])
 
-    connections = {n["id"]: [] for n in node_list}
+    connections: Any = {n["id"]: [] for n in node_list}
     matched_lines = []
 
     for line in lines:
@@ -263,7 +264,7 @@ def generate_power_map():
     return {"map": map_data, "pois": pois}
 
 
-def generate_route_suggestions(reachable_nodes, connections, player_pos):
+def generate_route_suggestions(reachable_nodes: Any, connections: Any, player_pos: Any) -> Any:
     if not reachable_nodes:
         return []
 

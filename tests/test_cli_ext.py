@@ -1,6 +1,7 @@
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +13,7 @@ import trigger_gift_farm
 from tools import cli
 
 
-def test_cli_draw_args_parsing():
+def test_cli_draw_args_parsing() -> None:
     """Verify that --draw and --draw-html flags are parsed correctly for factory plans."""
     parser = cli.create_parser()
 
@@ -37,7 +38,7 @@ def test_cli_draw_args_parsing():
     assert parsed_lg_html.draw_html is True
 
 
-def test_save_flowchart_html():
+def test_save_flowchart_html() -> None:
     """Verify that _save_flowchart_html correctly generates and saves an HTML flowchart."""
     markup = "graph TD\n    A --> B"
     with patch("webbrowser.open") as mock_open:
@@ -53,7 +54,7 @@ def test_save_flowchart_html():
 
 @pytest.mark.asyncio
 @patch("temporalio.client.Client.connect")
-async def test_run_status_offline(mock_connect):
+async def test_run_status_offline(mock_connect: Any) -> None:
     """Test that _run_status behaves correctly if Temporal is unreachable."""
     mock_connect.side_effect = RuntimeError("Connection refused")
 
@@ -63,7 +64,7 @@ async def test_run_status_offline(mock_connect):
 
 @pytest.mark.asyncio
 @patch("schedule_gift_farm.status", new_callable=AsyncMock)
-async def test_run_schedules_list(mock_status):
+async def test_run_schedules_list(mock_status: Any) -> None:
     """Test that schedules list routes properly to schedule_gift_farm.status."""
     args = argparse.Namespace()
     args.action = "list"
@@ -81,7 +82,7 @@ async def test_run_schedules_list(mock_status):
 # ==============================================================================
 @pytest.mark.asyncio
 @patch("temporalio.client.Client.connect")
-async def test_trigger_exploration(mock_connect):
+async def test_trigger_exploration(mock_connect: Any) -> None:
     """Test trigger_exploration script execution."""
     mock_client = MagicMock()
     mock_client.execute_workflow = AsyncMock(return_value={"status": "completed"})
@@ -99,7 +100,7 @@ async def test_trigger_exploration(mock_connect):
 
 @pytest.mark.asyncio
 @patch("temporalio.client.Client.connect")
-async def test_trigger_calibration(mock_connect):
+async def test_trigger_calibration(mock_connect: Any) -> None:
     """Test trigger_calibration script execution."""
     mock_client = MagicMock()
     mock_client.execute_workflow = AsyncMock(return_value={"success": True})
@@ -117,7 +118,7 @@ async def test_trigger_calibration(mock_connect):
 
 @pytest.mark.asyncio
 @patch("temporalio.client.Client.connect")
-async def test_trigger_depot_coal(mock_connect):
+async def test_trigger_depot_coal(mock_connect: Any) -> None:
     """Test trigger_depot_coal script execution."""
     mock_client = MagicMock()
     mock_handle = MagicMock()
@@ -148,7 +149,7 @@ async def test_trigger_depot_coal(mock_connect):
 
 @pytest.mark.asyncio
 @patch("temporalio.client.Client.connect")
-async def test_trigger_gift_farm(mock_connect):
+async def test_trigger_gift_farm(mock_connect: Any) -> None:
     """Test trigger_gift_farm script execution."""
     mock_client = MagicMock()
     mock_handle = MagicMock()
@@ -177,7 +178,7 @@ async def test_trigger_gift_farm(mock_connect):
     assert call_args[1]["args"][1:] == [40, 5, 120.0]
 
 
-def test_map_draw_html_arg_parsing():
+def test_map_draw_html_arg_parsing() -> None:
     """Verify that --draw-html option is parsed correctly for the map subcommand."""
     parser = cli.create_parser()
     parsed = parser.parse_args(["map", "--draw-html"])
@@ -187,7 +188,7 @@ def test_map_draw_html_arg_parsing():
     assert parsed_no_draw.draw_html is False
 
 
-def test_dashboard_arg_parsing():
+def test_dashboard_arg_parsing() -> None:
     """Verify that dashboard subcommand is parsed correctly with --port option."""
     parser = cli.create_parser()
     parsed = parser.parse_args(["dashboard", "--port", "9000"])
@@ -196,7 +197,7 @@ def test_dashboard_arg_parsing():
 
 
 @patch("tools.dashboard.start_server")
-def test_run_dashboard_invokes_start_server(mock_start_server):
+def test_run_dashboard_invokes_start_server(mock_start_server: Any) -> None:
     """Verify that _run_dashboard invokes tools.dashboard.start_server."""
     args = argparse.Namespace()
     args.port = 8888
@@ -204,7 +205,7 @@ def test_run_dashboard_invokes_start_server(mock_start_server):
     mock_start_server.assert_called_once_with(8888)
 
 
-def test_save_map_html():
+def test_save_map_html() -> None:
     """Verify that _save_map_html correctly writes the map file."""
     map_data = {
         "stats": {
@@ -232,7 +233,7 @@ def test_save_map_html():
         path.unlink()
 
 
-def test_dashboard_handler_endpoints():
+def test_dashboard_handler_endpoints() -> None:
     """Verify that DashboardHandler internal methods run without error and return expected structures."""
     from tools.dashboard import DashboardHandler
 
@@ -248,7 +249,7 @@ def test_dashboard_handler_endpoints():
     assert isinstance(screenshots, list)
 
 
-def test_dashboard_watcher_thread():
+def test_dashboard_watcher_thread() -> None:
     """Verify watcher globals are present and initialized."""
     import tools.dashboard as db
 
@@ -257,7 +258,7 @@ def test_dashboard_watcher_thread():
     assert hasattr(db, "global_watcher_active")
 
 
-def test_update_config_value():
+def test_update_config_value() -> None:
     """Verify that update_config_value correctly updates properties inside config.toml."""
     from tools.dashboard import update_config_value
 
@@ -280,14 +281,14 @@ def test_update_config_value():
             temp_config.unlink()
 
 
-def test_dist_3d_calculation():
+def test_dist_3d_calculation() -> None:
     """Verify 3D distance calculations in map_power."""
     from tools.map_power import dist_3d
 
     assert dist_3d([0, 0, 0], [300, 400, 0]) == 500.0
 
 
-def test_async_workflow_and_schedule_triggers():
+def test_async_workflow_and_schedule_triggers() -> None:
     """Verify that _trigger_workflow_async and _run_schedule_action_async map parameters correctly."""
     from tools.dashboard import DashboardHandler
 
@@ -306,7 +307,7 @@ def test_async_workflow_and_schedule_triggers():
         mock_pause.assert_called_once()
 
 
-def test_dashboard_imports():
+def test_dashboard_imports() -> None:
     """Verify that dashboard module contains start_server and handler."""
     from tools import dashboard
 
@@ -314,7 +315,7 @@ def test_dashboard_imports():
     assert hasattr(dashboard, "DashboardHandler")
 
 
-def test_cli_start_command():
+def test_cli_start_command() -> None:
     """Verify that sbot start executes the boot sequence for compose, worker, and dashboard."""
     import argparse
 
@@ -338,8 +339,9 @@ def test_cli_start_command():
         mock_proc.terminate.assert_called_once()
 
 
-def test_dashboard_audit_log():
+def test_dashboard_audit_log() -> None:
     """Verify that _get_temporal_audit_log safely returns items when Temporal handles list_workflows."""
+    from collections.abc import AsyncGenerator
     from datetime import datetime
 
     from tools.dashboard import DashboardHandler
@@ -352,10 +354,10 @@ def test_dashboard_audit_log():
         mock_connect.return_value = mock_client
 
         # Mock async iterator list_workflows
-        async def mock_list_workflows(*args, **kwargs):
+        async def mock_list_workflows(*args: Any, **kwargs: Any) -> AsyncGenerator[Any]:
             mock_handle = MagicMock()
 
-            async def mock_describe():
+            async def mock_describe() -> Any:
                 desc = MagicMock()
                 desc.id = "test-id"
                 desc.workflow_type = "test-type"
@@ -366,6 +368,7 @@ def test_dashboard_audit_log():
                 return desc
 
             mock_handle.describe = mock_describe
+            mock_client.get_workflow_handle.return_value = mock_handle
             yield mock_handle
 
         mock_client.list_workflows = mock_list_workflows
@@ -376,7 +379,7 @@ def test_dashboard_audit_log():
         assert logs[0]["principal"] == "test-principal"
 
 
-def test_dashboard_map_generation_and_planner_resolution():
+def test_dashboard_map_generation_and_planner_resolution() -> None:
     """Verify that _get_map_html generates the file and the planner handles acronyms."""
     from tools.dashboard import DashboardHandler
 
@@ -427,7 +430,7 @@ def test_dashboard_map_generation_and_planner_resolution():
                 html_file.unlink()
 
 
-def test_dashboard_planner_sloop_acronym_resolution():
+def test_dashboard_planner_sloop_acronym_resolution() -> None:
     """Verify that Somersloop items are successfully resolved to full names before planning."""
     from tools.dashboard import DashboardHandler
 
@@ -463,7 +466,7 @@ def test_dashboard_planner_sloop_acronym_resolution():
 
 @patch("tools.cli._find_latest_save_file")
 @patch("tools.late_game_planner.SatisfactorySave")
-def test_cli_plan_late_game_bwd_disposal(mock_save_class, mock_find_save):
+def test_cli_plan_late_game_bwd_disposal(mock_save_class: Any, mock_find_save: Any) -> None:
     """Test that sbot plan-late-game output prints the disposal items (like Petroleum Coke)."""
     mock_find_save.return_value = "mock_save.sav"
     mock_save = mock_save_class.return_value
@@ -506,7 +509,7 @@ def test_cli_plan_late_game_bwd_disposal(mock_save_class, mock_find_save):
     assert "Heavy Oil Residue" not in raw_extraction_section
 
 
-def test_dashboard_api_planner_bwd_disposal():
+def test_dashboard_api_planner_bwd_disposal() -> None:
     """Verify that the dashboard api planner response includes the disposal items."""
     import json
 

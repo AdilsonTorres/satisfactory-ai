@@ -6,6 +6,7 @@ Manual Resource Harvesting workflow.
 
 import asyncio
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 
@@ -55,8 +56,8 @@ class ResourceHarvestWorkflow(_ControlMixin):
         swings_per_cycle: int = 20,
         cycles: int = 0,
         screenshot_every_cycles: int = 10,
-        _resume_stats: dict | None = None,
-    ) -> dict:
+        _resume_stats: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         params = ResourceHarvestParams(
             swings_per_cycle=swings_per_cycle,
             cycles=cycles,

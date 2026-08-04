@@ -22,7 +22,7 @@ from workflows.gift_farm import GiftFarmWorkflow
 
 
 @activity.defn(name="persist_session_stats")
-async def mock_persist_session_stats(workflow_type: str, stats: dict) -> None:
+async def mock_persist_session_stats(workflow_type: str, stats: dict[str, Any]) -> None:
     pass
 
 
@@ -32,7 +32,7 @@ async def mock_take_debug_screenshot(label: str) -> None:
 
 
 @activity.defn(name="record_gift_check")
-async def mock_record_gift_check(result: dict) -> None:
+async def mock_record_gift_check(result: dict[str, Any]) -> None:
     pass
 
 
@@ -69,7 +69,7 @@ inventory_full_responses: list[bool] = []
 
 
 @activity.defn(name="collect_doggo_gift")
-async def mock_collect_doggo_gift(doggos: list[dict]) -> dict:
+async def mock_collect_doggo_gift(doggos: list[dict[str, Any]]) -> dict[str, Any]:
     if gift_results:
         return gift_results.pop(0)
     # Default: nothing collected
@@ -106,13 +106,13 @@ async def mock_navigate_back_to_base() -> None:
 # ==============================================================================
 
 
-def test_depot_coal_workflow_fixed_cycles():
+def test_depot_coal_workflow_fixed_cycles() -> None:
     """Runs 3 cycles and verifies stacks_transferred is correctly accumulated."""
     global download_calls, deposit_calls
     download_calls.clear()
     deposit_calls.clear()
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             async with (
@@ -150,7 +150,7 @@ def test_depot_coal_workflow_fixed_cycles():
     asyncio.run(run_test())
 
 
-def test_depot_coal_workflow_deposited_undefined_bug_regression():
+def test_depot_coal_workflow_deposited_undefined_bug_regression() -> None:
     """
     Regression test: if deposit_coal_to_storage raises, the workflow must
     NOT crash with a NameError on `deposited`. It should log the error and
@@ -163,7 +163,7 @@ def test_depot_coal_workflow_deposited_undefined_bug_regression():
     async def mock_deposit_raises() -> int:
         raise RuntimeError("Storage chest not found")
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             async with (
@@ -204,7 +204,7 @@ def test_depot_coal_workflow_deposited_undefined_bug_regression():
 # ==============================================================================
 
 
-def test_gift_farm_workflow_collects_gift_and_crafts():
+def test_gift_farm_workflow_collects_gift_and_crafts() -> None:
     """
     One cycle with a gift collected + full inventory → craft should trigger.
     """
@@ -218,7 +218,7 @@ def test_gift_farm_workflow_collects_gift_and_crafts():
     gift_results.append({"doggo": "rex", "collected": True, "item": "nobelisk", "slot_diff": 1})
     inventory_full_responses.append(True)
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             async with (
@@ -269,7 +269,7 @@ def test_gift_farm_workflow_collects_gift_and_crafts():
     asyncio.run(run_test())
 
 
-def test_gift_farm_workflow_no_gift_skips_inventory_check():
+def test_gift_farm_workflow_no_gift_skips_inventory_check() -> None:
     """
     When no gift is collected, check_inventory_full must NOT be called
     (it's expensive menu churn and that's the whole optimization point).
@@ -291,7 +291,7 @@ def test_gift_farm_workflow_no_gift_skips_inventory_check():
     # No gift available
     gift_results.append({"doggo": "buddy", "collected": False, "item": None, "slot_diff": 0})
 
-    async def run_test():
+    async def run_test() -> Any:
         env = await WorkflowEnvironment.start_time_skipping()
         try:
             async with (

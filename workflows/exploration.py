@@ -7,6 +7,7 @@ Exploration workflow doing blind route runs and health/death monitoring.
 import asyncio
 import math
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -72,7 +73,7 @@ class ExplorationWorkflow(_ControlMixin):
         max_total_duration_seconds: float | None = None,
         ignore_health_check: bool = False,
         no_return: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         params = ExplorationParams(
             max_total_duration_seconds=max_total_duration_seconds,
             ignore_health_check=ignore_health_check,
@@ -95,7 +96,7 @@ class ExplorationWorkflow(_ControlMixin):
         max_total_duration_seconds: float | None,
         ignore_health_check: bool = False,
         no_return: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         route_cfg = await workflow.execute_activity(
             get_exploration_route,
             schedule_to_close_timeout=timedelta(seconds=10),
@@ -119,7 +120,7 @@ class ExplorationWorkflow(_ControlMixin):
             retry_policy=RetryPolicy(maximum_attempts=1),
         )
 
-        legs_taken: list[dict] = []
+        legs_taken: list[dict[str, Any]] = []
         elapsed = 0.0
         died_mid_route = False
 

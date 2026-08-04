@@ -6,6 +6,7 @@ AFK Session workflow coordinating gift farming and combat.
 
 import asyncio
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 
@@ -58,8 +59,8 @@ class AfkSessionWorkflow(_ControlMixin):
         combat_kills_per_rotation: int = 5,
         total_rotations: int = 20,
         screenshot_every_rotations: int = 1,
-        _resume_stats: dict | None = None,
-    ) -> dict:
+        _resume_stats: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         if _resume_stats is not None:
             self._stats = _resume_stats
         try:
@@ -77,7 +78,7 @@ class AfkSessionWorkflow(_ControlMixin):
         combat_kills_per_rotation: int,
         total_rotations: int,
         screenshot_every_rotations: int,
-    ) -> dict:
+    ) -> dict[str, Any]:
         # On continue-as-new, _stats["rotation"] holds the last started
         # rotation, so a resumed run picks up where the old one left off.
         for rotation in range(self._stats["rotation"], total_rotations):

@@ -1,9 +1,11 @@
+from typing import Any
+
 import pytest
 
 from utils import config
 
 
-def test_config_load():
+def test_config_load() -> None:
     # Make sure we can load the config file
     cfg = config.load()
     assert isinstance(cfg, dict)
@@ -11,7 +13,7 @@ def test_config_load():
     assert "vision" in cfg
 
 
-def test_config_get_existing():
+def test_config_get_existing() -> None:
     # Test getting standard values
     addr = config.get("temporal.address")
     assert addr == "172.28.125.187:7233"
@@ -20,20 +22,20 @@ def test_config_get_existing():
     assert tq == "satisfactory-bot"
 
 
-def test_config_get_nested():
+def test_config_get_nested() -> None:
     # Test nested dict lookups
     gift_thr = config.get("vision.thresholds.gift_prompt")
     assert isinstance(gift_thr, float)
     assert gift_thr > 0.0
 
 
-def test_config_get_default():
+def test_config_get_default() -> None:
     # Test getting non-existent keys returns the specified default
     assert config.get("nonexistent.key", "default_val") == "default_val"
     assert config.get("temporal.nonexistent", None) is None
 
 
-def test_config_reload():
+def test_config_reload() -> None:
     # Verify reload clears the cache
     config.reload()
     assert config._cache is None
@@ -44,7 +46,7 @@ def test_config_reload():
     assert config._cache is None
 
 
-def test_config_missing_file(monkeypatch, tmp_path):
+def test_config_missing_file(monkeypatch: Any, tmp_path: Any) -> None:
     # Set config path to a non-existent file and check load error
     missing_file = tmp_path / "missing_config.toml"
     monkeypatch.setattr(config, "_CONFIG_PATH", missing_file)

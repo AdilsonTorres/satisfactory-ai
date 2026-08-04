@@ -1,7 +1,7 @@
 from utils.alternate_advisor import get_recipe_recommendations
 
 
-def test_get_recipe_recommendations_all_missing():
+def test_get_recipe_recommendations_all_missing() -> None:
     res = get_recipe_recommendations([])
     assert res["total_ranked_unlocked"] == 0
     assert len(res["unlocked"]["S"]) == 0
@@ -21,7 +21,7 @@ def test_get_recipe_recommendations_all_missing():
     assert any("Target hard drives to unlock missing S-Tier" in a for a in res["advice"])
 
 
-def test_get_recipe_recommendations_some_unlocked():
+def test_get_recipe_recommendations_some_unlocked() -> None:
     # Unlock Diluted Fuel (S), Steel Screw (A), Cast Screw (F), Recycled Rubber (A), and Stitched Iron Plate (B)
     unlocked = [
         "Schematic_Alternate_DilutedFuel",  # Diluted Fuel

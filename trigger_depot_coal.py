@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+from typing import Any
 
 from temporalio.client import Client
 
@@ -7,7 +8,7 @@ from utils import config as cfg
 from workflows.depot_coal import DepotCoalToStorageWorkflow
 
 
-async def main():
+async def main() -> Any:
     parser = argparse.ArgumentParser(description="Starts the DepotCoalToStorageWorkflow (non-blocking).")
     parser.add_argument("--id", default="depot-coal-run", help="Workflow id.")
     parser.add_argument("--interval", type=float, default=15.0, help="Seconds to sleep between cycles.")

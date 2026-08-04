@@ -6,6 +6,7 @@ using Pydantic for validation and fast serialization.
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -19,7 +20,7 @@ class SessionStats(BaseModel):
     saved_at: datetime
 
 
-def save(workflow_type: str, stats: dict) -> Path:
+def save(workflow_type: str, stats: dict[str, Any]) -> Path:
     STATS_DIR.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     path = STATS_DIR / f"{ts}_{workflow_type}.json"

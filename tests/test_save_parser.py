@@ -1,5 +1,6 @@
 import struct
 import zlib
+from typing import Any
 
 from utils.save_parser import (
     SatisfactorySave,
@@ -12,21 +13,21 @@ from utils.save_parser import (
 )
 
 
-def test_read_uint8():
+def test_read_uint8() -> None:
     data = struct.pack("<B", 255)
     val, offset = read_uint8(data, 0)
     assert val == 255
     assert offset == 1
 
 
-def test_read_int32():
+def test_read_int32() -> None:
     data = struct.pack("<i", -42)
     val, offset = read_int32(data, 0)
     assert val == -42
     assert offset == 4
 
 
-def test_read_string_ascii():
+def test_read_string_ascii() -> None:
     s = "Hello"
     encoded = s.encode("utf-8") + b"\0"
     data = struct.pack("<i", len(encoded)) + encoded
@@ -35,7 +36,7 @@ def test_read_string_ascii():
     assert offset == 4 + len(encoded)
 
 
-def test_read_string_utf16():
+def test_read_string_utf16() -> None:
     s = "Hello"
     encoded = s.encode("utf-16-le") + b"\0\0"
     # 6 characters (5 + 1 null terminator) -> length -6
@@ -45,14 +46,14 @@ def test_read_string_utf16():
     assert offset == 4 + len(encoded)
 
 
-def test_read_string_empty():
+def test_read_string_empty() -> None:
     data = struct.pack("<i", 0)
     val, offset = read_string(data, 0)
     assert val == ""
     assert offset == 4
 
 
-def test_read_object_ref():
+def test_read_object_ref() -> None:
     # object ref consists of levelName and pathName
     data = bytearray()
     # levelName
@@ -70,7 +71,7 @@ def test_read_object_ref():
     assert offset == len(data)
 
 
-def test_read_package_names():
+def test_read_package_names() -> None:
     # package names helper tests
     data = bytearray()
     data.extend(struct.pack("<I", 1))  # flag1
@@ -92,7 +93,7 @@ def test_read_package_names():
     assert offset == len(data)
 
 
-def test_read_version_data():
+def test_read_version_data() -> None:
     data = bytearray()
     data.extend(struct.pack("<I", 123))  # version
     data.extend(struct.pack("<I", 456))  # ue4
@@ -186,7 +187,7 @@ def make_dummy_payload() -> bytes:
     return bytes(payload)
 
 
-def test_satisfactory_save_parser(tmp_path):
+def test_satisfactory_save_parser(tmp_path: Any) -> None:
     payload = make_dummy_payload()
     save_bytes = make_dummy_save_data(payload)
 
@@ -213,7 +214,7 @@ def test_satisfactory_save_parser(tmp_path):
     assert len(save.collected_objects) == 0
 
 
-def test_extract_dimensional_depot():
+def test_extract_dimensional_depot() -> None:
     objects = {
         "Persistent_Level:PersistentLevel.CentralStorageSubsystem": {
             "type_path": "/Script/FactoryGame.FGCentralStorageSubsystem",
@@ -249,7 +250,7 @@ def test_extract_dimensional_depot():
     assert save.dimensional_depot[1]["quantity"] == 100
 
 
-def test_extract_game_phase():
+def test_extract_game_phase() -> None:
     objects = {
         "Persistent_Level:PersistentLevel.GamePhaseManager": {
             "type_path": "/Script/FactoryGame.FGGamePhaseManager",
@@ -267,7 +268,7 @@ def test_extract_game_phase():
     assert save.game_phase == "GP_Project_Assembly_Phase_1"
 
 
-def test_extract_schematics_with_hard_drives():
+def test_extract_schematics_with_hard_drives() -> None:
     objects = {
         "Persistent_Level:PersistentLevel.schematicManager": {
             "type_path": "/Script/FactoryGame.FGSchematicManager",
@@ -295,7 +296,7 @@ def test_extract_schematics_with_hard_drives():
     assert save.hard_drives_unlocked == 1
 
 
-def test_collected_collectibles_summary():
+def test_collected_collectibles_summary() -> None:
     save = object.__new__(SatisfactorySave)
     save.collected_objects = [
         "Persistent_Level:PersistentLevel.BP_Somersloop_C_0",
@@ -312,7 +313,7 @@ def test_collected_collectibles_summary():
     assert summary["power_slug_purple"] == 1
 
 
-def test_extract_recipes():
+def test_extract_recipes() -> None:
     objects = {
         "Persistent_Level:PersistentLevel.recipeManager": {
             "type_path": "/Script/FactoryGame.FGRecipeManager",
@@ -340,7 +341,7 @@ def test_extract_recipes():
     assert save.alternate_recipes_unlocked == 1
 
 
-def test_extract_mam_research():
+def test_extract_mam_research() -> None:
     objects = {
         "Persistent_Level:PersistentLevel.researchManager": {
             "type_path": "/Script/FactoryGame.FGResearchManager",
@@ -360,7 +361,7 @@ def test_extract_mam_research():
     assert "Research_PowerSlugs" in save.unlocked_research_trees
 
 
-def test_extract_resource_sink():
+def test_extract_resource_sink() -> None:
     objects = {
         "Persistent_Level:PersistentLevel.ResourceSinkSubsystem": {
             "type_path": "/Script/FactoryGame.FGResourceSinkSubsystem",
@@ -382,7 +383,7 @@ def test_extract_resource_sink():
     assert save.resource_sink["coupons_available"] == 3
 
 
-def test_extract_vehicles():
+def test_extract_vehicles() -> None:
     headers = [
         {"type_path": "/Game/FactoryGame/Buildable/Vehicle/Tractor/BP_Tractor.BP_Tractor_C"},
         {"type_path": "/Game/FactoryGame/Buildable/Vehicle/Tractor/BP_Tractor.BP_Tractor_C"},
@@ -398,7 +399,7 @@ def test_extract_vehicles():
     assert save.vehicles["Factory Cart"] == 1
 
 
-def test_extract_factory_buildings():
+def test_extract_factory_buildings() -> None:
     headers = [
         {"type_path": "/Game/FactoryGame/Buildable/Factory/Constructor/Build_Constructor.Build_Constructor_C"},
         {"type_path": "/Game/FactoryGame/Buildable/Factory/Assembler/Build_Assembler.Build_Assembler_C"},
@@ -423,12 +424,12 @@ def test_extract_factory_buildings():
     assert save.factory_batteries == 1
 
 
-def test_find_latest_save_file(tmp_path, monkeypatch):
+def test_find_latest_save_file(tmp_path: Any, monkeypatch: Any) -> None:
     import os
 
     from tools.cli import _find_latest_save_file
 
-    def mock_expanduser(path):
+    def mock_expanduser(path: Any) -> Any:
         if "~/.local/share" in path:
             return str(tmp_path / "local")
         elif "~/FactoryGame" in path:
@@ -484,7 +485,7 @@ def test_find_latest_save_file(tmp_path, monkeypatch):
     assert os.path.basename(latest) == "new_save.sav"
 
 
-def test_track_save_progress(tmp_path, monkeypatch):
+def test_track_save_progress(tmp_path: Any, monkeypatch: Any) -> None:
     import json
     import os
 
@@ -494,7 +495,7 @@ def test_track_save_progress(tmp_path, monkeypatch):
     stats_dir_mock = tmp_path / "stats"
     stats_dir_mock.mkdir(exist_ok=True)
 
-    def mock_join(*args):
+    def mock_join(*args: Any) -> Any:
         if len(args) >= 2 and args[1] == "save_history.json":
             return str(stats_dir_mock / "save_history.json")
         if len(args) >= 2 and args[-1] == "stats":
@@ -504,7 +505,7 @@ def test_track_save_progress(tmp_path, monkeypatch):
     monkeypatch.setattr(os.path, "join", mock_join)
 
     class DummySave:
-        def __init__(self):
+        def __init__(self) -> None:
             self.filepath = "/path/to/test_save.sav"
             self.header = {
                 "session_name": "TestSession",

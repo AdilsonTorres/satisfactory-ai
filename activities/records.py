@@ -7,6 +7,7 @@ run on the persist task queue served by the Dockerized orchestrator worker
 """
 
 import logging
+from typing import Any
 
 from temporalio import activity
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-def record_gift_check(result: dict) -> None:
+def record_gift_check(result: dict[str, Any]) -> None:
     """
     Persist one doggo gift check (collected or empty) to stats/gift_history.db.
 

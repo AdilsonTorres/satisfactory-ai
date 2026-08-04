@@ -6,6 +6,7 @@ Combat Patrol workflow.
 
 import asyncio
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 
@@ -53,8 +54,8 @@ class CombatPatrolWorkflow(_ControlMixin):
         self,
         max_kills: int = 20,
         screenshot_every_kills: int = 5,
-        _resume_stats: dict | None = None,
-    ) -> dict:
+        _resume_stats: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         params = CombatPatrolParams(
             max_kills=max_kills,
             screenshot_every_kills=screenshot_every_kills,
@@ -73,7 +74,7 @@ class CombatPatrolWorkflow(_ControlMixin):
             await asyncio.shield(_cleanup_on_cancel("CombatPatrolWorkflow"))
             raise
 
-    async def _run_patrol(self, max_kills: int, screenshot_every_kills: int) -> dict:
+    async def _run_patrol(self, max_kills: int, screenshot_every_kills: int) -> dict[str, Any]:
         while self._stats["kills"] < max_kills and not self._stop_requested:
             await self._wait_if_paused()
             if self._stop_requested:

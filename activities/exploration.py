@@ -6,6 +6,7 @@ Exploration activities.
 
 import logging
 import time
+from typing import Any
 
 from temporalio import activity
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-def get_exploration_route() -> dict:
+def get_exploration_route() -> dict[str, Any]:
     """Reads [exploration] from config.toml — config/file I/O must happen in an activity, not in workflow code (the Temporal sandbox forbids `open()` there)."""
     return {
         "route": cfg.get("exploration.route", []),
@@ -57,7 +58,7 @@ def explore_leg(
     ascend_every: int = 0,
     ascend_pulse: float = 0.3,
     gauge_low_abort: float = 0.25,
-) -> dict:
+) -> dict[str, Any]:
     """
     Runs one leg of an exploration route: turns the camera by turn_dx,
     then holds `keys` simultaneously (ex: ["w", "space"] to advance while
@@ -97,7 +98,7 @@ def explore_leg(
         health_low = False
         gauge_low = False
         screenshots: list[str] = []
-        samples: list[dict] = []
+        samples: list[dict[str, Any]] = []
         min_health = 1.0
 
         # Hold the movement keys down for the WHOLE leg and assess while still
@@ -199,7 +200,7 @@ def explore_leg(
 
 
 @activity.defn
-def return_via_reverse_route(legs_taken: list[dict]) -> bool:
+def return_via_reverse_route(legs_taken: list[dict[str, Any]]) -> bool:
     """
     Retraces legs_taken in reverse order with mirrored keys (w<->s, a<->d;
     'space' passes through unchanged) and mirrored turns, to head back

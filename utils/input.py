@@ -1,3 +1,4 @@
+
 """
 utils/input.py
 Sends mouse/keyboard input to Satisfactory on Linux.
@@ -5,13 +6,13 @@ Uses separate virtual mouse and virtual keyboard devices via uinput (evdev)
 to bypass Proton and Wayland security filters.
 X11 (pynput) is still used only to query and move the desktop cursor position absolutely.
 """
-
 import atexit
 import os
 import subprocess
 import tempfile
 import time
 from collections.abc import Sequence
+from typing import Any
 
 from evdev import UInput
 from evdev import ecodes as ev_codes
@@ -23,7 +24,7 @@ _uinput_mouse: UInput | None = None
 _uinput_keyboard: UInput | None = None
 
 
-def _get_mouse():
+def _get_mouse() -> Any:
     """Desktop cursor controller (pynput), created lazily.
 
     Lazy because pynput needs a display connection: the orchestrator worker
@@ -38,7 +39,7 @@ def _get_mouse():
     return _mouse
 
 
-def _get_uinput_mouse() -> UInput:
+def _get_uinput_mouse() -> Any:
     """
     Virtual mouse device via uinput — handles relative movement and button clicks.
     """
@@ -54,7 +55,7 @@ def _get_uinput_mouse() -> UInput:
     return _uinput_mouse
 
 
-def _get_uinput_keyboard() -> UInput:
+def _get_uinput_keyboard() -> Any:
     """
     Virtual keyboard device via uinput — handles keyboard key presses.
     """

@@ -1,13 +1,14 @@
 import argparse
 import asyncio
 import json
+from typing import Any
 
 from temporalio.client import Client
 
 from workflows.exploration import ExplorationWorkflow
 
 
-async def main():
+async def main() -> Any:
     parser = argparse.ArgumentParser(description="Triggers the ExplorationWorkflow.")
     parser.add_argument("--id", default="exploration-run", help="Workflow id.")
     parser.add_argument(

@@ -71,13 +71,13 @@ async def mock_capture_template_screen(name: str, open_key: str, close_key: str)
 @activity.defn(name="extract_templates_from_screen")
 async def mock_extract_templates_from_screen(
     screenshot_path: str, target: str = "hud", resolution: str = "2560x1440"
-) -> dict:
+) -> dict[str, Any]:
     extract_calls.append(screenshot_path)
     return {"test_extracted_template.png": "dummy_content"}
 
 
 @activity.defn(name="verify_matching_templates")
-async def mock_verify_matching_templates(template_names: list[str]) -> dict:
+async def mock_verify_matching_templates(template_names: list[str]) -> dict[str, Any]:
     verify_calls.append(",".join(template_names))
     return {"verified": True}
 
@@ -89,7 +89,7 @@ async def mock_check_ammo_count() -> int:
 
 
 @activity.defn(name="scan_for_enemy")
-async def mock_scan_for_enemy() -> dict:
+async def mock_scan_for_enemy() -> dict[str, Any]:
     if not enemy_queue:
         return {"found": False}
     return enemy_queue.pop(0)
@@ -124,7 +124,7 @@ async def mock_open_storage_and_deposit_loot() -> int:
 
 # Persist / debug activities needed by base workflows
 @activity.defn(name="persist_session_stats")
-async def mock_persist_session_stats(workflow_type: str, stats: dict) -> None:
+async def mock_persist_session_stats(workflow_type: str, stats: dict[str, Any]) -> None:
     pass
 
 
@@ -137,7 +137,7 @@ async def mock_take_debug_screenshot(name: str) -> str:
 # Tests Cases
 # ==============================================================================
 @pytest.mark.asyncio
-async def test_signal_workflow_action():
+async def test_signal_workflow_action() -> None:
     signal_calls.clear()
     env = await WorkflowEnvironment.start_time_skipping()
     try:
@@ -160,7 +160,7 @@ async def test_signal_workflow_action():
 
 
 @pytest.mark.asyncio
-async def test_depot_coal_workflow():
+async def test_depot_coal_workflow() -> None:
     download_calls.clear()
     deposit_calls.clear()
     env = await WorkflowEnvironment.start_time_skipping()
@@ -197,7 +197,7 @@ async def test_depot_coal_workflow():
 
 
 @pytest.mark.asyncio
-async def test_resource_harvest_workflow():
+async def test_resource_harvest_workflow() -> None:
     harvest_calls.clear()
     env = await WorkflowEnvironment.start_time_skipping()
     try:
@@ -229,7 +229,7 @@ async def test_resource_harvest_workflow():
 
 
 @pytest.mark.asyncio
-async def test_tame_doggo_workflow():
+async def test_tame_doggo_workflow() -> None:
     feed_calls.clear()
     env = await WorkflowEnvironment.start_time_skipping()
     try:
@@ -259,7 +259,7 @@ async def test_tame_doggo_workflow():
 
 
 @pytest.mark.asyncio
-async def test_template_orchestration_workflow():
+async def test_template_orchestration_workflow() -> None:
     capture_template_calls.clear()
     extract_calls.clear()
     verify_calls.clear()
@@ -293,7 +293,7 @@ async def test_template_orchestration_workflow():
 
 
 @pytest.mark.asyncio
-async def test_combat_expedition_workflow():
+async def test_combat_expedition_workflow() -> None:
     global enemy_queue
     enemy_queue = [
         {"found": True, "x": 100, "y": 200, "confidence": 0.95, "type": "enemy_hog", "hazard": False},

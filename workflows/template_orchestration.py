@@ -5,6 +5,7 @@ Visual Calibration Template Orchestration workflow.
 """
 
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -35,7 +36,7 @@ class TemplateOrchestrationWorkflow:
     """
 
     @workflow.run
-    async def run(self, target: str = "hud", resolution: str = "2560x1440") -> dict:
+    async def run(self, target: str = "hud", resolution: str = "2560x1440") -> dict[str, Any]:
         params = TemplateOrchestrationParams(target=target, resolution=resolution)
         target = params.target
         resolution = params.resolution

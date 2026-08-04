@@ -450,7 +450,7 @@ def _search_for_named_doggo(
 _TURN_OFFSET_PATH = Path("stats") / "doggo_turn_offsets.json"
 
 
-def _load_doggo_position(name: str) -> dict | None:
+def _load_doggo_position(name: str) -> dict[str, Any] | None:
     """
     Load a doggo's learned camera position (yaw + pitch offsets from home).
 
@@ -484,7 +484,7 @@ def _load_doggo_position(name: str) -> dict | None:
 def _save_doggo_position(name: str, yaw: int, pitch: int) -> None:
     """Persist a doggo's camera position (yaw + pitch from home)."""
     _TURN_OFFSET_PATH.parent.mkdir(exist_ok=True)
-    data: dict = {}
+    data: dict[str, Any] = {}
     try:
         with open(_TURN_OFFSET_PATH, encoding="utf-8") as f:
             data = json.load(f)
@@ -525,7 +525,7 @@ def _record_miss_or_reset(name: str, max_misses: int) -> bool:
     happened.
     """
     _MISS_COUNT_PATH.parent.mkdir(exist_ok=True)
-    data: dict = {}
+    data: dict[str, Any] = {}
     try:
         with open(_MISS_COUNT_PATH, encoding="utf-8") as f:
             data = json.load(f)
@@ -661,7 +661,7 @@ def _read_item_tooltip(v: Vision, slot_x: int, slot_y: int) -> tuple[str | None,
 
 
 @activity.defn
-def collect_doggo_gift(doggo: Any = None) -> dict:
+def collect_doggo_gift(doggo: Any = None) -> dict[str, Any]:
     """
     Check ONE named doggo (or a list of unchecked doggos) for a gift and
     collect it if present.
@@ -693,7 +693,7 @@ def collect_doggo_gift(doggo: Any = None) -> dict:
     # Load saved position (yaw + pitch from home baseline).
     saved_pos = _load_doggo_position(name)
 
-    result: dict = {
+    result: dict[str, Any] = {
         "doggo": name,
         "prompt_found": False,
         "collected": False,

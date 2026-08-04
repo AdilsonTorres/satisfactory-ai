@@ -1,13 +1,14 @@
+
 """
 activities/_shared.py
 
 Shared helpers used by multiple activity modules.
 """
-
 import logging
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
+from typing import Any
 
 from utils import config as cfg
 from utils import input as inp
@@ -54,7 +55,7 @@ def _finder(v: Vision, template: str, region: tuple[int, int, int, int] | None) 
 def press_until_open(
     v: Vision,
     template: str,
-    key_action=inp.interact,
+    key_action: Any = inp.interact,
     attempts: int = MENU_TOGGLE_ATTEMPTS,
     settle: float = 0.8,
     region: tuple[int, int, int, int] | None = None,
@@ -148,7 +149,7 @@ def get_vision() -> Vision:
 
 
 @contextmanager
-def screenshot_on_error(label: str):
+def screenshot_on_error(label: str) -> Any:
     """Saves a screenshot if the activity raises an exception."""
     try:
         yield
@@ -158,7 +159,7 @@ def screenshot_on_error(label: str):
         raise
 
 
-def _check_health_inline(v: Vision, frame=None) -> bool:
+def _check_health_inline(v: Vision, frame: Any = None) -> bool:
     """
     Checks for LOW health directly via Vision — no Temporal dispatch.
     Used inside engage_enemy (you can't call another activity from

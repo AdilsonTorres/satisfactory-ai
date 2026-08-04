@@ -6,6 +6,7 @@ Combat-related activities.
 
 import logging
 import time
+from typing import Any
 
 from temporalio import activity
 
@@ -29,7 +30,7 @@ HAZARD_ENEMY_TYPES = {"enemy_hog_nuclear", "enemy_stinger_elite_gas"}
 
 
 @activity.defn
-def scan_for_enemy() -> dict:
+def scan_for_enemy() -> dict[str, Any]:
     v = get_vision()
     result = v.find_enemy()
 

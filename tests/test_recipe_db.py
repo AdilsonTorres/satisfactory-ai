@@ -22,7 +22,7 @@ VALID_MACHINES = {
 }
 
 
-def test_bwd_recipe_machine_and_inputs():
+def test_bwd_recipe_machine_and_inputs() -> None:
     """Verify Ballistic Warp Drive uses Manufacturer and 4 solid inputs."""
     assert "Ballistic Warp Drive" in RECIPES
     bwd = RECIPES["Ballistic Warp Drive"]
@@ -42,7 +42,7 @@ def test_bwd_recipe_machine_and_inputs():
     assert "Dark Matter Residue" not in default_outputs
 
 
-def test_singularity_cell_output_rate():
+def test_singularity_cell_output_rate() -> None:
     """Verify Singularity Cell outputs 10.0 per minute at 100% clock speed."""
     assert "Singularity Cell" in RECIPES
     sc = RECIPES["Singularity Cell"]
@@ -51,7 +51,7 @@ def test_singularity_cell_output_rate():
     assert sc["best"]["outputs"]["Singularity Cell"] == 10.0
 
 
-def test_quantum_encoder_recipes():
+def test_quantum_encoder_recipes() -> None:
     """Verify Phase 5 Quantum Encoder items specify Quantum Encoder as their machine."""
     quantum_items = [
         "Superposition Oscillator",
@@ -64,7 +64,7 @@ def test_quantum_encoder_recipes():
         assert recipe["machine"] == "Quantum Encoder", f"{item} should use Quantum Encoder, got {recipe['machine']}"
 
 
-def test_dark_matter_crystal_recipes():
+def test_dark_matter_crystal_recipes() -> None:
     """Verify default DMC recipe is in Converter and alternate Dark Matter Trap is in Particle Accelerator."""
     assert "Dark Matter Crystal" in RECIPES
     dmc = RECIPES["Dark Matter Crystal"]
@@ -81,7 +81,7 @@ def test_dark_matter_crystal_recipes():
     assert dmc["best"]["inputs"]["Dark Matter Residue"] == 150.0
 
 
-def test_phase5_quantum_recipes_integrity():
+def test_phase5_quantum_recipes_integrity() -> None:
     """Verify machine types and output rates for Phase 5 end-game components."""
     # Singularity Cell
     sc = RECIPES["Singularity Cell"]["default"]
@@ -109,7 +109,7 @@ def test_phase5_quantum_recipes_integrity():
     assert aes["outputs"]["Dark Matter Residue"] == 100.0
 
 
-def test_all_recipes_have_valid_machines():
+def test_all_recipes_have_valid_machines() -> None:
     """Verify all defined recipes use valid Satisfactory production machines."""
     for item, variants in RECIPES.items():
         for variant_key, recipe in variants.items():
@@ -117,7 +117,7 @@ def test_all_recipes_have_valid_machines():
             assert machine in VALID_MACHINES, f"Invalid machine '{machine}' for item '{item}' variant '{variant_key}'"
 
 
-def test_all_recipe_rates_positive():
+def test_all_recipe_rates_positive() -> None:
     """Verify input and output quantities for all recipes are positive floats."""
     for item, variants in RECIPES.items():
         for variant_key, recipe in variants.items():
@@ -127,7 +127,7 @@ def test_all_recipe_rates_positive():
                 assert rate > 0.0, f"Non-positive output rate {rate} for {out_name} in {item} ({variant_key})"
 
 
-def test_all_recipes_structure_and_ratios():
+def test_all_recipes_structure_and_ratios() -> None:
     """Verify every item in RECIPES has valid default/best variants, output matching item name, and valid machines."""
     raw_nodes = {
         "Raw Quartz",

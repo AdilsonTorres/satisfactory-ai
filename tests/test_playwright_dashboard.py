@@ -1,6 +1,8 @@
 import socket
 import threading
 import time
+from collections.abc import Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +18,7 @@ def get_free_port() -> int:
 
 
 @pytest.fixture(scope="module")
-def dashboard_server():
+def dashboard_server() -> Generator[Any]:
     from tools.dashboard import start_server
 
     port = get_free_port()
@@ -51,7 +53,7 @@ def dashboard_server():
         yield f"http://localhost:{port}"
 
 
-def test_dashboard_factory_planner_flow(dashboard_server):
+def test_dashboard_factory_planner_flow(dashboard_server: Any) -> None:
     """Verify that all pages are working, and perform late game calculation flow."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -106,20 +108,20 @@ def test_dashboard_factory_planner_flow(dashboard_server):
         assert page.locator("#plan-raw-table tbody tr").first.is_visible()
 
         # Verify steps table contains resolved target item "Ballistic Warp Drive"
-        assert "Ballistic Warp Drive" in page.locator("#plan-steps-table tbody").text_content()
+        assert "Ballistic Warp Drive" in page.locator("#plan-steps-table tbody").text_content()  # type: ignore
 
         # Verify Somersloops requirements metrics are visible
         assert page.locator("#plan-total-sloops").text_content() != "0"
 
         # Verify flowchart has no syntax errors
         flowchart_content = page.locator("#flowchart-container").text_content()
-        assert "Syntax error" not in flowchart_content
-        assert "mermaid version" not in flowchart_content
+        assert "Syntax error" not in flowchart_content  # type: ignore
+        assert "mermaid version" not in flowchart_content  # type: ignore
 
         browser.close()
 
 
-def test_plan_comparison_cli_vs_web(dashboard_server):
+def test_plan_comparison_cli_vs_web(dashboard_server: Any) -> None:
     """Compare the results of generate_late_game_plan with what is shown in the web page results."""
     from tools.late_game_planner import generate_late_game_plan
 
@@ -173,9 +175,9 @@ def test_plan_comparison_cli_vs_web(dashboard_server):
         page.wait_for_selector("#planner-results", state="visible")
 
         # 4. Scrape calculated values from Web UI
-        ui_power_text = page.locator("#plan-total-power").text_content().strip()
-        ui_shards_text = page.locator("#plan-total-shards").text_content().strip()
-        ui_sloops_text = page.locator("#plan-total-sloops").text_content().strip()
+        ui_power_text = page.locator("#plan-total-power").text_content()
+        ui_shards_text = page.locator("#plan-total-shards").text_content()
+        ui_sloops_text = page.locator("#plan-total-sloops").text_content()
 
         # 5. Assert total metrics matches
         expected_power = round(plan["total_power_mw"])
@@ -189,9 +191,9 @@ def test_plan_comparison_cli_vs_web(dashboard_server):
         for i in range(ui_raw_rows.count()):
             row = ui_raw_rows.nth(i)
             cells = row.locator("td")
-            item_name = cells.nth(0).text_content().strip()
-            rate_text = cells.nth(1).text_content().replace("/min", "").strip()
-            ui_raw_materials[item_name] = float(rate_text)
+            item_name = cells.nth(0).text_content()
+            rate_text = cells.nth(1).text_content()
+            ui_raw_materials[item_name] = float(rate_text.replace("/min", ""))  # type: ignore
 
         # Check raw materials match within tolerance
         for item, rate in plan["raw_materials"].items():
@@ -204,12 +206,14 @@ def test_plan_comparison_cli_vs_web(dashboard_server):
         for i in range(ui_step_rows.count()):
             row = ui_step_rows.nth(i)
             cells = row.locator("td")
-            item_name = cells.nth(0).text_content().replace("[LOCKED]", "").strip()
+            item_name = cells.nth(0).text_content()
             # recipe cell may contain " ALT" badge and byproduct warning text — strip both
-            raw_recipe = cells.nth(1).text_content().strip()
-            clean_recipe = raw_recipe.replace(" ALT", "").split("⚠")[0].strip()
-            rate_text = cells.nth(3).text_content().replace("/min", "").strip()
-            ui_steps.append({"item": item_name, "recipe_name": clean_recipe, "rate": float(rate_text)})
+            raw_recipe = cells.nth(1).text_content()
+            clean_recipe = raw_recipe.replace(" ALT", "").split("⚠")[0].strip()  # type: ignore
+            rate_text = str(cells.nth(3).text_content())
+            ui_steps.append(
+                {"item": item_name, "recipe_name": clean_recipe, "rate": float(rate_text.replace("/min", ""))}
+            )
 
         assert len(plan["steps"]) == len(ui_steps)
         for expected_step in plan["steps"]:
@@ -221,13 +225,13 @@ def test_plan_comparison_cli_vs_web(dashboard_server):
 
         # Verify flowchart has no syntax errors
         flowchart_content = page.locator("#flowchart-container").text_content()
-        assert "Syntax error" not in flowchart_content
-        assert "mermaid version" not in flowchart_content
+        assert "Syntax error" not in flowchart_content  # type: ignore
+        assert "mermaid version" not in flowchart_content  # type: ignore
 
         browser.close()
 
 
-def test_build_guide_phases_and_mermaid_limit(dashboard_server):
+def test_build_guide_phases_and_mermaid_limit(dashboard_server: Any) -> None:
     """Playwright test checking that the build guide phases are rendered and mermaid does not throw text size limit errors."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -255,14 +259,14 @@ def test_build_guide_phases_and_mermaid_limit(dashboard_server):
         build_guide_container = page.locator("#plan-build-guide")
         assert build_guide_container.is_visible()
         # Verify it lists phase items (e.g. Phase 1, Phase 2, etc.)
-        assert "Phase 1" in build_guide_container.text_content()
+        assert "Phase 1" in build_guide_container.text_content()  # type: ignore
 
         # 6. Verify flowchart rendering did not error out with Maximum text size exceeded or Syntax error
         flowchart_content = page.locator("#flowchart-container").text_content()
-        assert "Maximum text size" not in flowchart_content
-        assert "exceeded" not in flowchart_content
-        assert "Syntax error" not in flowchart_content
-        assert "mermaid version" not in flowchart_content
+        assert "Maximum text size" not in flowchart_content  # type: ignore
+        assert "exceeded" not in flowchart_content  # type: ignore
+        assert "Syntax error" not in flowchart_content  # type: ignore
+        assert "mermaid version" not in flowchart_content  # type: ignore
 
         # 7. Verify Phase Switcher Tabs are rendered and clickable
         tabs_container = page.locator("#flowchart-tabs")
@@ -280,13 +284,13 @@ def test_build_guide_phases_and_mermaid_limit(dashboard_server):
         # Verify the new flowchart renders without errors
         time.sleep(1.0)
         flowchart_content = page.locator("#flowchart-container").text_content()
-        assert "Syntax error" not in flowchart_content
-        assert "mermaid version" not in flowchart_content
+        assert "Syntax error" not in flowchart_content  # type: ignore
+        assert "mermaid version" not in flowchart_content  # type: ignore
 
         browser.close()
 
 
-def test_dashboard_fluid_capacity_warnings_display(dashboard_server):
+def test_dashboard_fluid_capacity_warnings_display(dashboard_server: Any) -> None:
     """Playwright test checking that the dashboard UI accurately renders 100.0% for solids and strict capacity warnings for liquids."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -326,8 +330,8 @@ def test_dashboard_fluid_capacity_warnings_display(dashboard_server):
             cells = row.locator("td")
             if cells.count() < 6:
                 continue
-            item_name = cells.nth(0).text_content().strip()
-            util_text = cells.nth(5).text_content().strip()
+            item_name = cells.nth(0).text_content()
+            util_text = cells.nth(5).text_content()
             utilizations[item_name] = util_text
 
         # 6. Verify strictly that solid sinkable items show 100.0%
@@ -343,13 +347,13 @@ def test_dashboard_fluid_capacity_warnings_display(dashboard_server):
 
         # 7. Verify strictly that primary liquid items show the warning format
         assert "Dark Matter Residue" in utilizations
-        assert "⚠" in utilizations["Dark Matter Residue"]
+        assert "⚠" in utilizations["Dark Matter Residue"]  # type: ignore
         assert utilizations["Dark Matter Residue"] != "100.0%"
         assert utilizations["Dark Matter Residue"] != "100.0% ⚠"  # Should be throttled, e.g. 83.9%
 
         # 8. Verify the warning legend text is visible
         legend_text = page.locator("#plan-build-guide").text_content()
-        assert "produce liquids that cannot be sinked" in legend_text
-        assert "Solid items can run at 100% capacity and excess sinked" in legend_text
+        assert "produce liquids that cannot be sinked" in legend_text  # type: ignore
+        assert "Solid items can run at 100% capacity and excess sinked" in legend_text  # type: ignore
 
         browser.close()
