@@ -284,3 +284,72 @@ def test_build_guide_phases_and_mermaid_limit(dashboard_server):
         assert "mermaid version" not in flowchart_content
 
         browser.close()
+
+
+def test_dashboard_fluid_capacity_warnings_display(dashboard_server):
+    """Playwright test checking that the dashboard UI accurately renders 100.0% for solids and strict capacity warnings for liquids."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        # 1. Open dashboard page and go to Factory Planner
+        page.goto(dashboard_server)
+        page.locator(".tab", has_text="🏭 Factory Planner").click()
+
+        # 2. Fill in parameters for a BWD plan
+        page.locator("#plan-item").select_option("Ballistic Warp Drive")
+        page.locator("#plan-rate").fill("10")
+        page.locator("#plan-mode").select_option("late_game")
+        page.locator("#plan-sloops").fill("BWD")
+        page.locator("#plan-mult").fill("0.75")
+
+        # Enable overclocking
+        overclock_checkbox = page.locator("#plan-overclock")
+        if not overclock_checkbox.is_checked():
+            overclock_checkbox.check()
+
+        # 3. Calculate Optimized Plan
+        page.locator("button", has_text="Calculate Optimized Plan").click()
+
+        # 4. Wait for results card
+        page.wait_for_selector("#plan-build-guide", state="visible")
+
+        # 5. Extract all items from the build guide table
+        # Structure: tbody tr -> td[0] (Item), td[5] (Utilization)
+        ui_step_rows = page.locator("#plan-build-guide table tbody tr")
+
+        # Create a dict of item name -> utilization text
+        utilizations = {}
+        for i in range(ui_step_rows.count()):
+            row = ui_step_rows.nth(i)
+            cells = row.locator("td")
+            if cells.count() < 6:
+                continue
+            item_name = cells.nth(0).text_content().strip()
+            util_text = cells.nth(5).text_content().strip()
+            utilizations[item_name] = util_text
+
+        # 6. Verify strictly that solid sinkable items show 100.0%
+        # (Meaning no false warnings are shown for these)
+        assert "Superposition Oscillator" in utilizations
+        assert utilizations["Superposition Oscillator"] == "100.0%"
+
+        assert "Dark Matter Crystal" in utilizations
+        assert utilizations["Dark Matter Crystal"] == "100.0%"
+
+        assert "Rubber" in utilizations
+        assert utilizations["Rubber"] == "100.0%"
+
+        # 7. Verify strictly that primary liquid items show the warning format
+        assert "Dark Matter Residue" in utilizations
+        assert "⚠" in utilizations["Dark Matter Residue"]
+        assert utilizations["Dark Matter Residue"] != "100.0%"
+        assert utilizations["Dark Matter Residue"] != "100.0% ⚠"  # Should be throttled, e.g. 83.9%
+
+        # 8. Verify the warning legend text is visible
+        legend_text = page.locator("#plan-build-guide").text_content()
+        assert "produce liquids that cannot be sinked" in legend_text
+        assert "Solid items can run at 100% capacity and excess sinked" in legend_text
+
+        browser.close()
