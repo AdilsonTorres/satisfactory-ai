@@ -88,3 +88,29 @@ def test_generate_production_plan_with_recipe_multiplier(mock_save_class):
         recipe_multiplier=0.75,
     )
     assert plan["raw_materials"]["Iron Ore"] == 45.0
+
+
+@patch("tools.factory_planner.SatisfactorySave")
+def test_multi_phase_recipe_multiplier_no_exponential_compounding(mock_save_class):
+    """Verify recipe_multiplier does not compound exponentially (m^depth) across multi-phase trees."""
+    mock_save = mock_save_class.return_value
+    mock_save.schematics = []
+
+    from tools.factory_planner import generate_production_plan
+
+    # Modular Frame (depth 0): 2 Reinforced Iron Plate + 12 Iron Rod
+    # At target_rate = 10.0 and recipe_multiplier = 0.75:
+    # Depth 1 Reinforced Iron Plate rate = 2 * 0.75 * (10 / 2) = 7.5 / min
+    # Depth 2 Iron Plate rate for RIP (6 Iron Plate per 2 RIP) = 6 * (7.5 / 2) = 22.5 / min
+    # If recipe_multiplier compounded at depth 2, Iron Plate rate would be 6 * 0.75 * (7.5 / 2) = 16.875 (wrong!).
+    plan = generate_production_plan(
+        target_item="Modular Frame",
+        target_rate=10.0,
+        coupons_per_minute=None,
+        save_file_path="mock_save.sav",
+        recipe_multiplier=0.75,
+    )
+
+    rip_steps = [s for s in plan["steps"] if s["item"] == "Reinforced Iron Plate"]
+    assert len(rip_steps) == 1
+    assert abs(rip_steps[0]["rate"] - 11.25) < 1e-4

@@ -1270,10 +1270,16 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         stepsBody.innerHTML = '';
         plan.steps.forEach(step => {
           const row = document.createElement('tr');
-          const status = step.unlocked ? '' : ' <span style="color:#ff1744; font-size:10px;">[LOCKED]</span>';
+          const lockedBadge = step.unlocked ? '' : ' <span style="color:#ff1744; font-size:10px;">[LOCKED]</span>';
+          const altBadge = step.alternate ? ' <span style="background:#ff6f00; color:#fff; font-size:10px; padding:1px 5px; border-radius:3px; vertical-align:middle;">ALT</span>' : '';
+          const byproducts = step.byproducts || {};
+          const bpEntries = Object.entries(byproducts);
+          const bpStr = bpEntries.length > 0
+            ? '<br><span style="font-size:11px; color:#ff8a65;">⚠ Byproduct: ' + bpEntries.map(([k, v]) => `${k} ${v.toFixed(1)}/min`).join(', ') + '</span>'
+            : '';
           row.innerHTML = `
-            <td><b>${step.item}</b>${status}</td>
-            <td>${step.recipe_name}</td>
+            <td><b>${step.item}</b>${lockedBadge}</td>
+            <td>${step.recipe_name}${altBadge}${bpStr}</td>
             <td>${step.machine} x${step.machine_count.toFixed(2)}</td>
             <td>${step.rate.toFixed(1)}/min</td>
           `;
@@ -1314,18 +1320,36 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             } else {
               // Standard production phase
               html += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">`;
-              html += `<thead><tr style="border-bottom: 1px solid #333;"><th style="text-align: left; padding: 8px 0;">Item</th><th style="text-align: left; padding: 8px 0;">Machine</th><th style="text-align: center; padding: 8px 0;">Build</th><th style="text-align: right; padding: 8px 0;">Target Rate</th><th style="text-align: right; padding: 8px 0;">Max Output</th></tr></thead>`;
+              html += `<thead><tr style="border-bottom: 1px solid #333;"><th style="text-align: left; padding: 8px 0;">Item</th><th style="text-align: left; padding: 8px 0;">Machine</th><th style="text-align: center; padding: 8px 0;">Build</th><th style="text-align: right; padding: 8px 0;">Target Rate</th><th style="text-align: right; padding: 8px 0;">Max Output</th><th style="text-align: right; padding: 8px 0;">Utilization</th></tr></thead>`;
               html += `<tbody>`;
+              const throttledFluidItems = [];
+
               phase.items.forEach(item => {
-                html += `<tr style="border-bottom: 1px solid #252525;">`;
+                const util = item.max_output > 0 ? (item.rate / item.max_output) * 100 : 100;
+                const isThrottled = plan.warnings && plan.warnings.some(w => w.includes(`⚠️ ${item.item}`) || w.includes(`${item.item} (`));
+
+                if (isThrottled) {
+                  throttledFluidItems.push(item);
+                }
+
+                const rowBg = isThrottled ? 'background: rgba(255, 152, 0, 0.08);' : '';
+                const utilColor = isThrottled ? '#ff6f00' : '#00e676';
+                const utilText = isThrottled ? `${util.toFixed(1)}% ⚠` : `100.0%`;
+
+                html += `<tr style="border-bottom: 1px solid #252525; ${rowBg}">`;
                 html += `<td style="padding: 8px 0;"><b>${item.item}</b></td>`;
                 html += `<td style="padding: 8px 0; color: #00e5ff;">${item.machine}</td>`;
                 html += `<td style="text-align: center; padding: 8px 0; color: #ffd600;">${item.machine_count}</td>`;
                 html += `<td style="text-align: right; padding: 8px 0;">${item.rate.toFixed(2)}/min</td>`;
                 html += `<td style="text-align: right; padding: 8px 0; color: #00e676;">${item.max_output.toFixed(2)}/min</td>`;
+                html += `<td style="text-align: right; padding: 8px 0; color: ${utilColor}; font-weight: bold;">${utilText}</td>`;
                 html += `</tr>`;
               });
               html += `</tbody></table>`;
+
+              if (throttledFluidItems.length > 0) {
+                html += `<p style="font-size: 12px; color: #ff8a65; margin-top: 8px;">⚠️ Items marked with ⚠ produce liquids that cannot be sinked. Do <b>NOT</b> run these machines at 100% full capacity — throttle them to the exact clock speed shown to prevent pipeline overflow. <i>(Solid items can run at 100% capacity and excess sinked into AWESOME Sink).</i></p>`;
+              }
             }
             html += `</div>`;
           });

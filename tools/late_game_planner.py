@@ -339,7 +339,6 @@ def plan_step(
 
     # Recurse through inputs
     for input_item, input_rate_per_machine in recipe["inputs"].items():
-        # Apply the recipe cost multiplier to raw inputs
         required_input_rate = input_rate_per_machine * recipe_multiplier * (rate / (base_output * sloop_mult))
         plan_step(
             input_item,
@@ -426,9 +425,10 @@ def generate_late_game_plan(
             if recipe and bp in recipe["inputs"]:
                 consumer_depths.append(step["depth"])
 
-        disp_depth = min(byproduct_depths) if byproduct_depths else (max(consumer_depths) + 1 if consumer_depths else 1)
-
         if net_rate > 0:
+            disp_depth = (
+                max(consumer_depths) if consumer_depths else (max(byproduct_depths) + 1 if byproduct_depths else 1)
+            )
             raw_materials.pop(bp, None)
             plan_step(
                 bp,
@@ -443,6 +443,11 @@ def generate_late_game_plan(
                 terminal_byproducts=None,
             )
         else:
+            disp_depth = (
+                (max(byproduct_depths) + 1)
+                if byproduct_depths
+                else (max(consumer_depths) + 1 if consumer_depths else 1)
+            )
             raw_materials.pop(bp, None)
             overflow_rate = -net_rate
 
@@ -531,11 +536,17 @@ def generate_late_game_plan(
                 "power_mw": 0.0,
                 "output_per_machine": step["output_per_machine"],
                 "depth": step["depth"],
+                "byproducts": dict(step.get("byproducts", {})),
             }
         combined_steps[key]["rate"] += step["rate"]
         combined_steps[key]["machine_count"] += step["machine_count"]
         combined_steps[key]["power_mw"] += step["power_mw"]
         combined_steps[key]["depth"] = min(combined_steps[key]["depth"], step["depth"])
+        # Accumulate byproduct rates for combined steps
+        for bp_item, bp_rate in step.get("byproducts", {}).items():
+            if bp_item not in combined_steps[key]["byproducts"]:
+                combined_steps[key]["byproducts"][bp_item] = 0.0
+            combined_steps[key]["byproducts"][bp_item] += bp_rate
 
     steps_list = list(combined_steps.values())
 
@@ -553,6 +564,36 @@ def generate_late_game_plan(
         if not step["unlocked"]:
             warnings.append(f"Recipe '{step['recipe_name']}' is locked in your save file (needs to be unlocked).")
 
+    # Un-sinkable fluid capacity warnings: warn ONLY for machines where the PRIMARY item
+    # is a liquid (and therefore cannot be sinked). Solid items can be run at 100% capacity
+    # and excess sinked, so they do not receive warnings.
+    fluid_items = {
+        "Water",
+        "Dark Matter Residue",
+        "Heavy Oil Residue",
+        "Alumina Solution",
+        "Crude Oil",
+        "Nitrogen Gas",
+        "Sulfuric Acid",
+        "Dissolved Silica",
+        "Fuel",
+        "Turbofuel",
+        "Liquid Biofuel",
+        "Rocket Fuel",
+        "Ionized Fuel",
+    }
+
+    for step in steps_list:
+        is_primary_fluid = step["item"] in fluid_items
+        actual_machines = math.ceil(step["machine_count"])
+        if is_primary_fluid and actual_machines > step["machine_count"] + 1e-4:
+            clock_pct = round(100.0 * step["machine_count"] / actual_machines, 1)
+            max_out = actual_machines * step["output_per_machine"]
+            warnings.append(
+                f"⚠️ {step['item']} ({step['recipe_name']}): Build {actual_machines} machine(s) but run at "
+                f"{clock_pct}% clock speed — target: {step['rate']:.2f}/min (Max: {max_out:.2f}/min). "
+                f"This fluid cannot be sinked; match exact factory requirements to prevent pipeline overflow."
+            )
     # Read Dimensional Depot quantities
     depot_status = {}
     for entry in save.dimensional_depot:
@@ -639,6 +680,7 @@ def _compute_build_guide(
                         "machine_count": math.ceil(s["machine_count"]),
                         "rate": s["rate"],
                         "max_output": math.ceil(s["machine_count"]) * s["output_per_machine"],
+                        "byproducts": s.get("byproducts", {}),
                     }
                     for s in items
                 ],
@@ -879,11 +921,17 @@ def generate_mermaid_flowchart(
                         consumer_depths.append(item_depths[other_item])
                         break
 
-        disp_depth = min(byproduct_depths) if byproduct_depths else (max(consumer_depths) + 1 if consumer_depths else 1)
-
         if net_rate > 0:
+            disp_depth = (
+                max(consumer_depths) if consumer_depths else (max(byproduct_depths) + 1 if byproduct_depths else 1)
+            )
             trace(bp, net_rate, depth=disp_depth)
         else:
+            disp_depth = (
+                (max(byproduct_depths) + 1)
+                if byproduct_depths
+                else (max(consumer_depths) + 1 if consumer_depths else 1)
+            )
             overflow_rate = -net_rate
 
             if bp == "Water":

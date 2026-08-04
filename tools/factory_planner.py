@@ -65,6 +65,7 @@ def plan_factory_step(
     raw_materials: dict[str, float],
     terminal_byproducts: set[str] | None = None,
     recipe_multiplier: float = 1.0,
+    depth: int = 0,
 ):
     """Recursively traces production tree using the best alternate recipes."""
     # If it is a raw resource (no recipes exist for it), add to raw materials and stop
@@ -121,6 +122,7 @@ def plan_factory_step(
             raw_materials,
             terminal_byproducts,
             recipe_multiplier=recipe_multiplier,
+            depth=depth + 1,
         )
 
 

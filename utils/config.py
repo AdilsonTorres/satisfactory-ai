@@ -18,7 +18,7 @@ _cache: dict | None = None
 
 class TemporalConfig(BaseModel):
     address: str = "localhost:7233"
-    namespace: str = "default"
+    namespace: str = "satisfactory-ai"
     task_queue: str = "satisfactory-bot"
     persist_task_queue: str = "satisfactory-persist"
 

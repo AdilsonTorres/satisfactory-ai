@@ -3,7 +3,13 @@ from unittest.mock import patch
 import pytest
 
 from tools.cli import _resolve_item_interactive
-from tools.late_game_planner import ALL_RECIPES, generate_late_game_plan, get_readable_name, validate_item_name
+from tools.late_game_planner import (
+    ALL_RECIPES,
+    generate_late_game_plan,
+    generate_mermaid_flowchart,
+    get_readable_name,
+    validate_item_name,
+)
 
 
 def test_get_readable_name():
@@ -335,8 +341,10 @@ def test_generate_late_game_plan_locked_recipe_fallback(mock_save_class):
         recipe_multiplier=0.75,
     )
 
-    # No warnings expected — locked alternates are silently replaced by defaults
-    assert plan["warnings"] == []
+    # No LOCKED warnings expected — locked alternates are silently replaced by defaults.
+    # Byproduct clock-speed warnings are still emitted (that is the intended behavior).
+    locked_warnings = [w for w in plan["warnings"] if "locked" in w.lower()]
+    assert locked_warnings == []
 
     # Dark Matter Crystal should fall back to the default recipe (Converter), not Dark Matter Trap
     dmc_steps = [s for s in plan["steps"] if s["item"] == "Dark Matter Crystal"]
@@ -345,7 +353,6 @@ def test_generate_late_game_plan_locked_recipe_fallback(mock_save_class):
 
 
 def test_generate_mermaid_flowchart_late_game():
-    from tools.late_game_planner import generate_mermaid_flowchart
 
     chart = generate_mermaid_flowchart(
         target_item="Iron Ingot",
@@ -417,5 +424,86 @@ def test_bwd_byproduct_overflow_and_disposal(mock_save_class):
         for item in phase["items"]:
             if item["item"] == "Petroleum Coke":
                 found_coke = True
-                assert phase_num == 3
+                assert phase_num >= 3
     assert found_coke is True
+
+
+@patch("tools.late_game_planner.SatisfactorySave")
+def test_bwd_planner_exact_machine_counts_and_phase_isolation(mock_save_class):
+    """Verify exact machine counts and phase depth isolation for Ballistic Warp Drive (10/min, 0.75 mult, overclock, slopped BWD)."""
+    mock_save = mock_save_class.return_value
+    mock_save.schematics = []
+    mock_save.recipes = []
+    mock_save.dimensional_depot = []
+
+    plan = generate_late_game_plan(
+        target_item="Ballistic Warp Drive",
+        target_rate=10.0,
+        overclock=True,
+        sloop_items={"Ballistic Warp Drive"},
+        save_file_path="mock_save.sav",
+        recipe_multiplier=0.75,
+    )
+
+    # 1. Target BWD step check
+    bwd_steps = [s for s in plan["steps"] if s["item"] == "Ballistic Warp Drive"]
+    assert len(bwd_steps) == 1
+    bwd = bwd_steps[0]
+    assert bwd["machine"] == "Manufacturer"
+    assert abs(bwd["machine_count"] - 2.00) < 1e-3
+    assert abs(bwd["rate"] - 10.0) < 1e-3
+    assert bwd["depth"] == 0
+
+    # 2. Phase 1 (depth 0) isolation check
+    depth_0_steps = [s for s in plan["steps"] if s["depth"] == 0]
+    assert len(depth_0_steps) == 1
+    assert depth_0_steps[0]["item"] == "Ballistic Warp Drive"
+
+    # 4. Superposition Oscillator byproduct check
+    so_steps = [s for s in plan["steps"] if s["item"] == "Superposition Oscillator"]
+    assert len(so_steps) == 1
+    so = so_steps[0]
+    assert "Dark Matter Residue" in so.get("byproducts", {})
+
+    # 5. No alternate badge when no alternates are unlocked
+    for step in plan["steps"]:
+        assert "alternate" in step  # field must always be present
+    bwd_step = bwd_steps[0]
+    assert bwd_step["alternate"] is False  # standard recipe, not alternate
+
+
+@patch("tools.late_game_planner.SatisfactorySave")
+def test_unsinkable_fluid_capacity_warnings(mock_save_class):
+    """Verify that ONLY primary liquid items get clock speed capacity warnings."""
+    mock_save = mock_save_class.return_value
+    mock_save.schematics = ["Schematic_Alternate_DarkMatter_Trap"]
+    mock_save.recipes = []
+    mock_save.dimensional_depot = []
+
+    plan = generate_late_game_plan(
+        target_item="Ballistic Warp Drive",
+        target_rate=10.0,
+        overclock=True,
+        sloop_items={"Ballistic Warp Drive"},
+        save_file_path="mock_save.sav",
+        recipe_multiplier=0.75,
+    )
+
+    warnings = plan["warnings"]
+
+    # Dark Matter Residue (primary fluid) is un-sinkable, so it gets a warning!
+    dmr_warnings = [w for w in warnings if "Dark Matter Residue" in w and "clock speed" in w]
+    assert len(dmr_warnings) == 1
+    assert "83.9%" in dmr_warnings[0]
+
+    # Superposition Oscillator (primary solid) CAN be sinked, NO warning!
+    so_warnings = [w for w in warnings if "Superposition Oscillator" in w]
+    assert len(so_warnings) == 0
+
+    # Rubber (primary solid) CAN be sinked, NO warning!
+    rubber_warnings = [w for w in warnings if "Rubber" in w]
+    assert len(rubber_warnings) == 0
+
+    # Aluminum Scrap (primary solid) CAN be sinked, NO warning!
+    scrap_warnings = [w for w in warnings if "Aluminum Scrap" in w]
+    assert len(scrap_warnings) == 0

@@ -30,6 +30,10 @@ import socket
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
+from opentelemetry import _logs as otel_logs
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from temporalio.client import Client
 from temporalio.worker import Worker
 
@@ -38,6 +42,20 @@ from utils import config as cfg
 from utils import logger as log
 
 _logger = logging.getLogger(__name__)
+
+
+def setup_opentelemetry() -> None:
+    try:
+        otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "172.28.125.187:4317")
+        log_provider = LoggerProvider()
+        otel_logs.set_logger_provider(log_provider)
+        exporter = OTLPLogExporter(endpoint=otlp_endpoint, insecure=True)
+        log_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+        otel_handler = LoggingHandler(level=logging.INFO, logger_provider=log_provider)
+        logging.getLogger().addHandler(otel_handler)
+        _logger.info("OpenTelemetry OTLP log exporter active for satisfactory-ai (endpoint: %s)", otlp_endpoint)
+    except Exception as exc:
+        _logger.debug("OTLP logging setup skipped: %s", exc)
 
 
 def _is_fail_safe_key(key, configured_key_str: str) -> bool:
@@ -127,8 +145,9 @@ def start_fail_safe_listener(client: Client, loop: asyncio.AbstractEventLoop) ->
 
 async def main() -> None:
     log.setup(cfg.get("logging.level", "INFO"))
+    setup_opentelemetry()
 
-    address   = os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233")
+    address = os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233")
     namespace = os.environ.get("TEMPORAL_NAMESPACE") or cfg.get("temporal.namespace", "default")
     task_queue = cfg.get("temporal.task_queue", "satisfactory-bot")
 

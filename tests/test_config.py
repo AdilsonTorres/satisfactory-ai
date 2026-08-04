@@ -14,7 +14,7 @@ def test_config_load():
 def test_config_get_existing():
     # Test getting standard values
     addr = config.get("temporal.address")
-    assert addr == "localhost:7233"
+    assert addr == "172.28.125.187:7233"
 
     tq = config.get("temporal.task_queue")
     assert tq == "satisfactory-bot"

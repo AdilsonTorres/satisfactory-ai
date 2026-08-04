@@ -205,10 +205,11 @@ def test_plan_comparison_cli_vs_web(dashboard_server):
             row = ui_step_rows.nth(i)
             cells = row.locator("td")
             item_name = cells.nth(0).text_content().replace("[LOCKED]", "").strip()
-            recipe_name = cells.nth(1).text_content().strip()
+            # recipe cell may contain " ALT" badge and byproduct warning text — strip both
+            raw_recipe = cells.nth(1).text_content().strip()
+            clean_recipe = raw_recipe.replace(" ALT", "").split("⚠")[0].strip()
             rate_text = cells.nth(3).text_content().replace("/min", "").strip()
-
-            ui_steps.append({"item": item_name, "recipe_name": recipe_name, "rate": float(rate_text)})
+            ui_steps.append({"item": item_name, "recipe_name": clean_recipe, "rate": float(rate_text)})
 
         assert len(plan["steps"]) == len(ui_steps)
         for expected_step in plan["steps"]:

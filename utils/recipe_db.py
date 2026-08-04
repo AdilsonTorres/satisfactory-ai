@@ -875,7 +875,7 @@ RECIPES: dict[str, dict[str, dict]] = {
     "Dark Matter Crystal": {
         "default": {
             "name": "Dark Matter Crystal",
-            "machine": "Particle Accelerator",
+            "machine": "Converter",
             "inputs": {"Diamond": 30.0, "Dark Matter Residue": 150.0},
             "outputs": {"Dark Matter Crystal": 30.0},
             "alternate": False,
@@ -1195,7 +1195,7 @@ RECIPES: dict[str, dict[str, dict]] = {
                 "Iron Plate": 100.0,
                 "Concrete": 200.0,
             },
-            "outputs": {"Singularity Cell": 1.0},
+            "outputs": {"Singularity Cell": 10.0},
             "alternate": False,
             "schematic": None,
         },
@@ -1208,7 +1208,7 @@ RECIPES: dict[str, dict[str, dict]] = {
                 "Iron Plate": 100.0,
                 "Concrete": 200.0,
             },
-            "outputs": {"Singularity Cell": 1.0},
+            "outputs": {"Singularity Cell": 10.0},
             "alternate": False,
             "schematic": None,
         },
@@ -1329,37 +1329,29 @@ RECIPES: dict[str, dict[str, dict]] = {
     },
     "Ballistic Warp Drive": {
         "default": {
-            # Quantum Encoder, 60s cycle → 1 unit (1/min)
+            # Manufacturer, 60s cycle → 1 unit (1/min)
             "name": "Ballistic Warp Drive",
-            "machine": "Quantum Encoder",
+            "machine": "Manufacturer",
             "inputs": {
                 "Thermal Propulsion Rocket": 1.0,
                 "Singularity Cell": 5.0,
                 "Superposition Oscillator": 2.0,
                 "Dark Matter Crystal": 40.0,
-                "Excited Photonic Matter": 250.0,
             },
-            "outputs": {
-                "Ballistic Warp Drive": 1.0,
-                "Dark Matter Residue": 250.0,
-            },
+            "outputs": {"Ballistic Warp Drive": 1.0},
             "alternate": False,
             "schematic": None,
         },
         "best": {
             "name": "Ballistic Warp Drive",
-            "machine": "Quantum Encoder",
+            "machine": "Manufacturer",
             "inputs": {
                 "Thermal Propulsion Rocket": 1.0,
                 "Singularity Cell": 5.0,
                 "Superposition Oscillator": 2.0,
                 "Dark Matter Crystal": 40.0,
-                "Excited Photonic Matter": 250.0,
             },
-            "outputs": {
-                "Ballistic Warp Drive": 1.0,
-                "Dark Matter Residue": 250.0,
-            },
+            "outputs": {"Ballistic Warp Drive": 1.0},
             "alternate": False,
             "schematic": None,
         },

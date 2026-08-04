@@ -37,9 +37,9 @@ _logger = logging.getLogger(__name__)
 async def main() -> None:
     log.setup(cfg.get("logging.level", "INFO"))
 
-    address   = os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233")
+    address = os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233")
     namespace = os.environ.get("TEMPORAL_NAMESPACE") or cfg.get("temporal.namespace", "default")
-    wf_queue  = cfg.get("temporal.task_queue", "satisfactory-bot")
+    wf_queue = cfg.get("temporal.task_queue", "satisfactory-bot")
     persist_queue = cfg.get("temporal.persist_task_queue", "satisfactory-persist")
 
     # Retry connecting: in compose this container often starts before the
