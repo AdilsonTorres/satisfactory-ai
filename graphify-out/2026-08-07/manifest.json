@@ -1,0 +1,442 @@
+{
+  "activities/__init__.py": {
+    "mtime": 1785873724.6490993,
+    "ast_hash": "ca2703c606be4913574a00f552e0663f",
+    "semantic_hash": "ca2703c606be4913574a00f552e0663f"
+  },
+  "activities/_shared.py": {
+    "mtime": 1785873868.43903,
+    "ast_hash": "4a091c7c50f543a800676ac83118e695",
+    "semantic_hash": "4a091c7c50f543a800676ac83118e695"
+  },
+  "activities/combat.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "d4c20c5d76b8b227b9ba80eaad6be69f",
+    "semantic_hash": "d4c20c5d76b8b227b9ba80eaad6be69f"
+  },
+  "activities/control.py": {
+    "mtime": 1785280523.1933742,
+    "ast_hash": "3508445bac3329b39368f8282f501468",
+    "semantic_hash": "3508445bac3329b39368f8282f501468"
+  },
+  "activities/crafting.py": {
+    "mtime": 1785280523.1934402,
+    "ast_hash": "f0a2e71e8b58f559585737af7552b1dc",
+    "semantic_hash": "f0a2e71e8b58f559585737af7552b1dc"
+  },
+  "activities/diagnostics.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "55e0fd588936569501aac6057920625c",
+    "semantic_hash": "55e0fd588936569501aac6057920625c"
+  },
+  "activities/exploration.py": {
+    "mtime": 1785873724.6471388,
+    "ast_hash": "c5729833f99b421dd2b59758472db8fa",
+    "semantic_hash": "c5729833f99b421dd2b59758472db8fa"
+  },
+  "activities/inventory.py": {
+    "mtime": 1785872597.5012898,
+    "ast_hash": "bb27360e9cfda8665b1069b84b797d57",
+    "semantic_hash": "bb27360e9cfda8665b1069b84b797d57"
+  },
+  "activities/lifecycle.py": {
+    "mtime": 1785280523.194804,
+    "ast_hash": "9984c7f263207e4da7dcdd5cf0a00c5e",
+    "semantic_hash": "9984c7f263207e4da7dcdd5cf0a00c5e"
+  },
+  "activities/navigation.py": {
+    "mtime": 1785280523.194804,
+    "ast_hash": "db50fbc04233cb9973fe2c913f3aa881",
+    "semantic_hash": "db50fbc04233cb9973fe2c913f3aa881"
+  },
+  "activities/records.py": {
+    "mtime": 1785873724.6451387,
+    "ast_hash": "6b64cabdab965b10213fb9bb8fc87283",
+    "semantic_hash": "6b64cabdab965b10213fb9bb8fc87283"
+  },
+  "gift_farm_ctl.py": {
+    "mtime": 1785280523.196804,
+    "ast_hash": "dc051225c3a167b7ea9fcda47ce410e6",
+    "semantic_hash": "dc051225c3a167b7ea9fcda47ce410e6"
+  },
+  "pyproject.toml": {
+    "mtime": 1785873192.391505,
+    "ast_hash": "5d60c71fe954454b758916b784aa3c0a",
+    "semantic_hash": "5d60c71fe954454b758916b784aa3c0a"
+  },
+  "schedule_gift_farm.py": {
+    "mtime": 1785872546.5853205,
+    "ast_hash": "507cb9347fcd2ac260c3a10f05465107",
+    "semantic_hash": "507cb9347fcd2ac260c3a10f05465107"
+  },
+  "tests/test_additional_workflows.py": {
+    "mtime": 1785872605.240616,
+    "ast_hash": "df6154e233b8694fff40e055741c8af4",
+    "semantic_hash": "df6154e233b8694fff40e055741c8af4"
+  },
+  "tests/test_alternate_advisor.py": {
+    "mtime": 1785872605.2576163,
+    "ast_hash": "e5cccc72f6eb19b4521ca0129a1e1e95",
+    "semantic_hash": "e5cccc72f6eb19b4521ca0129a1e1e95"
+  },
+  "tests/test_cli_ext.py": {
+    "mtime": 1785873724.6521387,
+    "ast_hash": "37519c44f90c565354bf7fbe1b9e446e",
+    "semantic_hash": "37519c44f90c565354bf7fbe1b9e446e"
+  },
+  "tests/test_config.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "2dd55b20856c4ce7b84e422706658a9a",
+    "semantic_hash": "2dd55b20856c4ce7b84e422706658a9a"
+  },
+  "tests/test_depot_and_gift_workflows.py": {
+    "mtime": 1785872605.417617,
+    "ast_hash": "5252c51b08300d3358ec082fdb518e5b",
+    "semantic_hash": "5252c51b08300d3358ec082fdb518e5b"
+  },
+  "tests/test_doggo_position.py": {
+    "mtime": 1785873868.43903,
+    "ast_hash": "cc1ba0e5687c423332d514e63cf8da4c",
+    "semantic_hash": "cc1ba0e5687c423332d514e63cf8da4c"
+  },
+  "tests/test_exploration.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "7a05235205339b1ccb73ca82de67a5d7",
+    "semantic_hash": "7a05235205339b1ccb73ca82de67a5d7"
+  },
+  "tests/test_factory_planner.py": {
+    "mtime": 1785872605.4776173,
+    "ast_hash": "ea3d93baa611eaa510b5095ae70006a0",
+    "semantic_hash": "ea3d93baa611eaa510b5095ae70006a0"
+  },
+  "tests/test_gameplay_plan.py": {
+    "mtime": 1785873724.6471388,
+    "ast_hash": "26787faaf721a5df3b71fde2782871ad",
+    "semantic_hash": "26787faaf721a5df3b71fde2782871ad"
+  },
+  "tests/test_gift_db.py": {
+    "mtime": 1785873904.3362532,
+    "ast_hash": "b238a10e6227bd5d66828fdc52dde013",
+    "semantic_hash": "b238a10e6227bd5d66828fdc52dde013"
+  },
+  "tests/test_input.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "3b5500d06aba29d230fc27721be1a8a8",
+    "semantic_hash": "3b5500d06aba29d230fc27721be1a8a8"
+  },
+  "tests/test_late_game_planner.py": {
+    "mtime": 1785872605.601618,
+    "ast_hash": "c1e544e1be7d903a3726e0eb6be5be21",
+    "semantic_hash": "c1e544e1be7d903a3726e0eb6be5be21"
+  },
+  "tests/test_playwright_dashboard.py": {
+    "mtime": 1785873917.618336,
+    "ast_hash": "c8d7162b4fcb9621b2b4b5d6bc1021aa",
+    "semantic_hash": "c8d7162b4fcb9621b2b4b5d6bc1021aa"
+  },
+  "tests/test_recipe_db.py": {
+    "mtime": 1785872605.7036185,
+    "ast_hash": "6b2047de7254811070ef23c0ec345c32",
+    "semantic_hash": "6b2047de7254811070ef23c0ec345c32"
+  },
+  "tests/test_save_parser.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "7f7053944c2ca0435eb379e8692abff6",
+    "semantic_hash": "7f7053944c2ca0435eb379e8692abff6"
+  },
+  "tests/test_temporal_workflows.py": {
+    "mtime": 1785872605.8716192,
+    "ast_hash": "322369f2b81385c14c54de62795fd930",
+    "semantic_hash": "322369f2b81385c14c54de62795fd930"
+  },
+  "tests/test_utils.py": {
+    "mtime": 1785873724.6471388,
+    "ast_hash": "876ddabf966a1717e20cc3e16b06060b",
+    "semantic_hash": "876ddabf966a1717e20cc3e16b06060b"
+  },
+  "tests/test_vision.py": {
+    "mtime": 1785873859.559975,
+    "ast_hash": "c13fdf1b5730ca7af3fe4ceba2db2838",
+    "semantic_hash": "c13fdf1b5730ca7af3fe4ceba2db2838"
+  },
+  "tests/test_worker_failsafe.py": {
+    "mtime": 1785872605.8946195,
+    "ast_hash": "9b3b4b843d9b506391a742ab88de45db",
+    "semantic_hash": "9b3b4b843d9b506391a742ab88de45db"
+  },
+  "tools/__init__.py": {
+    "mtime": 1785280523.2018812,
+    "ast_hash": "c7e5ac8d6c9c7686b459ff2a2581e079",
+    "semantic_hash": "c7e5ac8d6c9c7686b459ff2a2581e079"
+  },
+  "tools/apply_manual_labels.py": {
+    "mtime": 1785873724.6490142,
+    "ast_hash": "07c821259650143550b5261f045b29af",
+    "semantic_hash": "07c821259650143550b5261f045b29af"
+  },
+  "tools/calibrate_and_travel.py": {
+    "mtime": 1785873868.43903,
+    "ast_hash": "76aa16b76903d3a7a8ed71ae6e264a0f",
+    "semantic_hash": "76aa16b76903d3a7a8ed71ae6e264a0f"
+  },
+  "tools/capture_template.py": {
+    "mtime": 1785280523.2018812,
+    "ast_hash": "035c8fb046beef8e1e8917e98469ddea",
+    "semantic_hash": "035c8fb046beef8e1e8917e98469ddea"
+  },
+  "tools/classify_gifts.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "e33b71aec1e7963094ada1f4a562b9a5",
+    "semantic_hash": "e33b71aec1e7963094ada1f4a562b9a5"
+  },
+  "tools/cli.py": {
+    "mtime": 1785873724.6541388,
+    "ast_hash": "bbd21527742d1d3c83c08d6a903ddc06",
+    "semantic_hash": "bbd21527742d1d3c83c08d6a903ddc06"
+  },
+  "tools/dashboard.py": {
+    "mtime": 1785873056.3528798,
+    "ast_hash": "1917535a3c24e2acf091ccecf26e8a10",
+    "semantic_hash": "1917535a3c24e2acf091ccecf26e8a10"
+  },
+  "tools/debug_run.py": {
+    "mtime": 1785872546.588759,
+    "ast_hash": "2ff5e3e80c18afc86edaba735bbdac77",
+    "semantic_hash": "2ff5e3e80c18afc86edaba735bbdac77"
+  },
+  "tools/factory_planner.py": {
+    "mtime": 1785873724.5983627,
+    "ast_hash": "78ee3f8230d6348f0c1adadd0c26034f",
+    "semantic_hash": "78ee3f8230d6348f0c1adadd0c26034f"
+  },
+  "tools/fly_calibrate.py": {
+    "mtime": 1785873868.43903,
+    "ast_hash": "a1754e9337307bb60d8fc891ab0cb1c3",
+    "semantic_hash": "a1754e9337307bb60d8fc891ab0cb1c3"
+  },
+  "tools/gauge_record.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "061c72199b62160dbd28af9eb53667b3",
+    "semantic_hash": "061c72199b62160dbd28af9eb53667b3"
+  },
+  "tools/label_captures.py": {
+    "mtime": 1785873868.44003,
+    "ast_hash": "496d82933930a052ce03baf6ca32a181",
+    "semantic_hash": "496d82933930a052ce03baf6ca32a181"
+  },
+  "tools/late_game_planner.py": {
+    "mtime": 1785873724.6011384,
+    "ast_hash": "8f169678e79a450e187abd688d132b52",
+    "semantic_hash": "8f169678e79a450e187abd688d132b52"
+  },
+  "tools/map_power.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "7135acadd2a1687b176a51ad4e6b67b7",
+    "semantic_hash": "7135acadd2a1687b176a51ad4e6b67b7"
+  },
+  "tools/passive_capture.py": {
+    "mtime": 1785280523.2050312,
+    "ast_hash": "8d19df00510257dbcbb9a5c57def66d2",
+    "semantic_hash": "8d19df00510257dbcbb9a5c57def66d2"
+  },
+  "trigger_calibration.py": {
+    "mtime": 1785873724.6451387,
+    "ast_hash": "b1fa91390dcbe2b187e5dc5dea8bf315",
+    "semantic_hash": "b1fa91390dcbe2b187e5dc5dea8bf315"
+  },
+  "trigger_depot_coal.py": {
+    "mtime": 1785873724.6451387,
+    "ast_hash": "ad03cd295b3b3fa870a8cfce98ad2e4a",
+    "semantic_hash": "ad03cd295b3b3fa870a8cfce98ad2e4a"
+  },
+  "trigger_exploration.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "d2a77e3626044243fb030dab127a1e99",
+    "semantic_hash": "d2a77e3626044243fb030dab127a1e99"
+  },
+  "trigger_gift_farm.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "63ea00ab55e7fb4b30faf61fc4ea6758",
+    "semantic_hash": "63ea00ab55e7fb4b30faf61fc4ea6758"
+  },
+  "utils/__init__.py": {
+    "mtime": 1785280523.205804,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "utils/alternate_advisor.py": {
+    "mtime": 1785872546.5893207,
+    "ast_hash": "fa8a8e21b836d8268c5eca9b6293ac18",
+    "semantic_hash": "fa8a8e21b836d8268c5eca9b6293ac18"
+  },
+  "utils/config.py": {
+    "mtime": 1785872597.498629,
+    "ast_hash": "37f8d3c638626dbd1924c57f932caf01",
+    "semantic_hash": "37f8d3c638626dbd1924c57f932caf01"
+  },
+  "utils/exceptions.py": {
+    "mtime": 1785872607.1076257,
+    "ast_hash": "706bc6ddab011115a3a10e4a7bee8cf2",
+    "semantic_hash": "706bc6ddab011115a3a10e4a7bee8cf2"
+  },
+  "utils/gameplay_plan.py": {
+    "mtime": 1785872546.5903206,
+    "ast_hash": "f09a1f8e6158aef3e56dd9b10d0926f7",
+    "semantic_hash": "f09a1f8e6158aef3e56dd9b10d0926f7"
+  },
+  "utils/gift_db.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "e12793a67a4746b85542187c9ce621dc",
+    "semantic_hash": "e12793a67a4746b85542187c9ce621dc"
+  },
+  "utils/input.py": {
+    "mtime": 1785873868.44003,
+    "ast_hash": "8936671ab5e546c5c4fe1de52806475b",
+    "semantic_hash": "8936671ab5e546c5c4fe1de52806475b"
+  },
+  "utils/logger.py": {
+    "mtime": 1785280523.2088041,
+    "ast_hash": "0048a6314363ea44f0ec55af7f5cf107",
+    "semantic_hash": "0048a6314363ea44f0ec55af7f5cf107"
+  },
+  "utils/recipe_db.py": {
+    "mtime": 1785872671.8049614,
+    "ast_hash": "7891aecd8797a95668059088841b92de",
+    "semantic_hash": "7891aecd8797a95668059088841b92de"
+  },
+  "utils/save_parser.py": {
+    "mtime": 1785873724.6021385,
+    "ast_hash": "8453c72d2d886c5be3c24117e75f1e99",
+    "semantic_hash": "8453c72d2d886c5be3c24117e75f1e99"
+  },
+  "utils/screenshot.py": {
+    "mtime": 1785872546.5917706,
+    "ast_hash": "88f819423e269ce31653d0b066f3ae82",
+    "semantic_hash": "88f819423e269ce31653d0b066f3ae82"
+  },
+  "utils/stats.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "5b622834ef9cd881dd891e65a1eead81",
+    "semantic_hash": "5b622834ef9cd881dd891e65a1eead81"
+  },
+  "utils/vision.py": {
+    "mtime": 1785873724.6511924,
+    "ast_hash": "a6c94a108d710d6dc916568b8bdd2dc9",
+    "semantic_hash": "a6c94a108d710d6dc916568b8bdd2dc9"
+  },
+  "workers/__init__.py": {
+    "mtime": 1785280523.209804,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "workers/orchestrator.py": {
+    "mtime": 1785866206.903802,
+    "ast_hash": "1beb5b136470ea2e6d99c2b213ea19fc",
+    "semantic_hash": "1beb5b136470ea2e6d99c2b213ea19fc"
+  },
+  "workers/worker.py": {
+    "mtime": 1785873868.43903,
+    "ast_hash": "c271cec0b86d3ad8f1395a15eb8c253d",
+    "semantic_hash": "c271cec0b86d3ad8f1395a15eb8c253d"
+  },
+  "workflows/__init__.py": {
+    "mtime": 1785280523.2104952,
+    "ast_hash": "3303a034e8261d0a27bcc7b9b294e685",
+    "semantic_hash": "3303a034e8261d0a27bcc7b9b294e685"
+  },
+  "workflows/_base.py": {
+    "mtime": 1785873724.6461387,
+    "ast_hash": "04b1b74c141d5c7712d560c6845bea04",
+    "semantic_hash": "04b1b74c141d5c7712d560c6845bea04"
+  },
+  "workflows/afk_session.py": {
+    "mtime": 1785873724.6490142,
+    "ast_hash": "21ea3393b0e32e59fe2f7b33ce0ccdfc",
+    "semantic_hash": "21ea3393b0e32e59fe2f7b33ce0ccdfc"
+  },
+  "workflows/combat_expedition.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "3cb8747a0ac655c6752a1aa1658c1361",
+    "semantic_hash": "3cb8747a0ac655c6752a1aa1658c1361"
+  },
+  "workflows/combat_patrol.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "802e432d6d67e22976c77c93b720ff66",
+    "semantic_hash": "802e432d6d67e22976c77c93b720ff66"
+  },
+  "workflows/control.py": {
+    "mtime": 1785280523.2108042,
+    "ast_hash": "17370f23c68e14422dce376ddc4eebdb",
+    "semantic_hash": "17370f23c68e14422dce376ddc4eebdb"
+  },
+  "workflows/depot_coal.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "929addc1e10c053ba4354d1ad62fef86",
+    "semantic_hash": "929addc1e10c053ba4354d1ad62fef86"
+  },
+  "workflows/exploration.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "9fc7461d8164bb752498feeee91f1155",
+    "semantic_hash": "9fc7461d8164bb752498feeee91f1155"
+  },
+  "workflows/gift_farm.py": {
+    "mtime": 1785872597.5033424,
+    "ast_hash": "1c70311d720481823fd88b3166c00bb9",
+    "semantic_hash": "1c70311d720481823fd88b3166c00bb9"
+  },
+  "workflows/resource_harvest.py": {
+    "mtime": 1785873724.6471388,
+    "ast_hash": "83ceadd2a259e0ee62af2bee9c06633e",
+    "semantic_hash": "83ceadd2a259e0ee62af2bee9c06633e"
+  },
+  "workflows/tame_doggo.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "afe7338122d80988fb116165da719cb9",
+    "semantic_hash": "afe7338122d80988fb116165da719cb9"
+  },
+  "workflows/template_orchestration.py": {
+    "mtime": 1785873724.649173,
+    "ast_hash": "d1257c4992afe8981b658db619e34efd",
+    "semantic_hash": "d1257c4992afe8981b658db619e34efd"
+  },
+  "GEMINI.md": {
+    "mtime": 1785866946.3705206,
+    "ast_hash": "4dfbdfa60d5c5ffc307743dc76645e06",
+    "semantic_hash": "4dfbdfa60d5c5ffc307743dc76645e06"
+  },
+  "README.md": {
+    "mtime": 1785280523.1974902,
+    "ast_hash": "1938b20e069b5fc0cb3cc119015ede5b",
+    "semantic_hash": "1938b20e069b5fc0cb3cc119015ede5b"
+  },
+  "docker-compose.yml": {
+    "mtime": 1785347671.838863,
+    "ast_hash": "8c915324bf154af4f29c9c8b34b19783",
+    "semantic_hash": "8c915324bf154af4f29c9c8b34b19783"
+  },
+  "docs/deploy.md": {
+    "mtime": 1785280523.1959934,
+    "ast_hash": "67cbecfcd034daeb48ba2bb8a6331b5c",
+    "semantic_hash": "67cbecfcd034daeb48ba2bb8a6331b5c"
+  },
+  "docs/game_design_guides.md": {
+    "mtime": 1785280523.1959934,
+    "ast_hash": "b5a09cb3610d16d139f494263c937945",
+    "semantic_hash": "b5a09cb3610d16d139f494263c937945"
+  },
+  "docs/hidden_items_and_secrets.md": {
+    "mtime": 1785280523.1959934,
+    "ast_hash": "194055794827f289fa56bf295ccb35cd",
+    "semantic_hash": "194055794827f289fa56bf295ccb35cd"
+  },
+  "docs/save_parser_specification.md": {
+    "mtime": 1785280523.1959934,
+    "ast_hash": "0850e11d51c1e140947a767764530881",
+    "semantic_hash": "0850e11d51c1e140947a767764530881"
+  },
+  "docs/unlabeled_gifts.md": {
+    "mtime": 1785280523.1959934,
+    "ast_hash": "474d58f9bf928993c0a338f97229fe65",
+    "semantic_hash": "474d58f9bf928993c0a338f97229fe65"
+  }
+}
