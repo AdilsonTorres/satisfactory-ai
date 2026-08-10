@@ -17,6 +17,7 @@
 
 services:
   worker:
+    mem_limit: 512m
     build: .
     container_name: satisfactory-worker
     restart: unless-stopped
