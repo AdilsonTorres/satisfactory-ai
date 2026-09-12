@@ -1,0 +1,12 @@
+[automation]
+allow-platform-upgrades = true
+
+[platform.validation]
+commands = [
+    "git diff --check",
+    "if [ -f pyproject.toml ] && [ -f uv.lock ]; then uv lock --check; fi",
+    "if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ]; then echo 'Use compose.yaml, not docker-compose.yml/.yaml' >&2; exit 1; fi",
+    "if [ -f compose.yaml ]; then docker compose config --quiet; fi",
+    "if [ -d tests ]; then uv run pytest -m 'not e2e'; fi",
+]
+
