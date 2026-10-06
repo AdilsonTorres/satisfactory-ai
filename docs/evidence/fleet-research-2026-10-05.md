@@ -2,6 +2,11 @@
 
 Local research on my-scorpion and pc-home. Scope: existing source/roadmaps, live checkup and primary upstream documentation. Base source: `a7edc4df`; branch: `research/fleet-2026-10-05`. This is not pushed fleet truth and does not certify the older deployed release.
 
+Superseded source assumptions: [2026-10-06 critical-path review](source-contracts-2026-10-06.md)
+confirmed the shared cluster and project namespace are already configured; no
+localhost port conflict or required cluster migration was demonstrated. The
+older SAT-101 placement hypothesis below is historical, not current guidance.
+
 ## Current evidence and boundaries
 
 pc-home-only X11/Xwayland AFK bot, no LLM; 3 existing local commits and 6 dirty generated files are unrelated and preserved.

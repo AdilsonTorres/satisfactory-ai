@@ -18,7 +18,7 @@ Usage:
 
 import argparse
 import sys
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -285,14 +285,32 @@ def _run_trigger(args: argparse.Namespace, parser: argparse.ArgumentParser) -> N
         parser.print_help()
 
 
+class _TemporalConnectionOptions(TypedDict):
+    target_host: str
+    namespace: str
+
+
+def _temporal_connection_options() -> _TemporalConnectionOptions:
+    """Use the workers' environment overrides and project-owned namespace."""
+    import os
+
+    from utils import config as cfg
+
+    return {
+        "target_host": os.environ.get("TEMPORAL_ADDRESS") or cfg.get("temporal.address", "localhost:7233"),
+        "namespace": os.environ.get("TEMPORAL_NAMESPACE") or cfg.get("temporal.namespace", "satisfactory-ai"),
+    }
+
+
 async def _trigger_calibration(args: argparse.Namespace) -> None:
     import json
 
     from temporalio.client import Client
 
+    from utils import config as cfg
     from workflows.template_orchestration import TemplateOrchestrationWorkflow
 
-    client = await Client.connect("localhost:7233")
+    client = await Client.connect(**_temporal_connection_options())
     print(
         f"Connected. Starting TemplateOrchestrationWorkflow(target='{args.target}', resolution='{args.resolution}')..."
     )
@@ -301,7 +319,7 @@ async def _trigger_calibration(args: argparse.Namespace) -> None:
         TemplateOrchestrationWorkflow.run,
         args=[args.target, args.resolution],
         id="calibration-workflow-run",
-        task_queue="satisfactory-bot",
+        task_queue=cfg.get("temporal.task_queue", "satisfactory-bot"),
     )
     print("\n=== Workflow completed! Results: ===")
     print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -312,9 +330,10 @@ async def _trigger_exploration(args: argparse.Namespace) -> None:
 
     from temporalio.client import Client
 
+    from utils import config as cfg
     from workflows.exploration import ExplorationWorkflow
 
-    client = await Client.connect("localhost:7233")
+    client = await Client.connect(**_temporal_connection_options())
     print(
         f"Connected. Starting ExplorationWorkflow(id={args.id}, max_seconds={args.max_seconds}, no_return={args.no_return})..."
     )
@@ -323,7 +342,7 @@ async def _trigger_exploration(args: argparse.Namespace) -> None:
         ExplorationWorkflow.run,
         args=[args.max_seconds, args.ignore_health, args.no_return],
         id=args.id,
-        task_queue="satisfactory-bot",
+        task_queue=cfg.get("temporal.task_queue", "satisfactory-bot"),
     )
     print("\n=== Workflow completed ===")
     print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -1625,11 +1644,10 @@ def _run_plan_late_game(args: argparse.Namespace) -> None:
 async def _run_status() -> None:
     from temporalio.client import Client
 
-    from utils import config as cfg
-
-    address = cfg.get("temporal.address", "localhost:7233")
+    options = _temporal_connection_options()
+    address = options["target_host"]
     try:
-        client = await Client.connect(address)
+        client = await Client.connect(**options)
     except Exception as exc:
         print(f"Error: Could not connect to Temporal at {address}: {exc}")
         sys.exit(1)

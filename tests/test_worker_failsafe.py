@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from workers.worker import _is_fail_safe_key
 
 
@@ -7,8 +9,7 @@ def test_is_fail_safe_key() -> None:
     try:
         from pynput import keyboard
     except ImportError:
-        # Skip if pynput is not available in the running environment
-        return
+        pytest.skip("pynput backend is unavailable; fail-safe key contract is unverified")
 
     # Test F12 matches
     assert _is_fail_safe_key(keyboard.Key.f12, "F12")

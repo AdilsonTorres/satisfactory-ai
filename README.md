@@ -12,11 +12,11 @@ Orchestration via Temporal for automatic retries, detailed execution history, an
 | Screen capture | `mss` | ~1ms per frame |
 | Visual detection | `opencv-python` | Template matching, zero training |
 | 3D Inputs | `pynput` + `evdev` (uinput) | Keyboard/click input via pynput (X11/Xwayland); a virtual `uinput` mouse for relative camera movement, since Proton/Wine ignores synthetic X11/XTest motion |
-| Window focus | `xdotool` | Finds and activates the game window automatically |
+| Window focus | KWin scripting + `xdotool` | Requests activation and reads back focus; not an atomic input lease |
 | OCR (inventory) | `pytesseract` | Visually reads item quantities in the inventory |
 | Orchestration | `temporalio` | Structured retries, flow control (pause/resume/stop), and persistence |
 | Packages | `uv` | Fast Python dependency management |
-| Temporal services | Docker Compose | PostgreSQL + Temporal Server + Temporal Web UI |
+| Temporal services | Shared personal cluster | Project namespace `satisfactory-ai`; Compose runs only the orchestrator worker |
 
 ---
 
@@ -50,18 +50,19 @@ Use `uv` to sync and create the virtual environment:
 uv sync
 ```
 
-### 3. Bring up the Temporal services
-Start the Temporal Server and PostgreSQL containers in the background:
+### 3. Connect to the shared Temporal cluster
+The private database/server/UI were retired. Confirm the configured shared
+cluster is available and the `satisfactory-ai` namespace exists before starting
+the orchestrator; this project does not create or migrate the shared cluster.
+On an owner-authorized deployment:
 ```bash
 docker compose up -d
-docker compose ps   # confirm all 3 services are healthy/running
+docker compose ps   # confirm the single worker service is running
 ```
 
-| Service | Port | Description |
-|---|---|---|
-| Temporal Server | 7233 | gRPC port the worker and client connect to |
-| Temporal UI | 8233 | Local web dashboard for debugging workflows (http://localhost:8233) |
-| PostgreSQL | (internal) | Stores workflow state and execution history |
+Address/namespace come from `config.toml` or `TEMPORAL_ADDRESS` and
+`TEMPORAL_NAMESPACE` overrides. See [deployment boundaries](docs/deploy.md).
+No local port 7233 or 8233 is supplied by this Compose file.
 
 ### 4. Create the templates
 The bot uses template images to make decisions on the game screen. Capture them with:
@@ -187,7 +188,10 @@ sbot dashboard --port 8080
 ```
 
 #### Unified Automation Stack Boot (`sbot start`)
-Boot up the entire stack—Docker Compose containers (PostgreSQL database & Temporal server), the local host worker daemon subprocess, and the gameplay dashboard server—in a single terminal command:
+Start the Compose orchestrator, local host worker subprocess and gameplay
+dashboard in one command. This sends real game input once activities run; use
+only in an authorized, focused desktop session. The shared Temporal server and
+database must already exist; `sbot start` does not launch them:
 ```bash
 sbot start --port 8080
 ```
@@ -358,7 +362,8 @@ Workflows automatically generate captures in relevant situations:
 - Missing respawn button: `respawn_not_found_TIMESTAMP.png`
 
 ### Temporal UI dashboard
-Open **http://localhost:8233** in your browser to:
+Open the shared cluster's owner-configured Temporal UI, selecting the
+`satisfactory-ai` namespace, to:
 - View a detailed timeline of activities.
 - Inspect the input and output parameters of each step.
 - Investigate detailed error logs and retry attempts of failed activities.
@@ -400,7 +405,7 @@ your base's layout.
   - `[exploration] ascend_every_chunks`/`ascend_pulse_seconds`: optional periodic short `space` taps interleaved with movement, for "stay as high as possible without leaving Hover Pack charge range" flight, instead of holding `space` continuously (which is harder to judge against the charge gauge).
 - **Blind navigation:** The bot uses fixed-duration key presses to walk. If the character collides with something or gets pushed by an enemy, the route can drift. Temporal handles this through the failed-activity retry flow.
 - **Mobile combat:** Target tracking is reactive and works best against slow enemies. Fast enemies (like agile Spitters) may require more ammo.
-- **Window focus on Wayland:** `focus_game()` uses `xdotool windowfocus`, which reports success but can't actually bring the game window to the foreground in native Wayland sessions (KWin's focus-stealing protection) — it only works if the game is already focused. Since the `uinput` virtual mouse sends input to whatever currently has focus (not to a specific window), **the Satisfactory window needs to stay in the foreground for the entire duration of a workflow run** — avoid switching to another window (ex: a terminal) while a workflow is running.
+- **Window focus on Wayland:** `focus_game()` uses KWin scripting first, `xdotool windowactivate` as fallback, and active-window readback. Recapture now raises on failed/lost focus and pairs its right-click release on exceptions. Other input paths still need the SAT-100 watchdog; readback is not an atomic compositor lease. Since `uinput` targets the foreground window, **keep Satisfactory focused for the entire workflow run** and do not treat the current F9 network-dependent stop path as a qualified one-second safety guarantee.
 - **Mouse-look (resolved via uinput):** `move_mouse_relative`/`aim_at_screen_position` rotate the camera through a virtual mouse created with `evdev`/`uinput` (`/dev/uinput`), no longer via `pynput`/X11-XTest. This was necessary because the game runs via Proton/Wine, and the game's Raw Input completely ignores synthetic relative motion injected via X11/XTest — even confirming that the real desktop cursor moves (tested with `Xlib.ext.xtest.fake_input(detail=True)`), the in-game camera didn't react. A `uinput` mouse shows up as a physical device to the kernel/`libinput`, and Wine/Proton reads Raw Input correctly from it. Requires `/dev/uinput` to have a `uaccess` ACL for the session user — on distros with default udev rules for KDE Connect, Steam Input, or antimicrox (`TAG+="uaccess"` on `uinput`), this already works with no extra setup; otherwise, a custom udev rule is needed.
 - **Hazard enemies (area damage):** The Nuclear Cliff Hog (radiation) and Elite Gas Stinger (poison gas) aren't engaged by the normal combat loop — the bot retreats (`retreat_from_hazard`) instead of trying to kill them, since the static aim-and-shoot isn't safe against area damage.
 - **Resource harvesting:** `ResourceHarvestWorkflow` doesn't navigate to the node — the player needs to manually position the character within interaction range before triggering the workflow.

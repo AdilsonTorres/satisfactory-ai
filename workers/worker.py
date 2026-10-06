@@ -1,4 +1,3 @@
-
 """
 workers/worker.py
 
@@ -11,7 +10,8 @@ the Dockerized orchestrator worker (workers/orchestrator.py) — Temporal
 routes workflow tasks and activity tasks independently, so both workers
 share one task queue without stepping on each other.
 
-Prerequisite: docker compose up -d   (temporal + orchestrator worker)
+Prerequisite: shared Temporal cluster available, then owner-authorized
+docker compose up -d (orchestrator worker only).
 
 How to run:
     uv run python workers/worker.py
@@ -23,6 +23,7 @@ Runtime workflow control:
     temporal workflow signal --workflow-id <id> --name stop
     temporal workflow query  --workflow-id <id> --query-type get_stats
 """
+
 import asyncio
 import logging
 import os

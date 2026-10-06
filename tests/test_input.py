@@ -95,7 +95,10 @@ def test_focus_game(mock_sleep) -> None:
 
 
 def test_ensure_game_input_ready(mock_sleep, mock_mouse, mock_cfg) -> None:
-    with patch("utils.input.focus_game", return_value=True):
+    with (
+        patch("utils.input.focus_game", return_value=True),
+        patch("utils.input._active_window_name", return_value="Satisfactory"),
+    ):
         assert input_module.ensure_game_input_ready() is True
         mock_mouse.press.assert_called()
         mock_mouse.release.assert_called()

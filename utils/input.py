@@ -1,4 +1,3 @@
-
 """
 utils/input.py
 Sends mouse/keyboard input to Satisfactory on Linux.
@@ -6,6 +5,7 @@ Uses separate virtual mouse and virtual keyboard devices via uinput (evdev)
 to bypass Proton and Wayland security filters.
 X11 (pynput) is still used only to query and move the desktop cursor position absolutely.
 """
+
 import atexit
 import os
 import subprocess
@@ -208,6 +208,10 @@ def focus_game(window_title: str = "Satisfactory", retries: int = 3) -> bool:
     return window_title in _active_window_name()
 
 
+class FocusNotReadyError(RuntimeError):
+    """Recapture was refused because game focus could not be verified."""
+
+
 def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
     """
     Restore the game's keyboard input path before sending keys.
@@ -226,8 +230,15 @@ def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
     we click twice — two clicks scored best (4/6 vs 1/6 for activate-only).
     It is still not 100%, so callers must verify the resulting UI and retry
     (see collect_doggo_gift / check_inventory_full).
+
+    Failed or lost focus raises instead of returning False: existing callers
+    do not consume the return value. Readback reduces accidental input but is
+    not an atomic compositor lease; this is not the full focus-loss watchdog.
     """
-    activated = focus_game(window_title)
+    if not focus_game(window_title):
+        raise FocusNotReadyError("Game focus could not be acquired")
+    if window_title not in _active_window_name():
+        raise FocusNotReadyError("Game focus was lost before cursor movement")
     sw = cfg.get("display.screen_width", 2560)
     sh = cfg.get("display.screen_height", 1440)
     mouse = _get_mouse()
@@ -237,11 +248,15 @@ def ensure_game_input_ready(window_title: str = "Satisfactory") -> bool:
     from pynput.mouse import Button
 
     for _ in range(2):
-        mouse.press(Button.right)
-        time.sleep(0.05)
-        mouse.release(Button.right)
+        if window_title not in _active_window_name():
+            raise FocusNotReadyError("Game focus was lost before recapture click")
+        try:
+            mouse.press(Button.right)
+            time.sleep(0.05)
+        finally:
+            mouse.release(Button.right)
         time.sleep(0.2)
-    return activated
+    return True
 
 
 def press(key: str, delay_after: float = 0.05) -> None:

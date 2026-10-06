@@ -16,10 +16,11 @@ graph TD
     subgraph Docker ["Docker Stack (Persistence & Orchestrator)"]
         Orchestrator[Orchestrator Worker] -->|Runs| Workflows[Loop / Orchestrator Workflows]
         Orchestrator -->|Runs| PersistActivities[DB / Save History Activities]
-        TemporalServer[Temporal Server 1.31.2] <-->|gRPC| Orchestrator
+    end
+    subgraph Shared ["Shared personal Temporal cluster; namespace satisfactory-ai"]
+        TemporalServer[Temporal Server] <-->|gRPC| Orchestrator
         TemporalServer <-->|gRPC| HostWorker
-        TemporalServer <-->|State DB| PostgreSQL[(PostgreSQL 18)]
-        TemporalUI[Temporal UI 2.52.1] -->|Inspects| TemporalServer
+        TemporalUI[Owner-configured Temporal UI] -->|Inspects| TemporalServer
     end
 ```
 
@@ -48,7 +49,9 @@ uv sync
 ```
 
 ### 3. Running the Stack
-Launch the database, migration pipeline, Temporal server, and local orchestrator worker:
+The Compose file runs only the orchestrator worker. The shared cluster and
+project namespace must already exist; do not create/migrate shared services here.
+Only on an owner-authorized deployment:
 ```bash
 docker compose up -d
 ```
@@ -84,8 +87,8 @@ uv run python workers/worker.py
         uv run mypy .
         ```
 3.  **Idempotent Schema Upgrades**:
-    *   Temporal migrations are managed via a decoupled `temporal-schema-setup` job using `temporalio/admin-tools`.
-    *   All database creations must be safe to re-run (e.g. `|| true` on schema initialization steps).
+    *   Shared Temporal schema/version migrations belong to `temporal-personal`, not this Compose project.
+    *   Do not hide database initialization errors with `|| true`; use explicit idempotent existence checks and fail on unexpected errors.
 4.  **Factory Planning & Fluid Protocols (CRITICAL)**:
     *   **Sinkable Outputs (Solids)**: Machines producing primary solid items (e.g. `Dark Matter Crystal`, `Superposition Oscillator`, `Rubber`) can and should be run at **100% building capacity (250% overclock)**. The excess production can be routed to the AWESOME Sink. The Dashboard UI will display `100.0%` utilization, and no capacity warnings should be emitted.
     *   **Un-sinkable Outputs (Liquids)**: Machines producing **only a liquid** as their primary output (e.g. `Dark Matter Residue` via Converter, `Alumina Solution`, `Water`) **cannot** be sinked. Running these at max capacity risks pipeline overflow and factory gridlock. These machines **MUST be strictly throttled** to their exact calculated target rate. A fractional `machine_count` results in an explicit clock-speed warning (e.g. `83.9% ⚠`), which the user must apply in-game.
